@@ -764,20 +764,48 @@ $("bookBtn").onclick = async () => {
    STAMMDATEN LADEN
 ----------------------------------------------------------------*/
 async function laden(){
-  if (!API_URL) return;
+  if (!API_URL){ zeigeStatus("Demo-Modus — keine API_URL eingetragen.", false); return; }
   try{
     const res = await fetch(API_URL);
-    const d = await res.json();
+    const text = await res.text();
+
+    let d;
+    try{ d = JSON.parse(text); }
+    catch(e){
+      // Kein JSON = Google hat eine HTML-Seite geschickt (Login oder Fehler)
+      throw new Error(/accounts\.google|Anmeldung|Sign in/i.test(text)
+        ? "Die Bereitstellung verlangt eine Anmeldung. In Apps Script: Bereitstellung bearbeiten → Zugriff auf „Jeder\" stellen."
+        : "Antwort war kein JSON. Öffne die /exec-URL direkt im Browser, dann siehst du die Meldung von Google.");
+    }
+    if (!d.ok) throw new Error(d.fehler || "Unbekannter Fehler im Apps Script.");
+    if (!d.artikel || !d.artikel.length) throw new Error("Tabelle geladen, aber kein Artikel im Blatt „Material\".");
+
     TRAINER  = d.trainer;
     SPORTLER = d.sportler;
-    LV       = d.lv || SPORTLER[0];
+    LV       = d.lv || "";
     ARTIKEL  = d.artikel;
     fillSelect($("trainer"), TRAINER, "wählen…");
     fillSelect($("athlete"), SPORTLER, "wählen…");
+    zeigeStatus("", true);
     render();
   }catch(e){
-    toast("Lager konnte nicht geladen werden — Demo-Daten aktiv");
+    zeigeStatus(e.message, false);
   }
+}
+
+/* Rote Leiste oben: lieber ein klarer Fehler als heimliche Demo-Daten. */
+function zeigeStatus(msg, ok){
+  let el = $("status");
+  if (!el){
+    el = document.createElement("div");
+    el.id = "status";
+    document.querySelector("main").prepend(el);
+  }
+  if (ok || !msg){ el.remove(); return; }
+  el.style.cssText =
+    "margin:16px 0 0;padding:12px 14px;border-radius:10px;font-size:14px;line-height:1.4;" +
+    "background:#FBE7EA;color:#8A0A1F;border:1px solid #C8102E";
+  el.innerHTML = "<b>Keine Verbindung zur Tabelle — es laufen Demo-Daten.</b><br>" + msg;
 }
 
 /* ---------------------------------------------------------------
