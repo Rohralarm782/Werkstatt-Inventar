@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Werkstatt-Lager · Materialbuchung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+  :root{
+    --paper:#F7F5F2;
+    --card:#FFFFFF;
+    --ink:#15181C;
+    --ink-2:#5C646E;
+    --line:#DDD9D3;
+    /* Bahn-Linien: Sprinterlinie rot, Steherlinie blau */
+    --sprint:#C8102E;
+    --steher:#1B4CA1;
+    --ok:#1F7A4C;
+    --warn:#B45309;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:Inter,system-ui,-apple-system,sans-serif;
+    font-size:16px;line-height:1.45;
+    padding-bottom:120px;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:0 16px}
+
+  /* ---------- Kopf: Job-Ticket ---------- */
+  header{
+    background:var(--ink);color:#fff;
+    padding:14px 0 0;
+    border-bottom:4px solid var(--sprint);
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;padding-bottom:12px}
+  .brand h1{
+    font-family:'Barlow Condensed',Impact,sans-serif;
+    font-weight:700;font-size:26px;letter-spacing:.04em;
+    text-transform:uppercase;margin:0;
+  }
+  .brand span{font-size:12px;color:#9AA3AD;letter-spacing:.08em;text-transform:uppercase}
+
+  .ticket{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    margin:-1px 0 0;
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+    overflow:hidden;
+  }
+  .ticket-row{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 14px;border-bottom:1px dashed var(--line);
+  }
+  .ticket-row:last-child{border-bottom:0}
+  .lbl{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:13px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-2);width:74px;flex:none;font-weight:600;
+  }
+  select{
+    flex:1;font-size:17px;font-weight:600;font-family:inherit;color:var(--ink);
+    border:0;background:transparent;padding:6px 0;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%235C646E' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right center;
+  }
+  select:focus{outline:2px solid var(--steher);outline-offset:3px;border-radius:4px}
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex;gap:8px;margin:18px 0 12px}
+  .tab{
+    flex:1;padding:13px 8px;border:1px solid var(--line);background:var(--card);
+    border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:600;
+    font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);
+    cursor:pointer;
+  }
+  .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tab:focus-visible{outline:2px solid var(--steher);outline-offset:2px}
+
+  /* ---------- Scanner ---------- */
+  .scanbox{
+    position:relative;background:#0E1114;border-radius:var(--radius);
+    aspect-ratio:4/3;overflow:hidden;display:flex;align-items:center;justify-content:center;
+  }
+  .scanbox video{width:100%;height:100%;object-fit:cover}
+  .reticle{
+    position:absolute;inset:18% 14%;border:2px solid rgba(255,255,255,.5);border-radius:8px;
+  }
+  .reticle::after{
+    content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:var(--sprint);
+    box-shadow:0 0 12px var(--sprint);
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .reticle::after{animation:sweep 2.4s ease-in-out infinite}
+    @keyframes sweep{0%,100%{top:8%}50%{top:92%}}
+  }
+  .scan-hint{color:#8B949E;font-size:14px;text-align:center;padding:24px;max-width:80%}
+
+  .demo-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+  .tile{
+    padding:12px 10px;border:1px dashed var(--line);background:var(--card);
+    border-radius:10px;text-align:left;cursor:pointer;font-family:inherit;font-size:14px;
+    font-weight:500;color:var(--ink);
+  }
+  .tile small{display:block;color:var(--ink-2);font-size:12px;font-weight:400}
+  .tile:active{background:#EFEDEA}
+
+  /* ---------- Liste ---------- */
+  .search{
+    width:100%;padding:13px 14px;font-size:16px;font-family:inherit;
+    border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:8px;
+  }
+  .item{
+    display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    padding:12px 14px;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;margin-bottom:6px;cursor:pointer;font-family:inherit;
+  }
+  .item:active{background:#EFEDEA}
+  .item:disabled{opacity:.45;cursor:not-allowed}
+  .item:disabled .plus{background:#C9C5C0}
+  .item-main{flex:1;min-width:0}
+  .item-name{font-weight:600;font-size:15px}
+  .item-meta{font-size:13px;color:var(--ink-2)}
+  .stock{
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
+    padding:3px 8px;border-radius:6px;background:#EAF3EE;color:var(--ok);white-space:nowrap;
+  }
+  .stock.low{background:#FDF0DF;color:var(--warn)}
+  .stock.out{background:#FBE7EA;color:var(--sprint)}
+  .plus{
+    width:36px;height:36px;flex:none;border-radius:50%;border:0;background:var(--ink);
+    color:#fff;font-size:22px;line-height:1;font-weight:600;
+  }
+
+  /* ---------- Lieferschein / Warenkorb ---------- */
+  .note{
+    margin-top:18px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);overflow:hidden;
+  }
+  .note-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:11px 14px;background:#EFEDEA;border-bottom:1px solid var(--line);
+  }
+  .note-head h2{
+    margin:0;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;
+  }
+  .note-head em{font-style:normal;font-size:13px;color:var(--ink-2)}
+  .line{
+    display:flex;align-items:center;gap:10px;padding:10px 14px;
+    border-bottom:1px solid #F0EEEB;font-variant-numeric:tabular-nums;
+  }
+  .line:last-child{border-bottom:0}
+  .qty{
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;
+    min-width:34px;text-align:center;background:#F1EFEC;border-radius:6px;padding:2px 6px;
+  }
+  .line-name{flex:1;font-size:15px;min-width:0}
+  .line-name small{display:block;color:var(--ink-2);font-size:12px}
+  .line-sum{font-weight:600;font-size:15px;white-space:nowrap}
+  .del{border:0;background:transparent;color:var(--ink-2);font-size:20px;padding:0 2px;cursor:pointer}
+  .empty{padding:22px 14px;color:var(--ink-2);font-size:14px;text-align:center}
+
+  /* LV-Modus: Lieferschein wird zum internen Entnahmeschein */
+  .note.lv{border-color:var(--steher)}
+  .note.lv .note-head{background:#E8EEF8;border-bottom-color:var(--steher)}
+  .note.lv .note-head h2::after{content:" · intern";color:var(--steher)}
+  .lv-hint{
+    padding:9px 14px;background:#E8EEF8;color:var(--steher);font-size:13px;
+    border-bottom:1px solid #CFDBEF;
+  }
+
+  /* ---------- Bottom bar ---------- */
+  .bar{
+    position:fixed;left:0;right:0;bottom:0;background:rgba(247,245,242,.94);
+    backdrop-filter:blur(8px);border-top:1px solid var(--line);
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .bar-inner{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .total{flex:1;font-variant-numeric:tabular-nums}
+  .total b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:26px;line-height:1}
+  .total span{font-size:12px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.08em}
+  .book{
+    border:0;background:var(--sprint);color:#fff;padding:16px 26px;border-radius:12px;
+    font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  }
+  .book:disabled{background:#C9C5C0;color:#fff}
+  .book:focus-visible{outline:3px solid var(--steher);outline-offset:2px}
+
+  /* ---------- Gebuchte Zeilen (Blick in die Tabelle) ---------- */
+  .sheet{margin-top:22px}
+  .sheet h3{
+    font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-2);margin:0 0 8px;
+  }
+  .sheet-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}
+  th{
+    font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--ink-2);text-align:left;
+    padding:8px 10px;border-bottom:1px solid var(--line);background:#FAF9F7;
+  }
+  td{padding:8px 10px;border-bottom:1px solid #F0EEEB;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:0}
+  /* ---------- Rechnungen ---------- */
+  .wide{
+    width:100%;padding:15px;border:0;border-radius:12px;background:var(--ink);color:#fff;
+    font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  }
+  .wide.second{background:var(--sprint);margin-top:14px}
+  .wide:disabled{background:#C9C5C0}
+  .inv{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    margin-top:12px;overflow:hidden;
+  }
+  .inv-head{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding:12px 14px;border-bottom:2px solid var(--ink);
+  }
+  .inv-head strong{font-size:17px}
+  .inv-head .nr{
+    font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.1em;
+    color:var(--ink-2);text-transform:uppercase;
+  }
+  .inv table{width:100%;font-size:14px;white-space:normal}
+  .inv td{padding:7px 14px;border-bottom:1px solid #F0EEEB}
+  .inv td:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .inv .tot td{
+    border-top:2px solid var(--ink);border-bottom:0;font-weight:700;font-size:16px;padding-top:10px;
+  }
+  .inv-note{padding:10px 14px;font-size:12px;color:var(--ink-2);background:#FAF9F7}
+  .sum-line{
+    margin-top:14px;padding:12px 14px;background:#EFEDEA;border-radius:10px;
+    font-size:14px;display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;
+  }
+
+  @media print{
+    header,.tabs,.ticket,.sheet,.bar,.wide,.toast,.sum-line,#pane-scan,#pane-list,.note{display:none!important}
+    body{background:#fff;padding:0}
+    .wrap{max-width:none;padding:0}
+    .inv{
+      border:0;border-radius:0;margin:0;padding:0;
+      break-after:page;page-break-after:always;
+    }
+    .inv:last-child{break-after:auto;page-break-after:auto}
+    .print-head{display:block!important;margin-bottom:14px}
+  }
+  .print-head{display:none}
+
+  .toast{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:96px;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;
+    font-weight:500;opacity:0;pointer-events:none;transition:opacity .25s;z-index:20;
+  }
+  .toast.show{opacity:1}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <h1>Werkstatt · Lager</h1>
+      <span>Materialbuchung</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- Job-Ticket: einmal einstellen, dann durchs Lager -->
+  <section class="ticket" style="margin-top:16px">
+    <div class="ticket-row">
+      <span class="lbl">Trainer</span>
+      <select id="trainer" aria-label="Trainer"></select>
+    </div>
+    <div class="ticket-row">
+      <span class="lbl">Sportler</span>
+      <select id="athlete" aria-label="Sportler"></select>
+    </div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-scan" aria-selected="true">Scannen</button>
+    <button class="tab" role="tab" id="tab-list" aria-selected="false">Liste</button>
+    <button class="tab" role="tab" id="tab-bill" aria-selected="false">Rechnungen</button>
+  </div>
+
+  <!-- Scannen -->
+  <section id="pane-scan">
+    <div class="scanbox">
+      <video id="video" playsinline class="hidden"></video>
+      <div id="reticle" class="reticle hidden"></div>
+      <p id="scanHint" class="scan-hint">Kamera startet…</p>
+    </div>
+    <div id="demoTiles" class="demo-tiles hidden"></div>
+  </section>
+
+  <!-- Liste -->
+  <section id="pane-list" class="hidden">
+    <input id="search" class="search" type="search" placeholder="Artikel suchen…" aria-label="Artikel suchen">
+    <div id="itemList"></div>
+  </section>
+
+  <!-- Rechnungen -->
+  <section id="pane-bill" class="hidden">
+    <div class="ticket" style="margin-bottom:12px">
+      <div class="ticket-row">
+        <span class="lbl">Monat</span>
+        <select id="billMonth" aria-label="Abrechnungsmonat"></select>
+      </div>
+    </div>
+    <button id="previewBtn" class="wide">Offene Posten anzeigen</button>
+    <div id="billOut"></div>
+  </section>
+
+  <!-- Lieferschein -->
+  <section class="note" id="noteSec">
+    <div class="note-head">
+      <h2>Lieferschein</h2>
+      <em id="noteFor">–</em>
+    </div>
+    <div id="cart"><p class="empty">Noch nichts erfasst. Scannen oder aus der Liste tippen.</p></div>
+  </section>
+
+  <!-- So landet es in der Tabelle -->
+  <section class="sheet" id="sheetSec">
+    <h3>Blatt „Entnahmen“ — so wird gespeichert</h3>
+    <div class="sheet-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Zeit</th><th>Sportler</th><th>Artikel</th><th>Menge</th>
+            <th>Einzelpreis</th><th>Summe</th><th>Abrechnen</th><th>Trainer</th>
+          </tr>
+        </thead>
+        <tbody id="sheetBody">
+          <tr><td colspan="7" style="color:var(--ink-2);white-space:normal">Noch keine Buchung. Nach „Buchen“ erscheinen die Zeilen hier — genau so gehen sie in die Google Tabelle.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div class="bar" id="barSec">
+  <div class="bar-inner">
+    <div class="total">
+      <b id="totalSum">0,00 €</b>
+      <span id="totalCount">0 Positionen</span>
+    </div>
+    <button id="bookBtn" class="book" disabled>Buchen</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* ---------------------------------------------------------------
+   EINSTELLUNG — hier die Web-App-URL aus Apps Script eintragen.
+   Bleibt sie leer, läuft die Seite im Demo-Modus mit Testdaten.
+----------------------------------------------------------------*/
+const API_URL = "https://script.google.com/macros/s/AKfycbwlURzNtjvoV0CO_-wCLSwNZdrYW0_RrmUSK1WO_LQ8MOGqenOO-Ep0OdJ27y-BwWUafA/exec";
+
+/* ---------------------------------------------------------------
+   DEMO-DATEN (nur ohne API_URL)
+----------------------------------------------------------------*/
+let TRAINER  = ["Hauke","Silke","Tom"];
+// "LV" = Vereinsräder / Werkstattmaterial, wird nicht an Eltern abgerechnet.
+// Steht bewusst ganz oben, damit niemand es auf ein Kind schummelt.
+let SPORTLER = ["LV — Vereinsmaterial","Lukas M.","Jonas K.","Mia S.","Emma L.","Ben T."];
+let LV = "LV — Vereinsmaterial";
+
+let ARTIKEL = [
+  {code:"A-101", name:"Kette KMC X11",              einheit:"Stück",  preis:34.90, bestand:6, min:3},
+  {code:"A-102", name:"Bremsbeläge R55C4",          einheit:"Paar",   preis:24.50, bestand:2, min:4},
+  {code:"A-103", name:"Schaltzug",                  einheit:"Stück",  preis: 3.90, bestand:18, min:6},
+  {code:"A-104", name:"Bremszug",                   einheit:"Stück",  preis: 3.90, bestand:11, min:6},
+  {code:"A-105", name:"Lenkerband",                 einheit:"Rolle",  preis:19.90, bestand:4, min:2},
+  {code:"A-106", name:"Bahnreifen Sprinter Gatorskin", einheit:"Stück", preis:59.00, bestand:3, min:4},
+  {code:"A-107", name:"Schlauchreifenkitt",         einheit:"Tube",   preis:12.50, bestand:0, min:2},
+  {code:"A-108", name:"Kettenöl",                   einheit:"Flasche",preis: 9.90, bestand:5, min:2},
+  {code:"A-109", name:"Bahnritzel 15Z",             einheit:"Stück",  preis:29.00, bestand:7, min:2},
+  {code:"A-110", name:"Innenlager",                 einheit:"Stück",  preis:45.00, bestand:1, min:2}
+];
+
+/* ---------------------------------------------------------------
+   ZUSTAND
+----------------------------------------------------------------*/
+let cart = [];              // {code, name, einheit, preis, menge}
+let gebucht = [];           // simulierte Tabellenzeilen
+let scanning = false;
+
+const $ = id => document.getElementById(id);
+const eur = n => n.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+
+/* ---------------------------------------------------------------
+   AUFBAU
+----------------------------------------------------------------*/
+function fillSelect(el, arr, placeholder){
+  el.innerHTML = `<option value="">${placeholder}</option>` +
+    arr.map(v => `<option>${v}</option>`).join("");
+}
+fillSelect($("trainer"), TRAINER, "wählen…");
+fillSelect($("athlete"), SPORTLER, "wählen…");
+
+// Trainer wird pro Gerät gemerkt -> in der echten App einmal fragen, dann nie wieder.
+$("trainer").addEventListener("change", () => { deviceTrainer = $("trainer").value; render(); });
+let deviceTrainer = "";
+$("athlete").addEventListener("change", render);
+
+/* ---------------------------------------------------------------
+   TABS
+----------------------------------------------------------------*/
+$("tab-scan").onclick = () => switchTab("scan");
+$("tab-list").onclick = () => switchTab("list");
+
+$("tab-bill").onclick = () => switchTab("bill");
+
+function switchTab(which){
+  ["scan","list","bill"].forEach(t => {
+    $("tab-" + t).setAttribute("aria-selected", t === which);
+    $("pane-" + t).classList.toggle("hidden", t !== which);
+  });
+  // Warenkorb und Buchen-Leiste gehören nicht in die Rechnungsansicht
+  const bill = which === "bill";
+  $("noteSec").classList.toggle("hidden", bill);
+  $("sheetSec").classList.toggle("hidden", bill);
+  $("barSec").classList.toggle("hidden", bill);
+  if (which === "scan") startCamera(); else stopCamera();
+}
+
+/* ---------------------------------------------------------------
+   RECHNUNGEN
+   Abgerechnet wird immer ein ganzer Monat. Es erscheinen nur Posten,
+   die noch KEINE Rechnungsnummer tragen — deshalb kann derselbe
+   Artikel nie zweimal auf eine Rechnung geraten, auch wenn jemand
+   den Monat versehentlich ein zweites Mal abrechnet.
+----------------------------------------------------------------*/
+let entwurf = null;   // {von, bis, rechnungen:[{sportler, posten[], summe}]}
+
+(function fuelleMonate(){
+  const sel = $("billMonth"), heute = new Date();
+  const namen = ["Januar","Februar","März","April","Mai","Juni",
+                 "Juli","August","September","Oktober","November","Dezember"];
+  for (let i = 1; i <= 12; i++){                       // letzter Monat zuerst
+    const d = new Date(heute.getFullYear(), heute.getMonth() - i, 1);
+    const opt = document.createElement("option");
+    opt.value = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+    opt.textContent = namen[d.getMonth()] + " " + d.getFullYear();
+    sel.appendChild(opt);
+  }
+})();
+
+function monatsGrenzen(wert){
+  const [y, m] = wert.split("-").map(Number);
+  return {von: new Date(y, m-1, 1), bis: new Date(y, m, 0, 23, 59, 59)};
+}
+
+$("previewBtn").onclick = async () => {
+  const btn = $("previewBtn");
+  btn.disabled = true; btn.textContent = "lädt…";
+  const {von, bis} = monatsGrenzen($("billMonth").value);
+
+  try{
+    if (API_URL){
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify({aktion:"rechnung_vorschau",
+          von: von.toISOString(), bis: bis.toISOString()})
+      });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.fehler);
+      entwurf = {von, bis, rechnungen: d.rechnungen};
+    } else {
+      entwurf = {von, bis, rechnungen: demoRechnungen(von, bis)};
+    }
+    zeigeRechnungen();
+  }catch(e){
+    warnBeep(); toast("Konnte nicht laden: " + e.message);
+  }
+  btn.disabled = false; btn.textContent = "Offene Posten anzeigen";
+};
+
+/* Demo-Modus: aus den in dieser Sitzung gebuchten Zeilen */
+function demoRechnungen(){
+  const proSportler = {};
+  gebucht.filter(g => g.sportler !== LV).forEach(g => {
+    (proSportler[g.sportler] = proSportler[g.sportler] || []).push(g);
+  });
+  return Object.keys(proSportler).map(s => {
+    const posten = proSportler[s].map(g => ({
+      artikel:g.artikel, menge:g.menge, preis:g.preis, summe:g.preis*g.menge
+    }));
+    return {sportler:s, posten, summe: posten.reduce((x,p) => x+p.summe, 0)};
+  });
+}
+
+function zeigeRechnungen(){
+  const out = $("billOut");
+  const monat = $("billMonth").selectedOptions[0].textContent;
+
+  if (!entwurf.rechnungen.length){
+    out.innerHTML = `<p class="empty" style="background:var(--card);border:1px solid var(--line);
+      border-radius:var(--radius);margin-top:12px">
+      Für ${monat} sind keine offenen Posten da. Entweder wurde nichts gebucht — oder der Monat ist
+      schon abgerechnet.</p>`;
+    return;
+  }
+
+  const gesamt = entwurf.rechnungen.reduce((s,r) => s + r.summe, 0);
+
+  out.innerHTML = entwurf.rechnungen.map(r => `
+    <div class="inv">
+      <div class="print-head">
+        <strong>Radsportverein — Materialabrechnung</strong>
+      </div>
+      <div class="inv-head">
+        <strong>${r.sportler}</strong>
+        <span class="nr">${r.nummer || "Entwurf"} · ${monat}</span>
+      </div>
+      <table>
+        ${r.posten.map(p => `
+          <tr>
+            <td>${p.menge}× ${p.artikel}<br><span style="color:var(--ink-2);font-size:12px">
+              à ${eur(p.preis)}</span></td>
+            <td>${eur(p.summe)}</td>
+          </tr>`).join("")}
+        <tr class="tot"><td>Gesamt</td><td>${eur(r.summe)}</td></tr>
+      </table>
+      <p class="inv-note">Zahlbar innerhalb von 14 Tagen. Bei Rückfragen zu einzelnen Positionen
+        bitte an den Trainer wenden, der die Entnahme gebucht hat.</p>
+    </div>`).join("") + `
+    <div class="sum-line">
+      <span>${entwurf.rechnungen.length} Rechnungen · ${monat}</span>
+      <b>${eur(gesamt)}</b>
+    </div>
+    <button id="lockBtn" class="wide second">
+      ${entwurf.rechnungen[0].nummer ? "Drucken / als PDF sichern" : "Festschreiben & drucken"}
+    </button>
+    <p class="inv-note" style="background:transparent;padding:10px 2px">
+      „Festschreiben\" vergibt Rechnungsnummern und markiert die Posten in der Tabelle als
+      abgerechnet. Danach tauchen sie hier nicht mehr auf.</p>`;
+
+  $("lockBtn").onclick = festschreiben;
+}
+
+async function festschreiben(){
+  const btn = $("lockBtn");
+
+  // schon festgeschrieben? Dann nur noch drucken.
+  if (entwurf.rechnungen[0].nummer){ window.print(); return; }
+
+  btn.disabled = true; btn.textContent = "schreibt…";
+  try{
+    if (API_URL){
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify({aktion:"rechnung_festschreiben",
+          von: entwurf.von.toISOString(), bis: entwurf.bis.toISOString()})
+      });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.fehler);
+      entwurf.rechnungen = d.rechnungen;      // jetzt mit Nummern
+    } else {
+      const jahr = entwurf.von.getFullYear();
+      entwurf.rechnungen.forEach((r,i) =>
+        r.nummer = jahr + "-" + String(i+1).padStart(4,"0"));
+    }
+    zeigeRechnungen();
+    toast(entwurf.rechnungen.length + " Rechnungen festgeschrieben");
+    setTimeout(() => window.print(), 600);
+  }catch(e){
+    warnBeep(); toast("Fehlgeschlagen: " + e.message);
+    btn.disabled = false; btn.textContent = "Festschreiben & drucken";
+  }
+}
+
+/* ---------------------------------------------------------------
+   LISTE
+----------------------------------------------------------------*/
+function frei(a){
+  const z = cart.find(x => x.code === a.code);
+  return a.bestand - (z ? z.menge : 0);
+}
+function stockClass(a){
+  const f = frei(a);
+  if (f <= 0) return "out";
+  if (f <= a.min) return "low";
+  return "ok";
+}
+function stockLabel(a){
+  const f = frei(a);
+  if (f <= 0) return "leer";
+  return f + (f <= a.min ? " · knapp" : "");
+}
+function renderList(){
+  const q = $("search").value.trim().toLowerCase();
+  const treffer = ARTIKEL.filter(a =>
+    a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q));
+
+  $("itemList").innerHTML = treffer.length ? treffer.map(a => `
+    <button class="item" data-code="${a.code}" ${frei(a) <= 0 ? "disabled" : ""}>
+      <span class="stock ${stockClass(a)}">${stockLabel(a)}</span>
+      <span class="item-main">
+        <span class="item-name">${a.name}</span>
+        <span class="item-meta">${a.code} · ${eur(a.preis)} / ${a.einheit}</span>
+      </span>
+      <span class="plus" aria-hidden="true">+</span>
+    </button>`).join("")
+    : `<p class="empty">Kein Artikel gefunden.</p>`;
+
+  $("itemList").querySelectorAll(".item").forEach(b =>
+    b.onclick = () => add(b.dataset.code));
+}
+$("search").addEventListener("input", renderList);
+
+/* ---------------------------------------------------------------
+   WARENKORB
+----------------------------------------------------------------*/
+function add(code){
+  const a = ARTIKEL.find(x => x.code === code);
+  if (!a) return;
+  const zeile = cart.find(z => z.code === code);
+  const imKorb = zeile ? zeile.menge : 0;
+  const frei = a.bestand - imKorb;          // was noch übrig ist
+
+  if (frei <= 0){
+    warnBeep();
+    toast(a.bestand === 0
+      ? `${a.name}: Bestand ist leer`
+      : `${a.name}: nur noch ${a.bestand} im Lager`);
+    return;
+  }
+  if (zeile) zeile.menge++;
+  else cart.push({code:a.code, name:a.name, einheit:a.einheit, preis:a.preis, menge:1});
+  beep();
+  const neu = (zeile ? zeile.menge : 1);
+  toast(`${a.name} · ${neu}×` + (frei === 1 ? " — letztes Stück" : ""));
+  render();
+}
+function remove(code){
+  cart = cart.filter(z => z.code !== code);
+  render();
+}
+function summe(){ return cart.reduce((s,z) => s + z.preis * z.menge, 0); }
+
+function renderCart(){
+  const sportler = $("athlete").value;
+  const istLV = sportler === LV;
+  $("noteFor").textContent = sportler || "kein Sportler gewählt";
+  document.querySelector(".note").classList.toggle("lv", istLV);
+
+  const hinweis = istLV
+    ? `<p class="lv-hint">Vereinsmaterial — Bestand sinkt, wird aber nicht abgerechnet.</p>` : "";
+
+  $("cart").innerHTML = hinweis + (cart.length ? cart.map(z => `
+    <div class="line">
+      <span class="qty">${z.menge}×</span>
+      <span class="line-name">${z.name}<small>${eur(z.preis)} / ${z.einheit}</small></span>
+      <span class="line-sum">${eur(z.preis * z.menge)}</span>
+      <button class="del" data-code="${z.code}" aria-label="${z.name} entfernen">×</button>
+    </div>`).join("")
+    : `<p class="empty">Noch nichts erfasst. Scannen oder aus der Liste tippen.</p>`);
+
+  $("cart").querySelectorAll(".del").forEach(b =>
+    b.onclick = () => remove(b.dataset.code));
+
+  $("totalSum").textContent = eur(summe());
+  $("totalCount").textContent =
+    (cart.length === 1 ? "1 Position" : cart.length + " Positionen") +
+    (istLV ? " · nicht abrechnen" : "");
+  $("bookBtn").disabled = !(cart.length && sportler && $("trainer").value);
+}
+
+function renderSheet(){
+  $("sheetBody").innerHTML = gebucht.length ? gebucht.map(r => {
+    const lv = r.sportler === LV;
+    return `
+    <tr${lv ? ' style="color:var(--ink-2)"' : ""}>
+      <td>${r.zeit}</td><td>${lv ? "LV" : r.sportler}</td><td>${r.artikel}</td>
+      <td>${r.menge}</td><td>${eur(r.preis)}</td><td>${eur(r.preis*r.menge)}</td>
+      <td>${lv ? "nein" : "ja"}</td><td>${r.trainer}</td>
+    </tr>`;}).join("")
+    : `<tr><td colspan="8" style="color:var(--ink-2);white-space:normal">Noch keine Buchung. Nach „Buchen“ erscheinen die Zeilen hier — genau so gehen sie in die Google Tabelle.</td></tr>`;
+}
+
+function render(){ renderList(); renderCart(); renderSheet(); }
+
+/* ---------------------------------------------------------------
+   BUCHEN
+   Der Preis wird als Snapshot mitgeschrieben, nicht nur verlinkt.
+   Die Bestandsprüfung passiert NOCHMAL im Apps Script — der Browser
+   kennt nur einen Stand von vorhin, zwei Trainer könnten gleichzeitig
+   das letzte Stück greifen.
+----------------------------------------------------------------*/
+$("bookBtn").onclick = async () => {
+  const btn = $("bookBtn");
+  const sportler = $("athlete").value, trainer = $("trainer").value;
+  const anzahl = cart.length;
+
+  if (API_URL){
+    btn.disabled = true; btn.textContent = "sendet…";
+    try{
+      const res = await fetch(API_URL, {
+        method:"POST",
+        // text/plain vermeidet den CORS-Preflight, den Apps Script nicht beantwortet
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify({trainer, sportler,
+          positionen: cart.map(z => ({code:z.code, menge:z.menge}))})
+      });
+      const data = await res.json();
+      if (!data.ok){
+        warnBeep();
+        toast(data.fehler || "Buchung abgelehnt");
+        if (data.bestand) data.bestand.forEach(b => {
+          const a = ARTIKEL.find(x => x.code === b.code);
+          if (a) a.bestand = b.bestand;      // Stand vom Server übernehmen
+        });
+        btn.textContent = "Buchen"; render();
+        return;
+      }
+      data.bestand.forEach(b => {
+        const a = ARTIKEL.find(x => x.code === b.code);
+        if (a) a.bestand = b.bestand;
+      });
+    }catch(e){
+      warnBeep();
+      toast("Kein Netz — Warenkorb bleibt erhalten, nochmal versuchen");
+      btn.textContent = "Buchen"; btn.disabled = false;
+      return;
+    }
+    btn.textContent = "Buchen";
+  } else {
+    // Demo-Modus: Bestand lokal abziehen
+    cart.forEach(z => {
+      const a = ARTIKEL.find(x => x.code === z.code);
+      a.bestand = Math.max(0, a.bestand - z.menge);
+    });
+  }
+
+  const zeit = new Date().toLocaleString("de-DE",
+    {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  cart.forEach(z => gebucht.unshift({
+    zeit, sportler, artikel:z.name, menge:z.menge, preis:z.preis, trainer
+  }));
+  cart = [];
+  render();
+  toast(`${anzahl} ${anzahl===1?"Position":"Positionen"} für ${sportler} gebucht`);
+};
+
+/* ---------------------------------------------------------------
+   STAMMDATEN LADEN
+----------------------------------------------------------------*/
+async function laden(){
+  if (!API_URL) return;
+  try{
+    const res = await fetch(API_URL);
+    const d = await res.json();
+    TRAINER  = d.trainer;
+    SPORTLER = d.sportler;
+    LV       = d.lv || SPORTLER[0];
+    ARTIKEL  = d.artikel;
+    fillSelect($("trainer"), TRAINER, "wählen…");
+    fillSelect($("athlete"), SPORTLER, "wählen…");
+    render();
+  }catch(e){
+    toast("Lager konnte nicht geladen werden — Demo-Daten aktiv");
+  }
+}
+
+/* ---------------------------------------------------------------
+   KAMERA + QR
+   Fällt automatisch auf simulierte Regalfächer zurück, wenn die
+   Kamera hier nicht freigegeben ist (z. B. in der Vorschau).
+----------------------------------------------------------------*/
+let stream = null, raf = null;
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d", {willReadFrequently:true});
+let lastCode = "", lastTime = 0;
+
+async function startCamera(){
+  if (scanning) return;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+    const v = $("video");
+    v.srcObject = stream; await v.play();
+    v.classList.remove("hidden");
+    $("reticle").classList.remove("hidden");
+    $("scanHint").classList.add("hidden");
+    $("demoTiles").classList.add("hidden");
+    scanning = true;
+    tick();
+  }catch(e){
+    fallback();
+  }
+}
+function stopCamera(){
+  scanning = false;
+  if (raf) cancelAnimationFrame(raf);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+  $("video").classList.add("hidden");
+}
+function tick(){
+  if (!scanning) return;
+  const v = $("video");
+  if (v.readyState === v.HAVE_ENOUGH_DATA){
+    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+    ctx.drawImage(v,0,0,canvas.width,canvas.height);
+    const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const qr = window.jsQR && jsQR(img.data, img.width, img.height);
+    if (qr && qr.data){
+      const now = Date.now();
+      // gleichen Code nicht 30× pro Sekunde buchen
+      if (qr.data !== lastCode || now - lastTime > 1500){
+        lastCode = qr.data; lastTime = now;
+        const treffer = ARTIKEL.find(a => a.code === qr.data.trim().toUpperCase());
+        if (treffer) add(treffer.code);
+        else toast("Unbekannter Code: " + qr.data);
+      }
+    }
+  }
+  raf = requestAnimationFrame(tick);
+}
+function fallback(){
+  $("scanHint").textContent = "Kamera hier nicht freigegeben. Tippe ein Regalfach an — das simuliert einen Scan.";
+  $("scanHint").classList.remove("hidden");
+  $("demoTiles").classList.remove("hidden");
+  $("demoTiles").innerHTML = ARTIKEL.slice(0,6).map(a =>
+    `<button class="tile" data-code="${a.code}">${a.name}<small>Regalfach ${a.code}</small></button>`).join("");
+  $("demoTiles").querySelectorAll(".tile").forEach(b =>
+    b.onclick = () => add(b.dataset.code));
+}
+
+/* ---------------------------------------------------------------
+   RÜCKMELDUNG: piepen + Vibrieren, damit man nicht hinschauen muss
+----------------------------------------------------------------*/
+let audioCtx = null;
+function beep(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = 1180; o.type = "square";
+    g.gain.setValueAtTime(.05, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, audioCtx.currentTime + .12);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + .12);
+  }catch(e){}
+  if (navigator.vibrate) navigator.vibrate(35);
+}
+function warnBeep(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    [0, .16].forEach(t => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = 220; o.type = "sawtooth";
+      const s = audioCtx.currentTime + t;
+      g.gain.setValueAtTime(.05, s);
+      g.gain.exponentialRampToValueAtTime(.0001, s + .13);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(s); o.stop(s + .13);
+    });
+  }catch(e){}
+  if (navigator.vibrate) navigator.vibrate([60,50,60]);
+}
+let toastTimer = null;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+render();
+laden();
+startCamera();
+</script>
+</body>
+</html>
