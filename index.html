@@ -10642,12 +10642,43 @@ function fillSelect(el, arr, placeholder){
   el.innerHTML = `<option value="">${placeholder}</option>` +
     arr.map(v => `<option>${v}</option>`).join("");
 }
+
+/* ---------------------------------------------------------------
+   TRAINER MERKEN
+   Das Gerät gehört einem Menschen. Also fragt die App genau einmal
+   nach dem Trainer und danach nie wieder — geändert werden kann er
+   trotzdem jederzeit oben im Feld.
+   Der Sportler wird bewusst NICHT gemerkt: der wechselt ständig, und
+   ein voreingestellter Sportler wäre die gefährlichste Fehlerquelle
+   im ganzen System.
+----------------------------------------------------------------*/
+const TRAINER_KEY = "werkstatt.trainer";
+
+function merkeTrainer(name){
+  try{ name ? localStorage.setItem(TRAINER_KEY, name)
+            : localStorage.removeItem(TRAINER_KEY); }
+  catch(e){}                       // privater Modus o. ä. — dann eben nicht
+}
+function holeTrainer(){
+  try{ return localStorage.getItem(TRAINER_KEY) || ""; }
+  catch(e){ return ""; }
+}
+/* Nach jedem Neuaufbau der Liste wieder einsetzen — aber nur, wenn es
+   den Trainer noch gibt. Wer aus den Stammdaten fliegt, bleibt nicht kleben. */
+function setzeTrainer(){
+  const gemerkt = holeTrainer();
+  if (gemerkt && TRAINER.includes(gemerkt)) $("trainer").value = gemerkt;
+  else if (gemerkt) merkeTrainer("");
+}
+
 fillSelect($("trainer"), TRAINER, "wählen…");
 fillSelect($("athlete"), SPORTLER, "wählen…");
+setzeTrainer();
 
-// Trainer wird pro Gerät gemerkt -> in der echten App einmal fragen, dann nie wieder.
-$("trainer").addEventListener("change", () => { deviceTrainer = $("trainer").value; render(); });
-let deviceTrainer = "";
+$("trainer").addEventListener("change", () => {
+  merkeTrainer($("trainer").value);
+  render();
+});
 $("athlete").addEventListener("change", render);
 
 /* ---------------------------------------------------------------
@@ -11363,6 +11394,7 @@ async function laden(){
     ARTIKEL  = d.artikel;
     fillSelect($("trainer"), TRAINER, "wählen…");
     fillSelect($("athlete"), SPORTLER, "wählen…");
+    setzeTrainer();                  // sonst wäre er beim Laden wieder weg
     zeigeStatus("", true);
     render();
   }catch(e){
