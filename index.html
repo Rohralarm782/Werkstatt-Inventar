@@ -889,6 +889,17 @@ function zeigeStatus(msg, ok){
    Fällt automatisch auf simulierte Regalfächer zurück, wenn die
    Kamera hier nicht freigegeben ist (z. B. in der Vorschau).
 ----------------------------------------------------------------*/
+/* Holt den Artikelcode aus dem Scan. Verkraftet nackte Codes ("A-101"),
+   Kleinschreibung, und URLs wie ".../?code=A-101" — falls jemand später
+   Etiketten mit Adresse druckt. */
+function codeAus(roh){
+  let s = String(roh).trim();
+  const m = s.match(/[?&]code=([^&\s]+)/i);
+  if (m) s = m[1];
+  else if (s.includes("/")) s = s.split("/").filter(Boolean).pop();
+  return s.trim().toUpperCase();
+}
+
 let stream = null, raf = null;
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d", {willReadFrequently:true});
@@ -930,9 +941,10 @@ function tick(){
       // gleichen Code nicht 30× pro Sekunde buchen
       if (qr.data !== lastCode || now - lastTime > 1500){
         lastCode = qr.data; lastTime = now;
-        const treffer = ARTIKEL.find(a => a.code === qr.data.trim().toUpperCase());
+        const code = codeAus(qr.data);
+        const treffer = ARTIKEL.find(a => a.code.toUpperCase() === code);
         if (treffer) add(treffer.code);
-        else toast("Unbekannter Code: " + qr.data);
+        else { warnBeep(); toast("Unbekannter Code: " + code); }
       }
     }
   }
