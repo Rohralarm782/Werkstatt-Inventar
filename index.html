@@ -103,6 +103,13 @@
   }
   .scan-hint{color:#8B949E;font-size:14px;text-align:center;padding:24px;max-width:80%}
 
+  .camstate{
+    margin:6px 2px 0;font-size:12px;color:var(--ink-2);
+    display:flex;align-items:center;gap:6px;
+  }
+  .camstate b{color:var(--ink);font-weight:600}
+  .camstate.err{color:var(--sprint)}
+
   .demo-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
   .tile{
     padding:12px 10px;border:1px dashed var(--line);background:var(--card);
@@ -309,10 +316,11 @@
   <!-- Scannen -->
   <section id="pane-scan">
     <div class="scanbox">
-      <video id="video" playsinline class="hidden"></video>
+      <video id="video" playsinline muted class="hidden"></video>
       <div id="reticle" class="reticle hidden"></div>
       <p id="scanHint" class="scan-hint">Kamera startet…</p>
     </div>
+    <p id="camState" class="camstate">—</p>
     <div id="demoTiles" class="demo-tiles hidden"></div>
   </section>
 
@@ -907,17 +915,36 @@ let lastCode = "", lastTime = 0;
 
 async function startCamera(){
   if (scanning) return;
+  const st = $("camState");
+
+  if (!window.jsQR){
+    st.className = "camstate err";
+    st.innerHTML = "<b>QR-Bibliothek nicht geladen.</b> Seite mit Internet neu laden.";
+    fallback(); return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    st.className = "camstate err";
+    st.innerHTML = "<b>Kein Kamerazugriff möglich.</b> Läuft die Seite über https?";
+    fallback(); return;
+  }
+
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
     const v = $("video");
-    v.srcObject = stream; await v.play();
+    v.srcObject = stream;
+    await v.play();
     v.classList.remove("hidden");
     $("reticle").classList.remove("hidden");
     $("scanHint").classList.add("hidden");
     $("demoTiles").classList.add("hidden");
+    st.className = "camstate";
+    st.innerHTML = "<b>Kamera läuft.</b> Etikett aus ca. 15 cm ins Bild halten.";
     scanning = true;
     tick();
   }catch(e){
+    st.className = "camstate err";
+    st.innerHTML = "<b>Kamera abgelehnt:</b> " + (e.name || e.message) +
+      " — im Browser den Kamerazugriff für diese Seite erlauben.";
     fallback();
   }
 }
@@ -943,8 +970,13 @@ function tick(){
         lastCode = qr.data; lastTime = now;
         const code = codeAus(qr.data);
         const treffer = ARTIKEL.find(a => a.code.toUpperCase() === code);
+        // Immer anzeigen, was gelesen wurde — sonst rätselt man, ob überhaupt
+        // etwas erkannt wird oder ob nur die Buchung scheitert.
+        $("camState").className = "camstate";
+        $("camState").innerHTML = "Gelesen: <b>" + code + "</b>" +
+          (treffer ? "" : " — steht nicht im Blatt „Material\"");
         if (treffer) add(treffer.code);
-        else { warnBeep(); toast("Unbekannter Code: " + code); }
+        else warnBeep();
       }
     }
   }
