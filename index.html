@@ -10246,27 +10246,56 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   .stock.out{background:#FBE7EA;color:var(--sprint)}
   .stock.job{background:#E8EEF8;color:var(--steher)}
 
-  /* ---------- Füllstand ---------- */
+  /* ---------- Inventur ---------- */
   .fill{
     background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
     padding:14px;margin-bottom:10px;
   }
-  .fill h4{margin:0 0 2px;font-size:16px}
-  .fill .calc{font-size:13px;color:var(--ink-2);margin:0 0 10px}
-  .fill .calc b{color:var(--ink)}
+  .fill h4{margin:0 0 6px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .tag{
+    font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;font-weight:700;padding:2px 7px;border-radius:5px;
+    background:#EFEDEA;color:var(--ink-2);
+  }
+  .tag.vorrat{background:#E8EEF8;color:var(--steher)}
+  .sollist{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;color:var(--ink-2);margin-bottom:10px;
+  }
+  .sollist .soll b{color:var(--ink);font-size:16px;font-variant-numeric:tabular-nums}
   .fill-row{display:flex;gap:8px;align-items:center}
   .fill-row input{
     flex:1;min-width:0;padding:12px;font-size:17px;font-family:inherit;font-weight:600;
     border:1px solid var(--line);border-radius:10px;text-align:right;
   }
-  .fill-row .unit{font-size:14px;color:var(--ink-2);width:34px}
+  .fill-row input:focus{outline:2px solid var(--steher);outline-offset:1px}
+  .fill-row .unit{font-size:14px;color:var(--ink-2);min-width:34px}
   .fill-row button{
     border:0;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;
     font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
     letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
   }
   .fill .result{margin:10px 0 0;font-size:13px;color:var(--ok);font-weight:600}
-  .fill .result.minus{color:var(--warn)}
+  .fill .result.minus{color:var(--sprint)}
+
+  .schwund{
+    background:#FBE7EA;border:1px solid #E9BCC3;border-radius:var(--radius);
+    padding:14px;margin-bottom:16px;
+  }
+  .schwund-head{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #E9BCC3;
+  }
+  .schwund-head h3{
+    margin:0;font-family:'Barlow Condensed',sans-serif;font-size:15px;
+    letter-spacing:.1em;text-transform:uppercase;color:#8A0A1F;
+  }
+  .schwund-head b{font-size:20px;color:var(--sprint);font-variant-numeric:tabular-nums}
+  .schwund-row{
+    display:flex;justify-content:space-between;font-size:13px;color:#8A0A1F;
+    padding:3px 0;font-variant-numeric:tabular-nums;
+  }
+  .schwund-note{margin:8px 0 0;font-size:12px;color:#A34A57;line-height:1.4}
   .plus{
     width:36px;height:36px;flex:none;border-radius:50%;border:0;background:var(--ink);
     color:#fff;font-size:22px;line-height:1;font-weight:600;
@@ -10466,7 +10495,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-scan" aria-selected="true">Scan</button>
     <button class="tab" role="tab" id="tab-list" aria-selected="false">Liste</button>
-    <button class="tab" role="tab" id="tab-fill" aria-selected="false">Vorrat</button>
+    <button class="tab" role="tab" id="tab-fill" aria-selected="false">Inventur</button>
     <button class="tab" role="tab" id="tab-bill" aria-selected="false">Rechnung</button>
   </div>
 
@@ -10487,13 +10516,15 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     <div id="itemList"></div>
   </section>
 
-  <!-- Füllstand -->
+  <!-- Inventur -->
   <section id="pane-fill" class="hidden">
     <p class="live" style="margin-bottom:12px">
-      <b>Der Vorratsbestand ist geschätzt.</b> Er sinkt um die Standardverbräuche der
-      Pauschalen — und die stimmen nie genau. Schau in die Flasche und melde, was
-      wirklich drin ist. Die App schreibt die Differenz als Korrektur.
+      <b>Soll ist gerechnet, Ist ist gezählt.</b> Der Soll-Bestand driftet immer —
+      jemand nimmt sich schnell was, eine Flasche wird großzügiger geleert als geschätzt,
+      ein Teil geht kaputt. Zähl nach und trag ein, was wirklich da ist. Die Differenz
+      wird als Korrektur festgehalten, nichts wird überschrieben.
     </p>
+    <div id="schwundBox"></div>
     <div id="fillList"></div>
   </section>
 
@@ -10644,44 +10675,85 @@ function switchTab(which){
 }
 
 /* ---------------------------------------------------------------
-   FÜLLSTAND
-   Der gemessene Wert überschreibt nichts. Er erzeugt eine Korrekturzeile
-   im Blatt Zugänge — so bleibt nachvollziehbar, wer wann was korrigiert hat.
+   INVENTUR
+   Soll = gerechnet (Zugänge minus Entnahmen). Ist = gezählt.
+   Die Differenz erzeugt eine Korrekturzeile im Blatt Zugänge.
+   Die Summe aller negativen Korrekturen ist euer Schwund — die ehrlichste
+   Zahl im ganzen System, weil sie zeigt, was ohne Buchung verschwindet.
 ----------------------------------------------------------------*/
 function renderFill(){
-  const vorraete = ARTIKEL.filter(a => a.art === "Vorrat");
+  // Pauschalen raus — Leistungen kann man nicht zählen.
+  const zaehlbar = ARTIKEL.filter(a => a.art !== "Pauschale");
 
-  if (!vorraete.length){
+  if (!zaehlbar.length){
     $("fillList").innerHTML = `<p class="empty" style="background:var(--card);
-      border:1px solid var(--line);border-radius:var(--radius)">
-      Keine Vorräte angelegt. Im Blatt „Material“ Spalte „Art“ auf <b>Vorrat</b> setzen —
-      z. B. Bremsflüssigkeit in ml.</p>`;
+      border:1px solid var(--line);border-radius:var(--radius)">Keine Artikel.</p>`;
     return;
   }
 
-  $("fillList").innerHTML = vorraete.map(a => `
+  $("fillList").innerHTML = zaehlbar.map(a => `
     <div class="fill" data-code="${a.code}">
-      <h4>${a.name}</h4>
-      <p class="calc">Gerechnet: <b>${a.bestand} ${a.einheit}</b> · Mindestbestand ${a.min}</p>
+      <h4>${a.name} <span class="tag ${a.art === "Vorrat" ? "vorrat" : ""}">${a.art}</span></h4>
+      <div class="sollist">
+        <span class="soll">Soll <b>${a.bestand}</b> ${a.einheit}</span>
+        <span class="preis">${eur(a.preis)} / ${a.einheit}</span>
+      </div>
       <div class="fill-row">
-        <input type="number" inputmode="numeric" min="0" step="10"
-               placeholder="tatsächlich" aria-label="Gemessener Füllstand ${a.name}">
+        <input type="number" inputmode="numeric" min="0"
+               step="${a.art === "Vorrat" ? 10 : 1}"
+               placeholder="Ist — gezählt" aria-label="Gezählter Bestand ${a.name}">
         <span class="unit">${a.einheit}</span>
-        <button>Melden</button>
+        <button>Buchen</button>
       </div>
       <p class="result hidden"></p>
     </div>`).join("");
 
   $("fillList").querySelectorAll(".fill").forEach(karte => {
     karte.querySelector("button").onclick = () => meldeFuellstand(karte);
+    // Enter im Feld = buchen. Spart auf dem Handy einen Griff.
+    karte.querySelector("input").addEventListener("keydown", e => {
+      if (e.key === "Enter") meldeFuellstand(karte);
+    });
   });
+
+  ladeSchwund();
+}
+
+async function ladeSchwund(){
+  if (!API_URL){ $("schwundBox").innerHTML = ""; return; }
+  try{
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({aktion:"schwund"})
+    });
+    const d = await res.json();
+    if (!d.ok || !d.schwund.length){ $("schwundBox").innerHTML = ""; return; }
+
+    $("schwundBox").innerHTML = `
+      <div class="schwund">
+        <div class="schwund-head">
+          <h3>Schwund bisher</h3>
+          <b>${eur(d.gesamt)}</b>
+        </div>
+        ${d.schwund.map(s => `
+          <div class="schwund-row">
+            <span>${s.name}</span>
+            <span>${s.fehlt} ${s.einheit} · ${eur(s.wert)}</span>
+          </div>`).join("")}
+        <p class="schwund-note">Summe aller Zählungen, bei denen weniger da war als gerechnet.
+          Nicht abgerechnetes Material — nicht gebucht, aber weg.</p>
+      </div>`;
+  }catch(e){
+    $("schwundBox").innerHTML = "";
+  }
 }
 
 async function meldeFuellstand(karte){
-  const code   = karte.dataset.code;
-  const input  = karte.querySelector("input");
-  const btn    = karte.querySelector("button");
-  const out    = karte.querySelector(".result");
+  const code    = karte.dataset.code;
+  const input   = karte.querySelector("input");
+  const btn     = karte.querySelector("button");
+  const out     = karte.querySelector(".result");
   const trainer = $("trainer").value;
   const gemessen = Number(input.value);
 
@@ -10691,6 +10763,7 @@ async function meldeFuellstand(karte){
   }
 
   const a = ARTIKEL.find(x => x.code === code);
+  const diff = gemessen - a.bestand;
   btn.disabled = true; btn.textContent = "…";
 
   try{
@@ -10698,28 +10771,40 @@ async function meldeFuellstand(karte){
       const res = await fetch(API_URL, {
         method:"POST",
         headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({aktion:"fuellstand", trainer, code, gemessen})
+        body: JSON.stringify({aktion:"inventur", trainer, code, gemessen})
       });
       const d = await res.json();
       if (!d.ok) throw new Error(d.fehler);
     }
-    const diff = gemessen - a.bestand;
     a.bestand = gemessen;
+    out.classList.remove("hidden");
 
-    out.className = "result" + (diff < 0 ? " minus" : "");
-    out.textContent = diff === 0
-      ? "Stimmte schon — keine Korrektur nötig."
-      : `Korrigiert um ${diff > 0 ? "+" : ""}${diff} ${a.einheit}. Neuer Bestand: ${gemessen} ${a.einheit}.`;
-    karte.querySelector(".calc").innerHTML =
-      `Gerechnet: <b>${gemessen} ${a.einheit}</b> · Mindestbestand ${a.min}`;
+    if (diff === 0){
+      out.className = "result";
+      out.textContent = "Soll und Ist stimmen überein.";
+      beep();
+    } else if (diff < 0){
+      out.className = "result minus";
+      out.textContent = `${Math.abs(diff)} ${a.einheit} fehlen — Wert ${eur(Math.abs(diff) * a.preis)}. ` +
+                        `Als Schwund festgehalten.`;
+      warnBeep();
+    } else {
+      out.className = "result";
+      out.textContent = `${diff} ${a.einheit} mehr als gerechnet. Korrigiert.`;
+      beep();
+    }
+
+    karte.querySelector(".soll").innerHTML = `Soll <b>${gemessen}</b> ${a.einheit}`;
     input.value = "";
-    beep();
+    ladeSchwund();
+    renderList();
   }catch(e){
     warnBeep();
+    out.classList.remove("hidden");
     out.className = "result minus";
     out.textContent = "Fehlgeschlagen: " + e.message;
   }
-  btn.disabled = false; btn.textContent = "Melden";
+  btn.disabled = false; btn.textContent = "Buchen";
 }
 
 /* ---------------------------------------------------------------
