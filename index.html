@@ -10278,24 +10278,6 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   .fill .result{margin:10px 0 0;font-size:13px;color:var(--ok);font-weight:600}
   .fill .result.minus{color:var(--sprint)}
 
-  .schwund{
-    background:#FBE7EA;border:1px solid #E9BCC3;border-radius:var(--radius);
-    padding:14px;margin-bottom:16px;
-  }
-  .schwund-head{
-    display:flex;justify-content:space-between;align-items:baseline;
-    padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #E9BCC3;
-  }
-  .schwund-head h3{
-    margin:0;font-family:'Barlow Condensed',sans-serif;font-size:15px;
-    letter-spacing:.1em;text-transform:uppercase;color:#8A0A1F;
-  }
-  .schwund-head b{font-size:20px;color:var(--sprint);font-variant-numeric:tabular-nums}
-  .schwund-row{
-    display:flex;justify-content:space-between;font-size:13px;color:#8A0A1F;
-    padding:3px 0;font-variant-numeric:tabular-nums;
-  }
-  .schwund-note{margin:8px 0 0;font-size:12px;color:#A34A57;line-height:1.4}
   .plus{
     width:36px;height:36px;flex:none;border-radius:50%;border:0;background:var(--ink);
     color:#fff;font-size:22px;line-height:1;font-weight:600;
@@ -10524,7 +10506,6 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       ein Teil geht kaputt. Zähl nach und trag ein, was wirklich da ist. Die Differenz
       wird als Korrektur festgehalten, nichts wird überschrieben.
     </p>
-    <div id="schwundBox"></div>
     <div id="fillList"></div>
   </section>
 
@@ -10709,13 +10690,13 @@ function switchTab(which){
    INVENTUR
    Soll = gerechnet (Zugänge minus Entnahmen). Ist = gezählt.
    Die Differenz erzeugt eine Korrekturzeile im Blatt Zugänge.
-   Die Summe aller negativen Korrekturen ist euer Schwund — die ehrlichste
-   Zahl im ganzen System, weil sie zeigt, was ohne Buchung verschwindet.
+
+   Bewusst ohne Schwund-Anzeige: hier wird gezählt, nicht bewertet.
+   Die Korrekturen stehen alle in der Tabelle — wer die Verluste
+   auswerten will, tut das dort, nicht mit dem Handy im Regal.
 ----------------------------------------------------------------*/
 function renderFill(){
-  // Pauschalen raus — Leistungen kann man nicht zählen.
   const zaehlbar = ARTIKEL.filter(a => a.art !== "Pauschale");
-
   if (!zaehlbar.length){
     $("fillList").innerHTML = `<p class="empty" style="background:var(--card);
       border:1px solid var(--line);border-radius:var(--radius)">Keine Artikel.</p>`;
@@ -10727,7 +10708,6 @@ function renderFill(){
       <h4>${a.name} <span class="tag ${a.art === "Vorrat" ? "vorrat" : ""}">${a.art}</span></h4>
       <div class="sollist">
         <span class="soll">Soll <b>${a.bestand}</b> ${a.einheit}</span>
-        <span class="preis">${eur(a.preis)} / ${a.einheit}</span>
       </div>
       <div class="fill-row">
         <input type="number" inputmode="numeric" min="0"
@@ -10741,43 +10721,10 @@ function renderFill(){
 
   $("fillList").querySelectorAll(".fill").forEach(karte => {
     karte.querySelector("button").onclick = () => meldeFuellstand(karte);
-    // Enter im Feld = buchen. Spart auf dem Handy einen Griff.
     karte.querySelector("input").addEventListener("keydown", e => {
       if (e.key === "Enter") meldeFuellstand(karte);
     });
   });
-
-  ladeSchwund();
-}
-
-async function ladeSchwund(){
-  if (!API_URL){ $("schwundBox").innerHTML = ""; return; }
-  try{
-    const res = await fetch(API_URL, {
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({aktion:"schwund"})
-    });
-    const d = await res.json();
-    if (!d.ok || !d.schwund.length){ $("schwundBox").innerHTML = ""; return; }
-
-    $("schwundBox").innerHTML = `
-      <div class="schwund">
-        <div class="schwund-head">
-          <h3>Schwund bisher</h3>
-          <b>${eur(d.gesamt)}</b>
-        </div>
-        ${d.schwund.map(s => `
-          <div class="schwund-row">
-            <span>${s.name}</span>
-            <span>${s.fehlt} ${s.einheit} · ${eur(s.wert)}</span>
-          </div>`).join("")}
-        <p class="schwund-note">Summe aller Zählungen, bei denen weniger da war als gerechnet.
-          Nicht abgerechnetes Material — nicht gebucht, aber weg.</p>
-      </div>`;
-  }catch(e){
-    $("schwundBox").innerHTML = "";
-  }
 }
 
 async function meldeFuellstand(karte){
@@ -10816,8 +10763,7 @@ async function meldeFuellstand(karte){
       beep();
     } else if (diff < 0){
       out.className = "result minus";
-      out.textContent = `${Math.abs(diff)} ${a.einheit} fehlen — Wert ${eur(Math.abs(diff) * a.preis)}. ` +
-                        `Als Schwund festgehalten.`;
+      out.textContent = `${Math.abs(diff)} ${a.einheit} weniger als gerechnet. Korrigiert.`;
       warnBeep();
     } else {
       out.className = "result";
@@ -10827,7 +10773,6 @@ async function meldeFuellstand(karte){
 
     karte.querySelector(".soll").innerHTML = `Soll <b>${gemessen}</b> ${a.einheit}`;
     input.value = "";
-    ladeSchwund();
     renderList();
   }catch(e){
     warnBeep();
