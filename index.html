@@ -10244,6 +10244,29 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   }
   .stock.low{background:#FDF0DF;color:var(--warn)}
   .stock.out{background:#FBE7EA;color:var(--sprint)}
+  .stock.job{background:#E8EEF8;color:var(--steher)}
+
+  /* ---------- Füllstand ---------- */
+  .fill{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;margin-bottom:10px;
+  }
+  .fill h4{margin:0 0 2px;font-size:16px}
+  .fill .calc{font-size:13px;color:var(--ink-2);margin:0 0 10px}
+  .fill .calc b{color:var(--ink)}
+  .fill-row{display:flex;gap:8px;align-items:center}
+  .fill-row input{
+    flex:1;min-width:0;padding:12px;font-size:17px;font-family:inherit;font-weight:600;
+    border:1px solid var(--line);border-radius:10px;text-align:right;
+  }
+  .fill-row .unit{font-size:14px;color:var(--ink-2);width:34px}
+  .fill-row button{
+    border:0;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;
+    font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
+  }
+  .fill .result{margin:10px 0 0;font-size:13px;color:var(--ok);font-weight:600}
+  .fill .result.minus{color:var(--warn)}
   .plus{
     width:36px;height:36px;flex:none;border-radius:50%;border:0;background:var(--ink);
     color:#fff;font-size:22px;line-height:1;font-weight:600;
@@ -10411,9 +10434,10 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   </section>
 
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" id="tab-scan" aria-selected="true">Scannen</button>
+    <button class="tab" role="tab" id="tab-scan" aria-selected="true">Scan</button>
     <button class="tab" role="tab" id="tab-list" aria-selected="false">Liste</button>
-    <button class="tab" role="tab" id="tab-bill" aria-selected="false">Rechnungen</button>
+    <button class="tab" role="tab" id="tab-fill" aria-selected="false">Vorrat</button>
+    <button class="tab" role="tab" id="tab-bill" aria-selected="false">Rechnung</button>
   </div>
 
   <!-- Scannen -->
@@ -10431,6 +10455,16 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   <section id="pane-list" class="hidden">
     <input id="search" class="search" type="search" placeholder="Artikel suchen…" aria-label="Artikel suchen">
     <div id="itemList"></div>
+  </section>
+
+  <!-- Füllstand -->
+  <section id="pane-fill" class="hidden">
+    <p class="live" style="margin-bottom:12px">
+      <b>Der Vorratsbestand ist geschätzt.</b> Er sinkt um die Standardverbräuche der
+      Pauschalen — und die stimmen nie genau. Schau in die Flasche und melde, was
+      wirklich drin ist. Die App schreibt die Differenz als Korrektur.
+    </p>
+    <div id="fillList"></div>
   </section>
 
   <!-- Rechnungen -->
@@ -10511,16 +10545,18 @@ let SPORTLER = ["LV — Vereinsmaterial","Lukas M.","Jonas K.","Mia S.","Emma L.
 let LV = "LV — Vereinsmaterial";
 
 let ARTIKEL = [
-  {code:"A-101", name:"Kette KMC X11",              einheit:"Stück",  preis:34.90, bestand:6, min:3},
-  {code:"A-102", name:"Bremsbeläge R55C4",          einheit:"Paar",   preis:24.50, bestand:2, min:4},
-  {code:"A-103", name:"Schaltzug",                  einheit:"Stück",  preis: 3.90, bestand:18, min:6},
-  {code:"A-104", name:"Bremszug",                   einheit:"Stück",  preis: 3.90, bestand:11, min:6},
-  {code:"A-105", name:"Lenkerband",                 einheit:"Rolle",  preis:19.90, bestand:4, min:2},
-  {code:"A-106", name:"Bahnreifen Sprinter Gatorskin", einheit:"Stück", preis:59.00, bestand:3, min:4},
-  {code:"A-107", name:"Schlauchreifenkitt",         einheit:"Tube",   preis:12.50, bestand:0, min:2},
-  {code:"A-108", name:"Kettenöl",                   einheit:"Flasche",preis: 9.90, bestand:5, min:2},
-  {code:"A-109", name:"Bahnritzel 15Z",             einheit:"Stück",  preis:29.00, bestand:7, min:2},
-  {code:"A-110", name:"Innenlager",                 einheit:"Stück",  preis:45.00, bestand:1, min:2}
+  {code:"A-101", name:"11fach Kette",              einheit:"Stück", preis:20.00, bestand:9,  min:3, art:"Stück"},
+  {code:"A-102", name:"Shimano Bremsbelag",        einheit:"Paar",  preis:20.00, bestand:8,  min:4, art:"Stück"},
+  {code:"A-104", name:"Bremszug",                  einheit:"Stück", preis: 4.00, bestand:25, min:6, art:"Stück"},
+  {code:"A-105", name:"Lenkerband",                einheit:"Rolle", preis:15.00, bestand:5,  min:2, art:"Stück"},
+  {code:"A-106", name:"Schlauchreifen Tempo",      einheit:"Stück", preis:80.00, bestand:6,  min:4, art:"Stück"},
+  {code:"A-107", name:"Schlauchreifen Pista",      einheit:"Stück", preis:90.00, bestand:1,  min:2, art:"Stück"},
+  {code:"V-201", name:"Bremsflüssigkeit Mineral",  einheit:"ml",    preis: 0.00, bestand:880,min:200, art:"Vorrat"},
+  {code:"V-203", name:"Kettenöl",                  einheit:"ml",    preis: 0.00, bestand:500,min:50,  art:"Vorrat"},
+  {code:"A-109", name:"Bremse entlüften (Shimano)",einheit:"Bremse",preis: 5.00, bestand:null, min:0,
+   art:"Pauschale", verbraucht:"V-201", verbrauch:60},
+  {code:"A-111", name:"Kette reinigen & ölen",     einheit:"Rad",   preis: 3.00, bestand:null, min:0,
+   art:"Pauschale", verbraucht:"V-203", verbrauch:10}
 ];
 
 /* ---------------------------------------------------------------
@@ -10555,18 +10591,99 @@ $("tab-scan").onclick = () => switchTab("scan");
 $("tab-list").onclick = () => switchTab("list");
 
 $("tab-bill").onclick = () => switchTab("bill");
+$("tab-fill").onclick = () => switchTab("fill");
 
 function switchTab(which){
-  ["scan","list","bill"].forEach(t => {
+  ["scan","list","fill","bill"].forEach(t => {
     $("tab-" + t).setAttribute("aria-selected", t === which);
     $("pane-" + t).classList.toggle("hidden", t !== which);
   });
-  // Warenkorb und Buchen-Leiste gehören nicht in die Rechnungsansicht
-  const bill = which === "bill";
-  $("noteSec").classList.toggle("hidden", bill);
-  $("sheetSec").classList.toggle("hidden", bill);
-  $("barSec").classList.toggle("hidden", bill);
+  // Warenkorb und Buchen-Leiste gehören nicht in Rechnung und Füllstand
+  const aus = (which === "bill" || which === "fill");
+  $("noteSec").classList.toggle("hidden", aus);
+  $("sheetSec").classList.toggle("hidden", aus);
+  $("barSec").classList.toggle("hidden", aus);
+  if (which === "fill") renderFill();
   if (which === "scan") startCamera(); else stopCamera();
+}
+
+/* ---------------------------------------------------------------
+   FÜLLSTAND
+   Der gemessene Wert überschreibt nichts. Er erzeugt eine Korrekturzeile
+   im Blatt Zugänge — so bleibt nachvollziehbar, wer wann was korrigiert hat.
+----------------------------------------------------------------*/
+function renderFill(){
+  const vorraete = ARTIKEL.filter(a => a.art === "Vorrat");
+
+  if (!vorraete.length){
+    $("fillList").innerHTML = `<p class="empty" style="background:var(--card);
+      border:1px solid var(--line);border-radius:var(--radius)">
+      Keine Vorräte angelegt. Im Blatt „Material“ Spalte „Art“ auf <b>Vorrat</b> setzen —
+      z. B. Bremsflüssigkeit in ml.</p>`;
+    return;
+  }
+
+  $("fillList").innerHTML = vorraete.map(a => `
+    <div class="fill" data-code="${a.code}">
+      <h4>${a.name}</h4>
+      <p class="calc">Gerechnet: <b>${a.bestand} ${a.einheit}</b> · Mindestbestand ${a.min}</p>
+      <div class="fill-row">
+        <input type="number" inputmode="numeric" min="0" step="10"
+               placeholder="tatsächlich" aria-label="Gemessener Füllstand ${a.name}">
+        <span class="unit">${a.einheit}</span>
+        <button>Melden</button>
+      </div>
+      <p class="result hidden"></p>
+    </div>`).join("");
+
+  $("fillList").querySelectorAll(".fill").forEach(karte => {
+    karte.querySelector("button").onclick = () => meldeFuellstand(karte);
+  });
+}
+
+async function meldeFuellstand(karte){
+  const code   = karte.dataset.code;
+  const input  = karte.querySelector("input");
+  const btn    = karte.querySelector("button");
+  const out    = karte.querySelector(".result");
+  const trainer = $("trainer").value;
+  const gemessen = Number(input.value);
+
+  if (!trainer){ warnBeep(); toast("Erst oben den Trainer wählen"); return; }
+  if (input.value === "" || isNaN(gemessen) || gemessen < 0){
+    warnBeep(); toast("Bitte einen Wert eintragen"); return;
+  }
+
+  const a = ARTIKEL.find(x => x.code === code);
+  btn.disabled = true; btn.textContent = "…";
+
+  try{
+    if (API_URL){
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify({aktion:"fuellstand", trainer, code, gemessen})
+      });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.fehler);
+    }
+    const diff = gemessen - a.bestand;
+    a.bestand = gemessen;
+
+    out.className = "result" + (diff < 0 ? " minus" : "");
+    out.textContent = diff === 0
+      ? "Stimmte schon — keine Korrektur nötig."
+      : `Korrigiert um ${diff > 0 ? "+" : ""}${diff} ${a.einheit}. Neuer Bestand: ${gemessen} ${a.einheit}.`;
+    karte.querySelector(".calc").innerHTML =
+      `Gerechnet: <b>${gemessen} ${a.einheit}</b> · Mindestbestand ${a.min}`;
+    input.value = "";
+    beep();
+  }catch(e){
+    warnBeep();
+    out.className = "result minus";
+    out.textContent = "Fehlgeschlagen: " + e.message;
+  }
+  btn.disabled = false; btn.textContent = "Melden";
 }
 
 /* ---------------------------------------------------------------
@@ -10777,25 +10894,32 @@ async function festschreiben(){
 /* ---------------------------------------------------------------
    LISTE
 ----------------------------------------------------------------*/
+/* Wie viel ist noch greifbar? Pauschalen sind Leistungen — die gehen immer. */
 function frei(a){
+  if (a.art === "Pauschale") return Infinity;
   const z = cart.find(x => x.code === a.code);
   return a.bestand - (z ? z.menge : 0);
 }
 function stockClass(a){
+  if (a.art === "Pauschale") return "job";
   const f = frei(a);
   if (f <= 0) return "out";
   if (f <= a.min) return "low";
   return "ok";
 }
 function stockLabel(a){
+  if (a.art === "Pauschale") return "Leistung";
   const f = frei(a);
   if (f <= 0) return "leer";
   return f + (f <= a.min ? " · knapp" : "");
 }
 function renderList(){
   const q = $("search").value.trim().toLowerCase();
+  // Vorräte tauchen hier nicht auf — sie werden über Pauschalen verbraucht,
+  // nicht einzeln gebucht. Niemand rechnet in Millilitern ab.
   const treffer = ARTIKEL.filter(a =>
-    a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q));
+    a.art !== "Vorrat" &&
+    (a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q)));
 
   $("itemList").innerHTML = treffer.length ? treffer.map(a => `
     <button class="item" data-code="${a.code}" ${frei(a) <= 0 ? "disabled" : ""}>
@@ -10819,22 +10943,46 @@ $("search").addEventListener("input", renderList);
 function add(code){
   const a = ARTIKEL.find(x => x.code === code);
   if (!a) return;
+
+  if (a.art === "Vorrat"){
+    warnBeep();
+    toast(`${a.name} wird nicht einzeln gebucht — nimm die Pauschale`);
+    return;
+  }
+
   const zeile = cart.find(z => z.code === code);
   const imKorb = zeile ? zeile.menge : 0;
-  const frei = a.bestand - imKorb;          // was noch übrig ist
+  const rest = a.art === "Pauschale" ? Infinity : a.bestand - imKorb;
 
-  if (frei <= 0){
+  if (rest <= 0){
     warnBeep();
     toast(a.bestand === 0
       ? `${a.name}: Bestand ist leer`
       : `${a.name}: nur noch ${a.bestand} im Lager`);
     return;
   }
+
   if (zeile) zeile.menge++;
-  else cart.push({code:a.code, name:a.name, einheit:a.einheit, preis:a.preis, menge:1});
+  else cart.push({code:a.code, name:a.name, einheit:a.einheit, preis:a.preis,
+                  menge:1, art:a.art, verbraucht:a.verbraucht, verbrauch:a.verbrauch});
   beep();
-  const neu = (zeile ? zeile.menge : 1);
-  toast(`${a.name} · ${neu}×` + (frei === 1 ? " — letztes Stück" : ""));
+
+  const neu = zeile ? zeile.menge : 1;
+  let msg = `${a.name} · ${neu}×`;
+
+  // Pauschale: zeigen, was dem Vorrat abgezogen wird — sonst wundert sich
+  // später jemand, warum die Flasche schneller leer wird als gedacht.
+  if (a.art === "Pauschale" && a.verbraucht && a.verbrauch){
+    const v = ARTIKEL.find(x => x.code === a.verbraucht);
+    if (v){
+      const zieht = a.verbrauch * neu;
+      msg += ` · ${zieht} ${v.einheit} ${v.name}`;
+      if (v.bestand - zieht < 0) msg += " — Vorrat rechnerisch leer!";
+    }
+  } else if (rest === 1){
+    msg += " — letztes Stück";
+  }
+  toast(msg);
   render();
 }
 function remove(code){
@@ -10922,6 +11070,10 @@ $("bookBtn").onclick = async () => {
         const a = ARTIKEL.find(x => x.code === b.code);
         if (a) a.bestand = b.bestand;
       });
+      // z. B. "Bremsflüssigkeit ist rechnerisch leer — bitte Füllstand melden."
+      if (data.warnungen && data.warnungen.length) setTimeout(() => {
+        warnBeep(); toast(data.warnungen[0]);
+      }, 2000);
     }catch(e){
       warnBeep();
       toast("Kein Netz — Warenkorb bleibt erhalten, nochmal versuchen");
@@ -10930,10 +11082,14 @@ $("bookBtn").onclick = async () => {
     }
     btn.textContent = "Buchen";
   } else {
-    // Demo-Modus: Bestand lokal abziehen
+    // Demo-Modus: Bestand lokal abziehen, inklusive Vorratsverbrauch der Pauschalen
     cart.forEach(z => {
       const a = ARTIKEL.find(x => x.code === z.code);
-      a.bestand = Math.max(0, a.bestand - z.menge);
+      if (a && a.art === "Stück") a.bestand = Math.max(0, a.bestand - z.menge);
+      if (a && a.art === "Pauschale" && a.verbraucht){
+        const v = ARTIKEL.find(x => x.code === a.verbraucht);
+        if (v) v.bestand = Math.max(0, v.bestand - a.verbrauch * z.menge);
+      }
     });
   }
 
@@ -11089,7 +11245,7 @@ function fallback(){
   $("scanHint").textContent = "Kamera hier nicht freigegeben. Tippe ein Regalfach an — das simuliert einen Scan.";
   $("scanHint").classList.remove("hidden");
   $("demoTiles").classList.remove("hidden");
-  $("demoTiles").innerHTML = ARTIKEL.slice(0,6).map(a =>
+  $("demoTiles").innerHTML = ARTIKEL.filter(a => a.art !== "Vorrat").slice(0,6).map(a =>
     `<button class="tile" data-code="${a.code}">${a.name}<small>Regalfach ${a.code}</small></button>`).join("");
   $("demoTiles").querySelectorAll(".tile").forEach(b =>
     b.onclick = () => add(b.dataset.code));
