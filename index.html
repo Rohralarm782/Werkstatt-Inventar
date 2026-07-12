@@ -10605,10 +10605,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwlURzNtjvoV0CO_-wCLSwN
    DEMO-DATEN (nur ohne API_URL)
 ----------------------------------------------------------------*/
 let TRAINER  = ["Hauke","Silke","Tom"];
-// "LV" = Vereinsräder / Werkstattmaterial, wird nicht an Eltern abgerechnet.
-// Steht bewusst ganz oben, damit niemand es auf ein Kind schummelt.
-let SPORTLER = ["LV — Vereinsmaterial","Lukas M.","Jonas K.","Mia S.","Emma L.","Ben T."];
-let LV = "LV — Vereinsmaterial";
+// "LV" = Landesverband: eigene Räder und Werkstattmaterial.
+// Wird nicht an Eltern abgerechnet, der Bestand sinkt aber trotzdem.
+let SPORTLER = ["LV — Landesverband","Lukas M.","Jonas K.","Mia S.","Emma L.","Ben T."];
+let LV = "LV — Landesverband";
 
 let ARTIKEL = [
   {code:"A-101", name:"11fach Kette",              einheit:"Stück", preis:20.00, bestand:9,  min:3, art:"Stück"},
@@ -11091,7 +11091,7 @@ function zeigeRechnungen(){
   out.innerHTML = entwurf.rechnungen.map(r => `
     <div class="inv">
       <div class="print-head">
-        <strong>Radsportverein — Materialabrechnung</strong>
+        <strong>Landesverband Radsport Mecklenburg-Vorpommern — Materialabrechnung</strong>
       </div>
       <div class="inv-head">
         <strong>${r.sportler}</strong>
@@ -11263,7 +11263,7 @@ function renderCart(){
   document.querySelector(".note").classList.toggle("lv", istLV);
 
   const hinweis = istLV
-    ? `<p class="lv-hint">Vereinsmaterial — Bestand sinkt, wird aber nicht abgerechnet.</p>` : "";
+    ? `<p class="lv-hint">Material des Landesverbands — Bestand sinkt, wird aber nicht abgerechnet.</p>` : "";
 
   $("cart").innerHTML = hinweis + (cart.length ? cart.map(z => `
     <div class="line">
