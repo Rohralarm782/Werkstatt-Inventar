@@ -210,6 +210,16 @@
   }
   td{padding:8px 10px;border-bottom:1px solid #F0EEEB;font-variant-numeric:tabular-nums}
   tr:last-child td{border-bottom:0}
+  .datum{
+    flex:1;font-size:17px;font-weight:600;font-family:inherit;color:var(--ink);
+    border:0;background:transparent;padding:6px 0;
+  }
+  .datum:focus{outline:2px solid var(--steher);outline-offset:3px;border-radius:4px}
+  .live{
+    margin:0 0 12px;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.4;
+    background:#E8EEF8;color:var(--steher);border:1px solid #CFDBEF;
+  }
+
   /* ---------- Rechnungen ---------- */
   .wide{
     width:100%;padding:15px;border:0;border-radius:12px;background:var(--ink);color:#fff;
@@ -316,10 +326,19 @@
   <section id="pane-bill" class="hidden">
     <div class="ticket" style="margin-bottom:12px">
       <div class="ticket-row">
-        <span class="lbl">Monat</span>
-        <select id="billMonth" aria-label="Abrechnungsmonat"></select>
+        <span class="lbl">Zeitraum</span>
+        <select id="billPreset" aria-label="Zeitraum"></select>
+      </div>
+      <div class="ticket-row">
+        <span class="lbl">Von</span>
+        <input type="date" id="billFrom" class="datum" aria-label="Von">
+      </div>
+      <div class="ticket-row">
+        <span class="lbl">Bis</span>
+        <input type="date" id="billTo" class="datum" aria-label="Bis">
       </div>
     </div>
+    <p id="billLive" class="live hidden"></p>
     <button id="previewBtn" class="wide">Offene Posten anzeigen</button>
     <div id="billOut"></div>
   </section>
@@ -448,28 +467,85 @@ function switchTab(which){
 ----------------------------------------------------------------*/
 let entwurf = null;   // {von, bis, rechnungen:[{sportler, posten[], summe}]}
 
-(function fuelleMonate(){
-  const sel = $("billMonth"), heute = new Date();
-  const namen = ["Januar","Februar","März","April","Mai","Juni",
-                 "Juli","August","September","Oktober","November","Dezember"];
-  for (let i = 1; i <= 12; i++){                       // letzter Monat zuerst
-    const d = new Date(heute.getFullYear(), heute.getMonth() - i, 1);
-    const opt = document.createElement("option");
-    opt.value = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
-    opt.textContent = namen[d.getMonth()] + " " + d.getFullYear();
-    sel.appendChild(opt);
-  }
+const iso  = d => d.toISOString().slice(0,10);
+const heute = () => new Date();
+
+/* Voreinstellungen. "Alles Offene" ist der Normalfall — weil ein Posten mit
+   Rechnungsnummer nie wieder auftaucht, kann man gefahrlos immer alles bis
+   zum Stichtag einsammeln. Halbjährlich abrechnen = zweimal im Jahr klicken. */
+function presets(){
+  const h = heute(), j = h.getFullYear(), m = h.getMonth();
+  const p = [
+    {id:"offen_heute", text:"Alles Offene bis heute",
+     von:new Date(2020,0,1), bis:h},
+    {id:"offen_vormonat", text:"Alles Offene bis Ende letzter Monat",
+     von:new Date(2020,0,1), bis:new Date(j, m, 0)},
+    {id:"monat_akt", text:"Laufender Monat",
+     von:new Date(j, m, 1), bis:h},
+    {id:"monat_vor", text:"Letzter Monat",
+     von:new Date(j, m-1, 1), bis:new Date(j, m, 0)},
+    {id:"hj1", text:"1. Halbjahr " + j, von:new Date(j,0,1), bis:new Date(j,5,30)},
+    {id:"hj2", text:"2. Halbjahr " + j, von:new Date(j,6,1), bis:new Date(j,11,31)},
+  ];
+  // Im 1. Halbjahr ist meist das 2. Halbjahr des Vorjahres gefragt
+  if (m < 6) p.push({id:"hj2v", text:"2. Halbjahr " + (j-1),
+                     von:new Date(j-1,6,1), bis:new Date(j-1,11,31)});
+  p.push({id:"frei", text:"Freier Zeitraum", von:null, bis:null});
+  return p;
+}
+
+(function initZeitraum(){
+  const sel = $("billPreset");
+  presets().forEach(p => {
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = p.text;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => {
+    const p = presets().find(x => x.id === sel.value);
+    if (p.von){ $("billFrom").value = iso(p.von); $("billTo").value = iso(p.bis); }
+    pruefeLaufend();
+  };
+  // Datumsfelder von Hand geändert → auf "Freier Zeitraum" springen
+  ["billFrom","billTo"].forEach(id => $(id).onchange = () => {
+    sel.value = "frei"; pruefeLaufend();
+  });
+  sel.dispatchEvent(new Event("change"));   // Startwert setzen
 })();
 
-function monatsGrenzen(wert){
-  const [y, m] = wert.split("-").map(Number);
-  return {von: new Date(y, m-1, 1), bis: new Date(y, m, 0, 23, 59, 59)};
+/* Ehrlicher Hinweis, wenn der Zeitraum noch nicht vorbei ist. */
+function pruefeLaufend(){
+  const el = $("billLive");
+  const bis = new Date($("billTo").value + "T23:59:59");
+  if (bis >= heute()){
+    el.classList.remove("hidden");
+    el.innerHTML = "<b>Laufender Zeitraum.</b> Du siehst auch Posten von heute. " +
+      "Festschreiben ist trotzdem ungefährlich — was später noch dazukommt, " +
+      "taucht beim nächsten Lauf wieder auf und wird nachberechnet.";
+  } else {
+    el.classList.add("hidden");
+  }
+}
+
+function zeitraum(){
+  return {
+    von: new Date($("billFrom").value + "T00:00:00"),
+    bis: new Date($("billTo").value + "T23:59:59")
+  };
+}
+function zeitraumText(){
+  const {von, bis} = zeitraum();
+  const f = d => d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
+  return f(von) + " – " + f(bis);
 }
 
 $("previewBtn").onclick = async () => {
   const btn = $("previewBtn");
+  const {von, bis} = zeitraum();
+  if (isNaN(von) || isNaN(bis) || von > bis){
+    warnBeep(); toast("Zeitraum stimmt nicht"); return;
+  }
   btn.disabled = true; btn.textContent = "lädt…";
-  const {von, bis} = monatsGrenzen($("billMonth").value);
 
   try{
     if (API_URL){
@@ -483,7 +559,7 @@ $("previewBtn").onclick = async () => {
       if (!d.ok) throw new Error(d.fehler);
       entwurf = {von, bis, rechnungen: d.rechnungen};
     } else {
-      entwurf = {von, bis, rechnungen: demoRechnungen(von, bis)};
+      entwurf = {von, bis, rechnungen: demoRechnungen()};
     }
     zeigeRechnungen();
   }catch(e){
@@ -508,12 +584,12 @@ function demoRechnungen(){
 
 function zeigeRechnungen(){
   const out = $("billOut");
-  const monat = $("billMonth").selectedOptions[0].textContent;
+  const zr = zeitraumText();
 
   if (!entwurf.rechnungen.length){
     out.innerHTML = `<p class="empty" style="background:var(--card);border:1px solid var(--line);
       border-radius:var(--radius);margin-top:12px">
-      Für ${monat} sind keine offenen Posten da. Entweder wurde nichts gebucht — oder der Monat ist
+      Für ${zr} sind keine offenen Posten da. Entweder wurde nichts gebucht — oder der Zeitraum ist
       schon abgerechnet.</p>`;
     return;
   }
@@ -527,13 +603,13 @@ function zeigeRechnungen(){
       </div>
       <div class="inv-head">
         <strong>${r.sportler}</strong>
-        <span class="nr">${r.nummer || "Entwurf"} · ${monat}</span>
+        <span class="nr">${r.nummer || "Entwurf"} · ${zr}</span>
       </div>
       <table>
         ${r.posten.map(p => `
           <tr>
             <td>${p.menge}× ${p.artikel}<br><span style="color:var(--ink-2);font-size:12px">
-              à ${eur(p.preis)}</span></td>
+              à ${eur(p.preis)}${p.datum ? " · " + p.datum : ""}</span></td>
             <td>${eur(p.summe)}</td>
           </tr>`).join("")}
         <tr class="tot"><td>Gesamt</td><td>${eur(r.summe)}</td></tr>
@@ -542,7 +618,7 @@ function zeigeRechnungen(){
         bitte an den Trainer wenden, der die Entnahme gebucht hat.</p>
     </div>`).join("") + `
     <div class="sum-line">
-      <span>${entwurf.rechnungen.length} Rechnungen · ${monat}</span>
+      <span>${entwurf.rechnungen.length} Rechnungen · ${zr}</span>
       <b>${eur(gesamt)}</b>
     </div>
     <button id="lockBtn" class="wide second">
