@@ -10386,8 +10386,38 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     font-size:14px;display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;
   }
 
+  /* ---------- Archiv ---------- */
+  .archiv{margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}
+  .archiv h3{
+    font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-2);margin:0 0 10px;
+  }
+  .arch{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;margin-bottom:6px;
+  }
+  .arch-main{flex:1;min-width:0}
+  .arch-main b{display:block;font-size:15px}
+  .arch-main small{color:var(--ink-2);font-size:12px}
+  .arch .sum{font-weight:700;font-size:15px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .arch .open{
+    width:36px;height:36px;flex:none;border-radius:8px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);font-size:16px;cursor:pointer;
+  }
+  .paid{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+  .paid input{width:22px;height:22px;accent-color:var(--ok);cursor:pointer}
+  .paid span{
+    font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-2);font-weight:600;
+  }
+  .arch.bezahlt{background:#F4F8F5;border-color:#BFDCCB}
+  .arch.bezahlt .arch-main b{color:var(--ok)}
+  .arch.storniert{opacity:.5}
+  .arch.storniert .arch-main b{text-decoration:line-through}
+
   @media print{
-    header,.tabs,.ticket,.sheet,.bar,.wide,.toast,.sum-line,#pane-scan,#pane-list,.note{display:none!important}
+    header,.tabs,.ticket,.sheet,.bar,.wide,.toast,.sum-line,.archiv,.live,
+    #pane-scan,#pane-list,#pane-fill,.note{display:none!important}
     body{background:#fff;padding:0}
     .wrap{max-width:none;padding:0}
     .inv{
@@ -10486,6 +10516,11 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     <p id="billLive" class="live hidden"></p>
     <button id="previewBtn" class="wide">Offene Posten anzeigen</button>
     <div id="billOut"></div>
+
+    <section class="archiv">
+      <h3>Alle Rechnungen</h3>
+      <div id="archivOut"><p class="empty">wird geladen…</p></div>
+    </section>
   </section>
 
   <!-- Lieferschein -->
@@ -10604,6 +10639,7 @@ function switchTab(which){
   $("sheetSec").classList.toggle("hidden", aus);
   $("barSec").classList.toggle("hidden", aus);
   if (which === "fill") renderFill();
+  if (which === "bill") ladeArchiv();
   if (which === "scan") startCamera(); else stopCamera();
 }
 
@@ -10810,9 +10846,121 @@ function demoRechnungen(){
   });
 }
 
+/* ---------------------------------------------------------------
+   ARCHIV
+   Jede festgeschriebene Rechnung bleibt abrufbar — die Posten stehen ja
+   mit ihrer Rechnungsnummer in der Tabelle. Wer die PDF verliert, druckt
+   sie einfach neu, Wort für Wort identisch.
+----------------------------------------------------------------*/
+let archivListe = [];
+
+async function ladeArchiv(){
+  if (!API_URL){
+    $("archivOut").innerHTML = `<p class="empty">Im Demo-Modus gibt es kein Archiv.</p>`;
+    return;
+  }
+  try{
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({aktion:"rechnung_archiv"})
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.fehler);
+    archivListe = d.archiv;
+    renderArchiv();
+  }catch(e){
+    $("archivOut").innerHTML = `<p class="empty">Archiv konnte nicht geladen werden: ${e.message}</p>`;
+  }
+}
+
+function renderArchiv(){
+  if (!archivListe.length){
+    $("archivOut").innerHTML = `<p class="empty">Noch keine Rechnung festgeschrieben.</p>`;
+    return;
+  }
+
+  const offen = archivListe.filter(r => r.status === "offen")
+                           .reduce((s,r) => s + r.summe, 0);
+
+  $("archivOut").innerHTML = archivListe.map(r => `
+    <div class="arch ${r.status}" data-nr="${r.nummer}">
+      <label class="paid" title="Zahlung erhalten">
+        <input type="checkbox" ${r.status === "bezahlt" ? "checked" : ""}
+               ${r.status === "storniert" ? "disabled" : ""}>
+        <span>${r.status === "storniert" ? "storno" : "bezahlt"}</span>
+      </label>
+      <span class="arch-main">
+        <b>${r.sportler}</b>
+        <small>${r.nummer} · ${r.datum} · ${r.positionen} Pos.</small>
+      </span>
+      <span class="sum">${eur(r.summe)}</span>
+      <button class="open" title="Rechnung anzeigen und drucken">↓</button>
+    </div>`).join("") + `
+    <div class="sum-line">
+      <span>noch offen</span>
+      <b>${eur(offen)}</b>
+    </div>`;
+
+  $("archivOut").querySelectorAll(".arch").forEach(el => {
+    const nr = el.dataset.nr;
+    el.querySelector(".open").onclick = () => zeigeAlte(nr);
+    const box = el.querySelector("input");
+    if (!box.disabled) box.onchange = () => setzeStatus(nr, box.checked ? "bezahlt" : "offen", box);
+  });
+}
+
+/* Alte Rechnung aus den Rohdaten neu aufbauen und drucken. */
+async function zeigeAlte(nr){
+  try{
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({aktion:"rechnung_holen", nummer: nr})
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.fehler);
+
+    const r = d.rechnungen[0];
+    entwurf = {
+      von: new Date($("billFrom").value + "T00:00:00"),
+      bis: new Date($("billTo").value + "T23:59:59"),
+      rechnungen: d.rechnungen,
+      zeitraumFest: (r.von && r.bis) ? r.von + " – " + r.bis : ""
+    };
+    zeigeRechnungen();
+    $("billOut").scrollIntoView({behavior:"smooth", block:"start"});
+    toast("Rechnung " + nr + " wiederhergestellt");
+  }catch(e){
+    warnBeep(); toast("Konnte nicht laden: " + e.message);
+  }
+}
+
+async function setzeStatus(nr, status, box){
+  box.disabled = true;
+  try{
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({aktion:"rechnung_status", nummer: nr, status})
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.fehler);
+
+    const eintrag = archivListe.find(r => r.nummer === nr);
+    if (eintrag) eintrag.status = status;
+    renderArchiv();
+    beep();
+    toast("Rechnung " + nr + ": " + status);
+  }catch(e){
+    warnBeep(); toast("Fehlgeschlagen: " + e.message);
+    box.checked = !box.checked; box.disabled = false;
+  }
+}
+
 function zeigeRechnungen(){
   const out = $("billOut");
-  const zr = zeitraumText();
+  const zr = entwurf.zeitraumFest || zeitraumText();
 
   if (!entwurf.rechnungen.length){
     out.innerHTML = `<p class="empty" style="background:var(--card);border:1px solid var(--line);
@@ -10884,6 +11032,7 @@ async function festschreiben(){
     }
     zeigeRechnungen();
     toast(entwurf.rechnungen.length + " Rechnungen festgeschrieben");
+    ladeArchiv();
     setTimeout(() => window.print(), 600);
   }catch(e){
     warnBeep(); toast("Fehlgeschlagen: " + e.message);
