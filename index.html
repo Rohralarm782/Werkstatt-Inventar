@@ -14,117 +14,108 @@
 </script>
 <style>
   :root{
-    --paper:#F7F5F2;
-    --card:#FFFFFF;
-    --ink:#15181C;
-    --ink-2:#5C646E;
-    --line:#DDD9D3;
+    --paper:#F7F5F2; --card:#FFFFFF; --ink:#15181C; --ink-2:#5C646E; --line:#DDD9D3;
     /* Bahn-Linien: Sprinterlinie rot, Steherlinie blau */
-    --sprint:#C8102E;
-    --steher:#1B4CA1;
-    --ok:#1F7A4C;
-    --warn:#B45309;
-    --radius:14px;
+    --sprint:#C8102E; --steher:#1B4CA1; --ok:#1F7A4C; --warn:#B45309; --radius:14px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0}
-  body{
-    background:var(--paper);color:var(--ink);
-    font-family:Inter,system-ui,-apple-system,sans-serif;
-    font-size:16px;line-height:1.45;padding-bottom:90px;
-  }
-  .wrap{max-width:720px;margin:0 auto;padding:0 16px}
+  body{background:var(--paper);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;
+    font-size:16px;line-height:1.45;padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px}
 
-  header{background:var(--ink);color:#fff;padding:12px 0 0;border-bottom:4px solid var(--sprint)}
-  .brand{display:flex;align-items:baseline;gap:10px;padding-bottom:10px;flex-wrap:wrap}
-  .brand h1{font-family:'Barlow Condensed',Impact,sans-serif;font-weight:700;font-size:24px;
-    letter-spacing:.04em;text-transform:uppercase;margin:0}
-  .brand span{font-size:12px;color:#9AA3AD;letter-spacing:.08em;text-transform:uppercase}
+  header{background:var(--ink);color:#fff;padding-top:calc(12px + env(safe-area-inset-top,0px));border-bottom:4px solid var(--sprint)}
+  .brand{display:flex;align-items:center;gap:10px;padding-bottom:10px;flex-wrap:wrap}
+  .brand h1{font-family:'Barlow Condensed',Impact,sans-serif;font-weight:700;font-size:24px;letter-spacing:.04em;text-transform:uppercase;margin:0}
+  .brand .stand{font-size:12px;color:#9AA3AD;letter-spacing:.06em;text-transform:uppercase}
   .brand .sp{flex:1}
-  .netz{font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:99px;
-    background:#233;color:#9AA3AD}
-  .netz.off{background:var(--warn);color:#fff}
-  .netz.queue{background:var(--sprint);color:#fff}
+  .brand button{background:none;border:1px solid #3a4048;color:#C9D0D8;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+
+  .banner{padding:12px 14px;border-radius:var(--radius);margin:12px 0 0;font-size:14px;font-weight:500}
+  .banner.rot{background:var(--sprint);color:#fff}
+  .banner.gelb{background:#FBEEDC;color:#7A3E06;border:1px solid #F1D2A6}
 
   .tabs{display:flex;gap:6px;margin:14px 0 12px;flex-wrap:wrap}
-  .tab{flex:1;min-width:84px;padding:11px 6px;border:1px solid var(--line);background:var(--card);
-    border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;
-    letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);cursor:pointer}
+  .tab{flex:1;min-width:92px;padding:11px 6px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+    font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);cursor:pointer}
   .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
 
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px;margin-bottom:12px}
+  #app.laedt{opacity:.45;pointer-events:none;transition:opacity .15s}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
   .row{display:flex;align-items:center;gap:10px}
+  .wrapr{flex-wrap:wrap}
   .sp{flex:1}
-  .lbl{font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.12em;
-    text-transform:uppercase;color:var(--ink-2);font-weight:600;display:block;margin-bottom:5px}
+  .lbl{font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);font-weight:600;display:block;margin-bottom:5px}
   .sub{font-size:13px;color:var(--ink-2)}
-  .mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
-  h2.sec{font-family:'Barlow Condensed',sans-serif;font-size:16px;letter-spacing:.1em;
-    text-transform:uppercase;margin:18px 0 8px;color:var(--ink-2)}
+  .mono{font-variant-numeric:tabular-nums}
+  .big{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;letter-spacing:.02em}
+  h2.sec{font-family:'Barlow Condensed',sans-serif;font-size:16px;letter-spacing:.1em;text-transform:uppercase;margin:18px 0 8px;color:var(--ink-2)}
   h2.sec.alarm{color:var(--sprint)}
+  .trenn{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
 
   button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;
-    padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);
-    font-weight:600;cursor:pointer}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border-radius:10px;
+    border:1px solid var(--line);background:var(--card);font-weight:600;cursor:pointer;white-space:nowrap}
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .btn.alarm{background:var(--sprint);color:#fff;border-color:var(--sprint)}
-  .btn.small{min-height:36px;padding:0 11px;font-size:13px}
+  .btn.rot{background:var(--sprint);color:#fff;border-color:var(--sprint)}
+  .btn.small{min-height:38px;padding:0 12px;font-size:14px}
+  .btn.voll{width:100%}
   .btn:disabled{opacity:.45;cursor:not-allowed}
-  input[type=text],input[type=search],input[type=date],input[type=number],select,textarea{
-    width:100%;min-height:46px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
-    background:var(--card)}
+  input[type=text],input[type=search],input[type=date],input[type=number],input[type=email],input[type=password],select,textarea{
+    width:100%;min-height:46px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
   textarea{min-height:88px;line-height:1.45;resize:vertical}
   .feld{margin-bottom:12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:480px){ .grid2{grid-template-columns:1fr} }
   .seg{display:flex;gap:6px;flex-wrap:wrap}
-  .seg button{flex:1;min-width:92px;min-height:46px;border:1px solid var(--line);background:var(--card);
-    border-radius:10px;font-weight:600;cursor:pointer}
+  .seg button{flex:1;min-width:90px;min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:10px;font-weight:600;cursor:pointer;font-size:14px}
   .seg button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .seg button.rot[aria-pressed="true"]{background:var(--sprint);border-color:var(--sprint);color:#fff}
+  .seg button.rotwahl[aria-pressed="true"]{background:var(--sprint);border-color:var(--sprint);color:#fff}
 
-  .ticket{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
-    border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;cursor:pointer}
+  .ticket{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;cursor:pointer}
   .ticket.steht{border-color:#E9B4BC;background:#FFF7F8}
   .ticket .kopf{display:flex;align-items:baseline;gap:10px}
-  .ticket .fahrer{font-family:'Barlow Condensed',sans-serif;font-size:21px;font-weight:700;
-    letter-spacing:.02em}
   .ticket .puffer{margin-left:auto;font-family:'Barlow Condensed',sans-serif;font-size:21px;font-weight:700}
   .ticket .prob{margin:3px 0 0}
-  .chip{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;
-    white-space:nowrap}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .chip{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
   .chip.ok{background:#E4F1EA;color:var(--ok)}
   .chip.warn{background:#FBEEDC;color:var(--warn)}
   .chip.alarm{background:#FBE3E7;color:var(--sprint)}
   .chip.grau{background:#EFEDE9;color:var(--ink-2)}
 
+  .liste .eintrag{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .liste .eintrag:first-child{border-top:none}
+  .liste .eintrag .txt{flex:1;min-width:0}
   table{width:100%;border-collapse:collapse}
-  th{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
-    color:var(--ink-2);text-align:right;padding:6px 5px;border-bottom:1px solid var(--line)}
+  th{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);text-align:right;padding:6px 5px;border-bottom:1px solid var(--line)}
   th:first-child,td:first-child{text-align:left}
   td{padding:9px 5px;border-bottom:1px solid var(--line);font-size:14px;text-align:right}
   tr.low td{background:#FFF7F8}
   .tabwrap{overflow-x:auto}
 
-  .scanbox{position:relative;background:#0E1114;border-radius:var(--radius);aspect-ratio:4/3;
-    overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+  .overlay{position:fixed;inset:0;background:rgba(10,12,14,.55);display:flex;align-items:flex-start;justify-content:center;
+    padding:calc(20px + env(safe-area-inset-top,0px)) 14px calc(20px + env(safe-area-inset-bottom,0px));overflow:auto;z-index:50}
+  .sheet{width:100%;max-width:480px;background:var(--paper);border-radius:16px;padding:18px}
+  .sheet h3{font-family:'Barlow Condensed',sans-serif;font-size:22px;letter-spacing:.03em;text-transform:uppercase;margin:0 0 12px}
+  .scanbox{position:relative;background:#0E1114;border-radius:var(--radius);aspect-ratio:4/3;overflow:hidden;margin-bottom:10px}
   .scanbox video{width:100%;height:100%;object-fit:cover}
   .reticle{position:absolute;inset:18% 14%;border:2px solid rgba(255,255,255,.5);border-radius:8px}
-  .reticle::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:var(--sprint);
-    box-shadow:0 0 12px var(--sprint)}
-  @media (prefers-reduced-motion:no-preference){
-    .reticle::after{animation:sweep 2.4s ease-in-out infinite}
-    @keyframes sweep{0%,100%{top:8%}50%{top:92%}}
-  }
-  .scan-hint{color:#8B949E;font-size:14px;text-align:center;padding:24px;max-width:80%}
+  .reticle::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:var(--sprint);box-shadow:0 0 12px var(--sprint)}
 
-  .toast{position:fixed;left:50%;transform:translateX(-50%);
-    bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;
     padding:12px 18px;border-radius:10px;font-size:15px;z-index:60;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .toast.fehler{background:var(--sprint)}
   .leer{padding:22px;border:1px dashed var(--line);border-radius:var(--radius);color:var(--ink-2);text-align:center}
-  .fehler{background:#FBE3E7;border:1px solid #E9B4BC;color:var(--sprint);padding:12px 14px;
-    border-radius:var(--radius);margin:12px 0}
+  .fehlerbox{background:#FBE3E7;border:1px solid #E9B4BC;color:var(--sprint);padding:12px 14px;border-radius:var(--radius);margin:12px 0}
   .fuss{margin:22px 0 8px;font-size:12px;color:var(--ink-2);text-align:center}
+  @media print{
+    header,main,#toast{display:none!important}
+    body{background:#fff;padding:0}
+    .overlay{position:static;background:none;padding:0;display:block}
+    .sheet{max-width:none;padding:0;background:#fff}
+    .sheet .btn{display:none}
+  }
 </style>
 </head>
 <body>
@@ -132,46 +123,49 @@
 <header>
   <div class="wrap brand">
     <h1>Werkstatt RSZ MV</h1>
-    <span id="stand">lädt…</span>
+    <span class="stand" id="stand"></span>
     <span class="sp"></span>
-    <span class="netz" id="netz">online</span>
+    <button id="abmelden" hidden>Abmelden</button>
   </div>
 </header>
 
 <main class="wrap">
-  <div class="tabs" role="tablist">
-    <button class="tab" role="tab" data-tab="board" aria-selected="true">Tickets</button>
-    <button class="tab" role="tab" data-tab="neu" aria-selected="false">Neu</button>
-    <button class="tab" role="tab" data-tab="lager" aria-selected="false">Lager</button>
-    <button class="tab" role="tab" data-tab="koffer" aria-selected="false">Koffer</button>
-    <button class="tab" role="tab" data-tab="inventar" aria-selected="false">Inventar</button>
+  <div id="banner"></div>
+  <div class="tabs" id="tabs" role="tablist" hidden>
+    <button class="tab" role="tab" data-tab="tickets">Tickets</button>
+    <button class="tab" role="tab" data-tab="neu">Neu</button>
+    <button class="tab" role="tab" data-tab="lager">Lager</button>
+    <button class="tab" role="tab" data-tab="koffer">Koffer</button>
+    <button class="tab" role="tab" data-tab="inventar">Inventar</button>
+    <button class="tab" role="tab" data-tab="verwaltung">Verwaltung</button>
   </div>
   <div id="app"></div>
-  <p class="fuss">Version <span id="ver"></span> · <button class="btn small" id="reload">Neu laden</button></p>
+  <p class="fuss">Version <span id="ver"></span></p>
 </main>
 
+<div id="modal"></div>
 <div id="toast"></div>
 
 <script>
 /* ===============================================================
-   Werkstatt RSZ MV — Tickets, Lager, Koffer, Inventar
-   Frontend gegen das Apps-Script-Backend der neuen Arbeitsmappe.
+   Werkstatt RSZ MV — Tickets, Lager, Koffer, Inventar, Verwaltung
+   Datenquelle: Neon (Postgres) über Data API, Login über Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "2.0.0";
-
-/* Web-App-URL der neuen Bereitstellung eintragen (Apps Script >
-   Bereitstellen > Web-App). Sie endet auf /exec. */
-const API_URL = "https://script.google.com/macros/s/AKfycbxTMZgfIcp0x_fM9E-_vIuyBAFumeXAwN-EHVyhAEYigX5A2VWk4V5S_DV0NswVdr-CsQ/exec";
+const APP_VERSION = "3.0.0";
+const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
+const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
 /* ---------------------------------------------------------------
    Zustand
 ----------------------------------------------------------------*/
-let DB = null;                 // Daten aus dem Sheet
-let view = { tab:"board", ticket:null, filter:"offen", suche:"" };
-let neu = null;                // Entwurf für ein neues Ticket
-let warteschlange = [];        // Schreibvorgänge, die noch raus müssen
-let trainerName = localStorage.getItem("wTrainer") || "";
+let DB = null;             // frisch geladene Daten
+let stand = null;          // Zeitpunkt des letzten erfolgreichen Ladens
+let offline = false;       // true = Anzeige zeigt einen alten Stand
+let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", lagerFilter:"alle", verw:"sportler" };
+let neu = null;            // Entwurf neues Ticket
+let session = localStorage.getItem("wSession") || null;
+let jwt = null, jwtExp = 0, ich = null;
 
 const $ = id => document.getElementById(id);
 const app = $("app");
@@ -181,849 +175,1217 @@ const app = $("app");
 ----------------------------------------------------------------*/
 const HEUTE = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 function plusTage(n){ const d = new Date(HEUTE.getTime()); d.setDate(d.getDate()+n); return d; }
-function iso(d){ const m=d.getMonth()+1, t=d.getDate();
-  return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(t<10?"0":"")+t; }
-function de(s){ if(!s) return ""; const p=String(s).split("-"); return p.length===3 ? p[2]+"."+p[1]+"." : String(s); }
-function tageBis(s){ if(!s) return null; const d=new Date(String(s)+"T00:00:00");
-  return isNaN(d) ? null : Math.round((d-HEUTE)/86400000); }
-function esc(s){ return String(s==null?"":s)
-  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-function eur(n){ return (Number(n)||0).toFixed(2).replace(".",",")+" €"; }
-function zahl(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+function iso(d){ const m=d.getMonth()+1, t=d.getDate(); return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(t<10?"0":"")+t; }
+function de(s){ if(!s) return ""; const p=String(s).slice(0,10).split("-"); return p.length===3 ? p[2]+"."+p[1]+"." : String(s); }
+function deLang(s){ if(!s) return ""; const p=String(s).slice(0,10).split("-"); return p[2]+"."+p[1]+"."+p[0]; }
+function tageBis(s){ if(!s) return null; const d=new Date(String(s).slice(0,10)+"T00:00:00"); return isNaN(d)?null:Math.round((d-HEUTE)/86400000); }
+function uhr(d){ return d ? d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : ""; }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function num(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+function zahl(v){ return num(v).toLocaleString("de-DE",{maximumFractionDigits:2}); }
+function eur(v){ return num(v).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €"; }
+function tnr(id){ return "T-" + String(id).padStart(4,"0"); }
+
+/** Kommender Freitag — heute, wenn heute Freitag ist; am Wochenende der Freitag danach. */
+function naechsterFreitag(){ const tag = HEUTE.getDay(); return plusTage(tag <= 5 ? 5 - tag : 6); }
 
 let toastTimer = null;
-function toast(msg){
-  $("toast").innerHTML = '<div class="toast">'+esc(msg)+'</div>';
+function toast(msg, fehler){
+  $("toast").innerHTML = '<div class="toast'+(fehler?" fehler":"")+'">'+esc(msg)+'</div>';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { $("toast").innerHTML = ""; }, 3000);
+  toastTimer = setTimeout(() => { $("toast").innerHTML = ""; }, fehler ? 5000 : 3000);
 }
 function piep(ok){
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    const o = ctx.createOscillator(), g = ctx.createGain();
+    const ctx = new (window.AudioContext||window.webkitAudioContext)(), o = ctx.createOscillator(), g = ctx.createGain();
     o.frequency.value = ok ? 880 : 220; o.connect(g); g.connect(ctx.destination);
     g.gain.setValueAtTime(.12, ctx.currentTime); o.start();
-    g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+.18);
-    o.stop(ctx.currentTime+.2);
+    g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+.18); o.stop(ctx.currentTime+.2);
   }catch(e){}
 }
 
+/* ---------------------------------------------------------------
+   Anmeldung (Neon Auth, Bearer — ohne Cookie, läuft auch auf iPhones)
+----------------------------------------------------------------*/
+class AuthFehler extends Error {}
+class NetzFehler extends Error {}
+
+function jwtInhalt(t){
+  try{
+    let b = t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");
+    while(b.length % 4) b += "=";
+    return JSON.parse(decodeURIComponent(escape(atob(b))));
+  }catch(e){ return {}; }
+}
+async function netz(url, opt){
+  try{ return await fetch(url, opt); }
+  catch(e){ throw new NetzFehler("Keine Verbindung"); }
+}
+async function holeJwt(zwingend){
+  if(!zwingend && jwt && Date.now()/1000 < jwtExp - 60) return jwt;
+  if(!session) throw new AuthFehler("Nicht angemeldet");
+  const r = await netz(AUTH_URL + "/token", { headers:{ Authorization:"Bearer " + session } });
+  if(r.status === 401 || r.status === 403){ abmeldenLokal(); throw new AuthFehler("Sitzung abgelaufen"); }
+  if(!r.ok) throw new Error("Anmeldedienst: HTTP " + r.status);
+  const d = await r.json();
+  if(!d.token){ abmeldenLokal(); throw new AuthFehler("Sitzung abgelaufen"); }
+  jwt = d.token;
+  const p = jwtInhalt(jwt);
+  jwtExp = p.exp || 0;
+  ich = { id:p.sub, email:p.email || "" };
+  return jwt;
+}
+async function authPost(pfad, body){
+  const r = await netz(AUTH_URL + pfad, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) });
+  let d = {};
+  try{ d = await r.json(); }catch(e){}
+  if(!r.ok) throw new Error(d.message || d.error || ("HTTP " + r.status));
+  return d;
+}
+async function anmelden(email, passwort){
+  const d = await authPost("/sign-in/email", { email, password:passwort });
+  if(!d.token) throw new Error("Anmeldung fehlgeschlagen");
+  session = d.token; localStorage.setItem("wSession", session);
+  if(d.user && d.user.name) localStorage.setItem("wName", d.user.name);
+}
+async function registrieren(name, email, passwort){
+  const d = await authPost("/sign-up/email", { name, email, password:passwort });
+  localStorage.setItem("wName", name);
+  if(d.token){ session = d.token; localStorage.setItem("wSession", session); }
+  else await anmelden(email, passwort);
+}
+function abmeldenLokal(){
+  session = null; jwt = null; jwtExp = 0; ich = null; DB = null;
+  localStorage.removeItem("wSession");
+  localStorage.removeItem("wSnap");
+}
+async function abmelden(){
+  try{ if(session) await fetch(AUTH_URL + "/sign-out", { method:"POST", headers:{ Authorization:"Bearer " + session } }); }catch(e){}
+  abmeldenLokal();
+  zeigeLogin();
+}
+
+/* ---------------------------------------------------------------
+   Datenbank (Data API, PostgREST)
+----------------------------------------------------------------*/
+async function rest(pfad, opt){
+  opt = opt || {};
+  const baue = tok => ({
+    method: opt.method || "GET",
+    headers: Object.assign({ "Authorization":"Bearer " + tok, "Content-Type":"application/json", "Accept":"application/json" }, opt.headers || {}),
+    body: opt.body !== undefined ? JSON.stringify(opt.body) : undefined
+  });
+  let r = await netz(API_URL + pfad, baue(await holeJwt()));
+  if(r.status === 401){ r = await netz(API_URL + pfad, baue(await holeJwt(true))); }
+  const text = await r.text();
+  let d = null;
+  if(text){ try{ d = JSON.parse(text); }catch(e){ d = text; } }
+  if(!r.ok){
+    const m = d && typeof d === "object" ? (d.message || d.hint || d.details) : null;
+    throw new Error(m || ("Datenbank: HTTP " + r.status));
+  }
+  return d;
+}
+const rpc   = (fn, args) => rest("/rpc/" + fn, { method:"POST", body:args || {} });
+const neuIn = (tab, zeile) => rest("/" + tab, { method:"POST", body:zeile, headers:{ Prefer:"return=minimal" } });
+const aendern = (tab, filter, felder) => rest("/" + tab + "?" + filter, { method:"PATCH", body:felder, headers:{ Prefer:"return=minimal" } });
+const loeschen = (tab, filter) => rest("/" + tab + "?" + filter, { method:"DELETE", headers:{ Prefer:"return=minimal" } });
+
+async function ladeAlles(){
+  const heute = iso(HEUTE);
+  const q = [
+    rest("/v_bestand?order=code"),
+    rest("/artikel?order=code"),
+    rest("/v_rad?order=id"),
+    rest("/sportler?order=name"),
+    rest("/stueck?order=nummer"),
+    rest("/ticket?status=in.(offen,angenommen)&order=id"),
+    rest("/ticket_position?status=eq.reserviert&order=id"),
+    rest("/v_koffer?order=ort,code"),
+    rest("/termin?datum=gte." + heute + "&order=datum"),
+    rest("/trainer?order=name"),
+    rest("/rechnung?order=id.desc&limit=100"),
+    rest("/buchung?abrechnen=is.true&rechnung_id=is.null&art=eq.entnahme&select=sportler_id,menge,einzelpreis,zeit")
+  ];
+  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, trainer, rechnungen, offenePosten] = await Promise.all(q);
+  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, trainer, rechnungen, offenePosten };
+  stand = new Date();
+  offline = false;
+  try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB })); }catch(e){}
+}
+
+/* ---------------------------------------------------------------
+   Nur frische Daten zeigen: während geladen wird, ist die Seite gesperrt.
+----------------------------------------------------------------*/
+function sperren(an){ app.classList.toggle("laedt", !!an); if(an) $("stand").textContent = "lädt…"; }
+
+async function frischLaden(){
+  sperren(true);
+  try{
+    await ladeAlles();
+    render();
+    sendeWarteschlange();
+  }catch(e){
+    if(e instanceof AuthFehler){ zeigeLogin(); return; }
+    if(e instanceof NetzFehler){ offlineAnzeigen(); return; }
+    toast(e.message, true);
+  }finally{ sperren(false); zeigeStand(); }
+}
+
+/** Jede Änderung: schreiben, danach alles frisch laden — erst dann ist die Anzeige wieder frei. */
+async function aktion(fn, meldung){
+  if(offline){ toast("Offline — Änderungen sind erst mit Netz möglich.", true); return; }
+  sperren(true);
+  try{
+    const r = await fn();
+    modalZu();
+    await ladeAlles();
+    render();
+    if(meldung) toast(typeof meldung === "function" ? meldung(r) : meldung);
+    return r;
+  }catch(e){
+    if(e instanceof AuthFehler){ zeigeLogin(); return; }
+    if(e instanceof NetzFehler){ offlineAnzeigen(); toast("Keine Verbindung — nichts gespeichert.", true); return; }
+    toast(e.message, true);
+    try{ await ladeAlles(); render(); }catch(x){}
+  }finally{ sperren(false); zeigeStand(); }
+}
+
+function zeigeStand(){
+  $("stand").textContent = offline ? "offline" : (stand ? "Stand " + uhr(stand) : "");
+}
+
+/* ---------------------------------------------------------------
+   Offline am Wettkampf: alter Stand nur mit rotem Balken,
+   nur neue Tickets möglich — die werden nachgesendet.
+----------------------------------------------------------------*/
+function warteschlange(){ try{ return JSON.parse(localStorage.getItem("wQueue") || "[]"); }catch(e){ return []; } }
+function speichereWarteschlange(q){ localStorage.setItem("wQueue", JSON.stringify(q)); }
+
+function offlineAnzeigen(){
+  let snap = null;
+  try{ snap = JSON.parse(localStorage.getItem("wSnap") || "null"); }catch(e){}
+  if(!snap){
+    app.innerHTML = '<div class="fehlerbox">Keine Verbindung und kein gespeicherter Stand. Mit Netz einmal öffnen, dann klappt es auch offline.</div>';
+    return;
+  }
+  DB = snap.DB; stand = new Date(snap.stand); offline = true;
+  render();
+}
+async function sendeWarteschlange(){
+  const q = warteschlange();
+  if(!q.length || offline) return;
+  const rest_ = [];
+  for(const op of q){
+    try{ await rpc("ticket_anlegen", op); }
+    catch(e){ if(e instanceof NetzFehler){ rest_.push(op); } else { toast("Ticket konnte nicht nachgesendet werden: " + e.message, true); } }
+  }
+  speichereWarteschlange(rest_);
+  if(rest_.length < q.length){
+    toast((q.length - rest_.length) + " Ticket(s) nachgesendet");
+    await ladeAlles(); render();
+  }
+}
+window.addEventListener("online", () => { if(session) frischLaden(); });
+window.addEventListener("offline", () => { if(DB){ offline = true; render(); zeigeStand(); } });
+
+/* Beim Zurückkehren zur App frisch laden, wenn der Stand älter als eine Minute ist. */
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState !== "visible" || !session || !DB) return;
+  if(!stand || Date.now() - stand.getTime() > 60000) frischLaden();
+});
+
+/* ---------------------------------------------------------------
+   Zugriff auf die Daten
+----------------------------------------------------------------*/
 const AUFWAND = { "klein":0, "mittel":1, "groß":5 };
 const ORTE = ["Werkstatt","Koffer Bahn","Koffer Straße"];
 
-/* ---------------------------------------------------------------
-   Offline-Puffer
-   Am Wettkampf ist oft kein Netz. Schreibvorgänge landen erst
-   lokal, werden optimistisch angezeigt und später nachgesendet.
-----------------------------------------------------------------*/
-function ladeWarteschlange(){
-  try{ warteschlange = JSON.parse(localStorage.getItem("wQueue") || "[]"); }
-  catch(e){ warteschlange = []; }
+function sportlerName(id){ const s = (DB.sportler||[]).find(x => x.id === id); return s ? s.name : ""; }
+function rad(id){ return (DB.raeder||[]).find(r => r.id === id) || null; }
+function artikel(code){ return (DB.artikel||[]).find(a => a.code === code) || null; }
+function bestand(code){ return (DB.bestand||[]).find(b => b.code === code) || null; }
+function ticket(id){ return (DB.tickets||[]).find(t => t.id === id) || null; }
+function positionen(tid){ return (DB.positionen||[]).filter(p => p.ticket_id === tid); }
+function stueckAm(radId){ return (DB.stueck||[]).filter(s => s.rad_id === radId); }
+function pruefOffen(t){ return stueckAm(t.rad_id).filter(s => s.zustand === "zu prüfen"); }
+function wer(t){
+  const f = t.fahrer_id ? sportlerName(t.fahrer_id) : "";
+  if(f) return f;
+  const r = rad(t.rad_id);
+  return r ? (r.fahrer || r.bezeichnung) : t.rad_id;
 }
-function speichereWarteschlange(){
-  try{ localStorage.setItem("wQueue", JSON.stringify(warteschlange)); }catch(e){}
-}
-function zeigeNetz(){
-  const el = $("netz");
-  if(warteschlange.length){ el.className = "netz queue"; el.textContent = warteschlange.length + " offen"; }
-  else if(!navigator.onLine){ el.className = "netz off"; el.textContent = "offline"; }
-  else { el.className = "netz"; el.textContent = "online"; }
-}
+function radName(id){ const r = rad(id); return r ? r.bezeichnung : id; }
+function amOrt(b, ort){ return ort === "Werkstatt" ? num(b.werkstatt) : ort === "Koffer Bahn" ? num(b.koffer_bahn) : num(b.koffer_strasse); }
 
-async function post(op){
-  const r = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },  // kein CORS-Preflight
-    body: JSON.stringify(op)
-  });
-  const text = await r.text();
-  let d;
-  try{ d = JSON.parse(text); }
-  catch(e){ throw new Error("Antwort war kein JSON. /exec-URL direkt im Browser öffnen, dann zeigt Google die Meldung."); }
-  if(d.fehler) throw new Error(d.fehler);
-  return d;
-}
-
-/** Schreibt sofort, wenn möglich — sonst in die Warteschlange. */
-async function schreibe(op, stillschweigend){
-  lokalAnwenden(op);
-  render();
-  if(!navigator.onLine){
-    warteschlange.push(op); speichereWarteschlange(); zeigeNetz();
-    if(!stillschweigend) toast("Kein Netz — wird nachgesendet");
-    return { offline:true };
-  }
-  try{
-    const d = await post(op);
-    zeigeNetz();
-    return d;
-  }catch(e){
-    warteschlange.push(op); speichereWarteschlange(); zeigeNetz();
-    toast("Später nachsenden: " + e.message);
-    return { offline:true };
-  }
-}
-
-async function sendeNach(){
-  if(!warteschlange.length || !navigator.onLine) { zeigeNetz(); return; }
-  const offen = warteschlange.slice();
-  while(offen.length){
-    const op = offen[0];
-    try{ await post(op); offen.shift(); warteschlange.shift(); speichereWarteschlange(); }
-    catch(e){ zeigeNetz(); toast("Nachsenden hakt: " + e.message); return; }
-  }
-  zeigeNetz();
-  toast("Nachgesendet");
-  await laden();
-}
-
-/* ---------------------------------------------------------------
-   Laden
-----------------------------------------------------------------*/
-async function laden(){
-  if(!API_URL){
-    app.innerHTML = '<div class="fehler"><strong>Keine Web-App-URL hinterlegt.</strong><br>' +
-      'In der index.html oben <code>API_URL</code> auf die /exec-Adresse der Apps-Script-Bereitstellung setzen.</div>';
-    $("stand").textContent = "nicht verbunden";
-    return;
-  }
-  try{
-    const r = await fetch(API_URL + "?action=alles");
-    const d = await r.json();
-    if(d.fehler) throw new Error(d.fehler);
-    DB = d;
-    try{ localStorage.setItem("wCache", JSON.stringify(d)); }catch(e){}
-    $("stand").textContent = "Stand " + String(d.stand||"").replace("T"," ").slice(0,16);
-  }catch(e){
-    let cache = null;
-    try{ cache = JSON.parse(localStorage.getItem("wCache")||"null"); }catch(x){}
-    if(cache){ DB = cache; $("stand").textContent = "Offline-Stand"; toast("Offline — letzter bekannter Stand"); }
-    else { app.innerHTML = '<div class="fehler">Laden fehlgeschlagen: ' + esc(e.message) + '</div>'; return; }
-  }
-  render();
-}
-
-/* ---------------------------------------------------------------
-   Zugriff auf die Sheet-Daten
-----------------------------------------------------------------*/
-function rad(id){ return (DB.raeder||[]).find(r => r["Rad-ID"] === id) || null; }
-function radName(id){ const r = rad(id); return r ? (r.Bezeichnung || id) : id; }
-function fahrerVon(id){
-  const z = (DB.zuordnung||[])
-    .filter(x => x["Rad-ID"] === id && !x["gültig bis"])
-    .sort((a,b) => String(b["gültig ab"]).localeCompare(String(a["gültig ab"])));
-  return z.length ? z[0].Fahrer : "";
-}
-function wer(t){ return t.Fahrer || fahrerVon(t["Rad-ID"]) || radName(t["Rad-ID"]); }
-function artikel(code){ return (DB.artikel||[]).find(a => a.Code === code) || null; }
-function bestandRow(code){ return (DB.bestand||[]).find(b => b.Code === code) || null; }
-function lieferzeit(code){ const a = artikel(code); return a ? zahl(a["Lieferzeit (T)"]) : 0; }
-
-function posVon(ticket){ return (DB.positionen||[]).filter(p => p.Ticket === ticket && p.Status === "reserviert"); }
-function stueckAm(radId){ return (DB.stueckgut||[]).filter(s => s["am Rad"] === radId); }
-function pruefOffen(t){ return stueckAm(t["Rad-ID"]).filter(s => s.Zustand === "zu prüfen"); }
-
-/** Wieviel ist am Arbeitsort greifbar? Werkstatt = frei (Bestand minus Reservierungen). */
-function greifbar(code, ort, ohneTicket){
-  const b = bestandRow(code);
+/** Was ist für dieses Ticket am Arbeitsort greifbar? Eigene Reservierungen zählen als greifbar. */
+function greifbar(code, ort, tid){
+  const b = bestand(code);
   if(!b) return 0;
-  if(ort === "Werkstatt"){
-    let frei = zahl(b["Frei (Wst)"]);
-    if(ohneTicket){
-      posVon(ohneTicket).forEach(p => { if(p.Code === code) frei += zahl(p.Menge); });
-    }
-    return frei;
-  }
-  return zahl(b[ort]);
+  if(ort !== "Werkstatt") return amOrt(b, ort);
+  let f = num(b.frei);
+  if(tid) positionen(tid).forEach(p => { if(p.code === code) f += num(p.menge); });
+  return f;
 }
 function beschaffung(t){
   let max = 0;
-  posVon(t.Ticket).forEach(p => {
-    if(zahl(p.Menge) > greifbar(p.Code, t.Arbeitsort || "Werkstatt", t.Ticket)){
-      max = Math.max(max, lieferzeit(p.Code));
+  positionen(t.id).forEach(p => {
+    if(num(p.menge) > greifbar(p.code, t.arbeitsort, t.id)){
+      const a = artikel(p.code);
+      max = Math.max(max, a ? num(a.lieferzeit_tage) : 0);
     }
   });
   return max;
 }
 function puffer(t){
-  const bis = tageBis(t["soll fertig"]);
+  if(t.naechstmoeglich) return null;
+  const bis = tageBis(t.soll_fertig);
   if(bis === null) return null;
-  return bis - (AUFWAND[t.Aufwand] || 0) - beschaffung(t);
+  return bis - (AUFWAND[t.aufwand] || 0) - beschaffung(t);
 }
-function pufferFarbe(p){
-  if(p === null) return "var(--ink-2)";
-  if(p <= 1) return "var(--sprint)";
-  if(p <= 4) return "var(--warn)";
-  return "var(--ok)";
+function pufferText(t){
+  if(t.naechstmoeglich) return { txt:"sofort", farbe:"var(--sprint)" };
+  const p = puffer(t);
+  if(p === null) return { txt:"—", farbe:"var(--ink-2)" };
+  return { txt:p + " T", farbe: p <= 1 ? "var(--sprint)" : p <= 4 ? "var(--warn)" : "var(--ok)" };
 }
 function sortiert(list){
   return list.slice().sort((a,b) => {
+    if(a.naechstmoeglich !== b.naechstmoeglich) return a.naechstmoeglich ? -1 : 1;
+    if(a.naechstmoeglich) return a.id - b.id;
     const pa = puffer(a), pb = puffer(b);
-    if(pa === null && pb === null) return 0;
+    if(pa === null && pb === null) return a.id - b.id;
     if(pa === null) return 1;
     if(pb === null) return -1;
     return pa - pb;
   });
 }
-function offeneTickets(){ return (DB.tickets||[]).filter(t => t.Status !== "erledigt"); }
-function ticketById(id){ return (DB.tickets||[]).find(t => t.Ticket === id) || null; }
+function offeneTickets(){ return DB.tickets || []; }
 
-/* ---------------------------------------------------------------
-   Optimistisch lokal anwenden, damit die Anzeige sofort stimmt
-----------------------------------------------------------------*/
-function lokalAnwenden(op){
-  if(!DB) return;
-  if(op.aktion === "ticketAendern"){
-    const t = ticketById(op.ticket);
-    if(t) Object.keys(op.felder).forEach(k => t[k] = op.felder[k]);
-  }
-  if(op.aktion === "reservieren"){
-    DB.positionen.push({ "Ticket":op.ticket, "Code":op.code,
-      "Artikel":(artikel(op.code)||{}).Artikel || op.code, "Menge":op.menge||1, "Status":"reserviert" });
-    const b = bestandRow(op.code);
-    if(b){ b.Reserviert = zahl(b.Reserviert)+ (op.menge||1); b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) - (op.menge||1); }
-  }
-  if(op.aktion === "freigeben"){
-    const i = DB.positionen.findIndex(p => p.Ticket === op.ticket && p.Code === op.code && p.Status === "reserviert");
-    if(i >= 0){
-      const m = zahl(DB.positionen[i].Menge);
-      DB.positionen.splice(i,1);
-      const b = bestandRow(op.code);
-      if(b){ b.Reserviert = zahl(b.Reserviert) - m; b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) + m; }
-    }
-  }
-  if(op.aktion === "zustandSetzen"){
-    const s = (DB.stueckgut||[]).find(x => x.Nummer === op.nummer);
-    if(s) s.Zustand = op.zustand;
-  }
-  if(op.aktion === "stueckUmbuchen"){
-    const s = (DB.stueckgut||[]).find(x => x.Nummer === op.nummer);
-    if(s){ s.Ort = op.ort; s["am Rad"] = op.ort === "am Rad" ? (op.radId||"") : ""; }
-  }
-  if(op.aktion === "umbuchen"){
-    const b = bestandRow(op.code);
-    if(b){ b[op.von] = zahl(b[op.von]) - zahl(op.menge); b[op.nach] = zahl(b[op.nach]) + zahl(op.menge);
-      if(op.von === "Werkstatt") b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) - zahl(op.menge);
-      if(op.nach === "Werkstatt") b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) + zahl(op.menge); }
-    const k = (DB.koffer||[]).find(x => x.Code === op.code);
-    if(k){
-      if(op.nach === "Koffer Bahn"){ k["Ist Bahn"] = zahl(k["Ist Bahn"]) + zahl(op.menge); k["fehlt Bahn"] = Math.max(0, zahl(k["Soll Bahn"]) - zahl(k["Ist Bahn"])); }
-      if(op.nach === "Koffer Straße"){ k["Ist Straße"] = zahl(k["Ist Straße"]) + zahl(op.menge); k["fehlt Straße"] = Math.max(0, zahl(k["Soll Straße"]) - zahl(k["Ist Straße"])); }
-      if(op.von === "Koffer Bahn"){ k["Ist Bahn"] = zahl(k["Ist Bahn"]) - zahl(op.menge); k["fehlt Bahn"] = Math.max(0, zahl(k["Soll Bahn"]) - zahl(k["Ist Bahn"])); }
-      if(op.von === "Koffer Straße"){ k["Ist Straße"] = zahl(k["Ist Straße"]) - zahl(op.menge); k["fehlt Straße"] = Math.max(0, zahl(k["Soll Straße"]) - zahl(k["Ist Straße"])); }
-    }
-  }
-  if(op.aktion === "ticketAbschliessen"){
-    const t = ticketById(op.ticket);
-    if(t) t.Status = "erledigt";
-    DB.positionen = (DB.positionen||[]).filter(p => p.Ticket !== op.ticket);
-  }
-  if(op.aktion === "ticketAnlegen"){
-    const nr = "T-lokal-" + Date.now();
-    DB.tickets.push({ "Ticket":nr, "angelegt":iso(HEUTE), "Rad-ID":op.radId, "Fahrer":op.fahrer,
-      "Problem":op.problem, "fahrbereit":op.fahrbereit ? "ja":"nein", "Aufwand":op.aufwand||"klein",
-      "soll fertig":op.sollFertig||"", "Anlass":op.anlass||"", "Sportler":op.sportler||"",
-      "Arbeitsort":op.arbeitsort||"Werkstatt", "Status":"offen", "Trainer":op.trainer||"" });
-    (op.positionen||[]).forEach(p => {
-      DB.positionen.push({ "Ticket":nr, "Code":p.code, "Artikel":(artikel(p.code)||{}).Artikel || p.code,
-        "Menge":p.menge, "Status":"reserviert" });
-      const b = bestandRow(p.code);
-      if(b){ b.Reserviert = zahl(b.Reserviert)+zahl(p.menge); b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) - zahl(p.menge); }
-    });
-  }
+/** Warnungen: anstehende Rennen, deren Koffer unvollständig ist. */
+function kofferWarnungen(){
+  const out = [];
+  (DB.termine||[]).forEach(t => {
+    const tage = tageBis(t.datum);
+    if(tage === null || tage > 10 || !t.koffer) return;
+    const fehlt = (DB.koffer||[]).filter(k => k.ort === t.koffer && num(k.fehlt) > 0);
+    if(fehlt.length) out.push({ termin:t, tage, fehlt });
+  });
+  return out;
 }
 
 /* ===============================================================
-   Ansichten
+   Rahmen
    ===============================================================*/
 function render(){
   if(!DB) return;
-  document.querySelectorAll(".tab").forEach(b =>
-    b.setAttribute("aria-selected", String(b.dataset.tab === view.tab)));
+  $("tabs").hidden = false;
+  $("abmelden").hidden = false;
   $("ver").textContent = APP_VERSION;
-  if(view.tab === "neu")      { app.innerHTML = neuView(); nachNeu(); return; }
-  if(view.tab === "lager")    { app.innerHTML = lagerView(); return; }
-  if(view.tab === "koffer")   { app.innerHTML = kofferView(); return; }
-  if(view.tab === "inventar") { app.innerHTML = inventarView(); return; }
-  app.innerHTML = view.ticket ? detailView(view.ticket) : boardView();
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === view.tab)));
+  renderBanner();
+  const v = view.tab;
+  app.innerHTML =
+    v === "neu"        ? neuView() :
+    v === "lager"      ? lagerView() :
+    v === "koffer"     ? kofferView() :
+    v === "inventar"   ? inventarView() :
+    v === "verwaltung" ? verwaltungView() :
+    (view.ticket ? detailView(view.ticket) : boardView());
+  zeigeStand();
+}
+function renderBanner(){
+  let h = "";
+  if(offline){
+    const q = warteschlange().length;
+    h += '<div class="banner rot">Offline — Stand von ' + (stand ? stand.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "?") +
+         '. Die Anzeige kann veraltet sein. Neue Tickets werden gespeichert und nachgesendet' + (q ? ' (' + q + ' wartend)' : '') + '.</div>';
+  }
+  kofferWarnungen().forEach(w => {
+    h += '<div class="banner gelb"><strong>' + esc(w.termin.name) + '</strong> ' +
+         (w.tage === 0 ? 'heute' : w.tage === 1 ? 'morgen' : 'in ' + w.tage + ' Tagen') +
+         ' — im ' + esc(w.termin.koffer) + ' fehlen ' + w.fehlt.length + ' Positionen: ' +
+         esc(w.fehlt.slice(0,4).map(k => zahl(k.fehlt) + "× " + k.name).join(", ")) + (w.fehlt.length > 4 ? " …" : "") + '</div>';
+  });
+  $("banner").innerHTML = h;
 }
 
-/* ---------------------------------------------------------------
-   Board
-----------------------------------------------------------------*/
+/* ===============================================================
+   Tickets — Board
+   ===============================================================*/
 function boardView(){
   let liste = offeneTickets();
   const q = view.suche.toLowerCase();
-  if(q) liste = liste.filter(t =>
-    (wer(t)+" "+radName(t["Rad-ID"])+" "+(t.Problem||"")).toLowerCase().indexOf(q) >= 0);
-  if(view.filter === "steht")    liste = liste.filter(t => t.fahrbereit === "nein");
+  if(q) liste = liste.filter(t => (wer(t) + " " + radName(t.rad_id) + " " + t.problem).toLowerCase().indexOf(q) >= 0);
+  if(view.filter === "steht") liste = liste.filter(t => !t.fahrbereit);
   if(view.filter === "material") liste = liste.filter(t => beschaffung(t) > 0);
-
   const alle = offeneTickets();
-  const steht = sortiert(liste.filter(t => t.fahrbereit === "nein"));
-  const faehrt = sortiert(liste.filter(t => t.fahrbereit !== "nein"));
 
   let h = '<div class="seg" style="margin-bottom:10px">';
-  h += chip("offen", "Offen · " + alle.length);
-  h += chip("steht", "Steht · " + alle.filter(t => t.fahrbereit === "nein").length);
-  h += chip("material", "Material · " + alle.filter(t => beschaffung(t) > 0).length);
-  h += '</div>';
-  h += '<div class="feld"><input type="search" id="suche" placeholder="Fahrer, Rad, Problem" value="'+esc(view.suche)+'"></div>';
+  h += segBtn("filter", "offen",    "Offen · " + alle.length, view.filter);
+  h += segBtn("filter", "steht",    "Steht · " + alle.filter(t => !t.fahrbereit).length, view.filter);
+  h += segBtn("filter", "material", "Material · " + alle.filter(t => beschaffung(t) > 0).length, view.filter);
+  h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad, Problem" value="' + esc(view.suche) + '"></div>';
 
+  const steht = sortiert(liste.filter(t => !t.fahrbereit));
+  const faehrt = sortiert(liste.filter(t => t.fahrbereit));
   h += '<h2 class="sec alarm">Rad steht</h2>';
-  h += steht.length ? steht.map(t => ticketZeile(t,true)).join("") : '<div class="leer">Kein Rad steht.</div>';
-  h += '<h2 class="sec">Fahrbereit — nach Puffer</h2>';
-  h += faehrt.length ? faehrt.map(t => ticketZeile(t,false)).join("") : '<div class="leer">Nichts offen.</div>';
-  h += '<p class="sub" style="margin-top:14px">Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit.</p>';
+  h += steht.length ? steht.map(t => ticketKarte(t, true)).join("") : '<div class="leer">Kein Rad steht.</div>';
+  h += '<h2 class="sec">Fahrbereit</h2>';
+  h += faehrt.length ? faehrt.map(t => ticketKarte(t, false)).join("") : '<div class="leer">Nichts offen.</div>';
+  h += '<p class="sub" style="margin-top:14px">Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit. „Sofort“ steht immer oben.</p>';
   return h;
 }
-function chip(key,label){
-  return '<button data-filter="'+key+'" aria-pressed="'+(view.filter===key)+'">'+esc(label)+'</button>';
+function segBtn(aktion, wert, label, aktuell, extraKlasse){
+  return '<button data-a="' + aktion + '" data-x="' + esc(wert) + '" aria-pressed="' + (aktuell === wert) + '"' +
+         (extraKlasse ? ' class="' + extraKlasse + '"' : '') + '>' + esc(label) + '</button>';
 }
-function ticketZeile(t, steht){
-  const p = puffer(t), ms = matChip(t), pr = pruefOffen(t).length;
-  let h = '<button class="ticket'+(steht?" steht":"")+'" data-open="'+esc(t.Ticket)+'">';
-  h += '<span class="kopf"><span class="fahrer">'+esc(wer(t))+'</span>';
-  h += '<span class="sub">'+esc(radName(t["Rad-ID"]))+'</span>';
-  h += '<span class="puffer mono" style="color:'+pufferFarbe(p)+'">'+(p===null?"—":p+" T")+'</span></span>';
-  h += '<p class="prob">'+esc(t.Problem||"")+'</p>';
-  h += '<span class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">';
-  h += '<span class="chip '+ms.cls+'">'+esc(ms.txt)+'</span>';
-  h += '<span class="chip grau">'+esc(t.Aufwand||"—")+'</span>';
-  h += '<span class="chip grau">'+(t["soll fertig"] ? de(t["soll fertig"])+(t.Anlass?" · "+esc(t.Anlass):"") : "kein Termin")+'</span>';
-  if((t.Arbeitsort||"Werkstatt") !== "Werkstatt") h += '<span class="chip warn">'+esc(t.Arbeitsort)+'</span>';
-  if(pr) h += '<span class="chip alarm">'+pr+' zu prüfen</span>';
+function ticketKarte(t, steht){
+  const p = pufferText(t), pos = positionen(t.id), b = beschaffung(t), pr = pruefOffen(t).length;
+  let h = '<button class="ticket' + (steht ? " steht" : "") + '" data-a="oeffnen" data-x="' + t.id + '">';
+  h += '<span class="kopf"><span class="big">' + esc(wer(t)) + '</span><span class="sub">' + esc(radName(t.rad_id)) + '</span>';
+  h += '<span class="puffer mono" style="color:' + p.farbe + '">' + p.txt + '</span></span>';
+  h += '<p class="prob">' + esc(t.problem) + '</p><span class="chips">';
+  h += !pos.length ? '<span class="chip grau">kein Material</span>'
+     : b > 0 ? '<span class="chip warn">Bestellen · ' + b + ' T</span>'
+     : '<span class="chip ok">Reserviert · ' + pos.length + '</span>';
+  h += '<span class="chip grau">' + esc(t.aufwand) + '</span>';
+  h += '<span class="chip grau">' + (t.naechstmoeglich ? "nächstmöglich" : t.soll_fertig ? de(t.soll_fertig) + (t.anlass ? " · " + esc(t.anlass) : "") : "kein Termin") + '</span>';
+  if(t.arbeitsort !== "Werkstatt") h += '<span class="chip warn">' + esc(t.arbeitsort) + '</span>';
+  if(t.status === "angenommen") h += '<span class="chip ok">in Arbeit</span>';
+  if(pr) h += '<span class="chip alarm">' + pr + ' zu prüfen</span>';
   h += '</span></button>';
   return h;
 }
-function matChip(t){
-  const pos = posVon(t.Ticket);
-  if(!pos.length) return { cls:"grau", txt:"kein Material" };
-  const b = beschaffung(t);
-  if(b > 0) return { cls:"warn", txt:"Bestellen · "+b+" T" };
-  return { cls:"ok", txt:"Reserviert · "+pos.length };
-}
 
 /* ---------------------------------------------------------------
-   Ticket-Detail
+   Termin-Auswahl (Neu und Detail)
 ----------------------------------------------------------------*/
+function terminWahl(praefix, soll, sofort){
+  const fr = iso(naechsterFreitag()), woche = iso(plusTage(7));
+  const akt = sofort ? "sofort" : !soll ? "keiner" : soll === fr ? "we" : soll === woche ? "woche" : "datum";
+  let h = '<div class="seg" style="margin-bottom:8px">';
+  h += segBtn(praefix + "Termin", "sofort", "Nächstmöglich", akt, "rotwahl");
+  h += segBtn(praefix + "Termin", "we",     "WE · Fr " + de(fr), akt);
+  h += segBtn(praefix + "Termin", "woche",  "in 1 Woche", akt);
+  h += segBtn(praefix + "Termin", "keiner", "kein Termin", akt);
+  h += '</div><input type="date" data-c="' + praefix + 'Datum" value="' + esc(sofort ? "" : (soll || "")) + '">';
+  return h;
+}
+function terminWert(x){
+  if(x === "sofort") return { soll_fertig:null, naechstmoeglich:true };
+  if(x === "we")     return { soll_fertig:iso(naechsterFreitag()), naechstmoeglich:false };
+  if(x === "woche")  return { soll_fertig:iso(plusTage(7)), naechstmoeglich:false };
+  return { soll_fertig:null, naechstmoeglich:false };
+}
+
+/* ===============================================================
+   Ticket-Detail
+   ===============================================================*/
 function detailView(id){
-  const t = ticketById(id);
+  const t = ticket(id);
   if(!t){ view.ticket = null; return boardView(); }
-  const p = puffer(t), b = beschaffung(t), ort = t.Arbeitsort || "Werkstatt";
-  const pr = pruefOffen(t);
+  const p = pufferText(t), b = beschaffung(t), pr = pruefOffen(t);
+  const gesperrt = offline ? " disabled" : "";
 
-  let h = '<button class="btn small" data-back="1" style="margin-bottom:10px">← Alle Tickets</button>';
-  h += '<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px">';
-  h += '<span class="fahrer" style="font-family:\'Barlow Condensed\',sans-serif;font-size:26px;font-weight:700">'+esc(wer(t))+'</span>';
-  h += '<span class="sub">'+esc(radName(t["Rad-ID"]))+' · '+esc(t.Ticket)+'</span><span class="sp"></span>';
-  h += t.fahrbereit === "nein" ? '<span class="chip alarm">Rad steht</span>' : '<span class="chip ok">fahrbereit</span>';
-  h += '</div><p style="margin:10px 0 0">'+esc(t.Problem||"")+'</p>';
-  h += '<p class="sub" style="margin:6px 0 0">Gemeldet von '+esc(t.Trainer||"—")+
-       (t.Sportler ? ' · Kostenträger '+esc(t.Sportler) : '')+'</p></div>';
+  let h = '<button class="btn small" data-a="zurueck" style="margin-bottom:10px">← Alle Tickets</button>';
+  h += '<div class="card"><div class="row wrapr"><span class="big" style="font-size:26px">' + esc(wer(t)) + '</span>';
+  h += '<span class="sub">' + esc(radName(t.rad_id)) + ' · ' + tnr(t.id) + '</span><span class="sp"></span>';
+  h += (t.fahrbereit ? '<span class="chip ok">fahrbereit</span>' : '<span class="chip alarm">Rad steht</span>') + '</div>';
+  h += '<p style="margin:10px 0 0">' + esc(t.problem) + '</p>';
+  h += '<p class="sub" style="margin:6px 0 0">Angelegt ' + deLang(t.angelegt) + (t.anlass ? ' · ' + esc(t.anlass) : '') + '</p></div>';
 
-  /* Priorität */
   h += '<div class="card"><span class="lbl">Priorität</span>';
-  if(t["soll fertig"]){
-    h += zeile("Soll fertig "+de(t["soll fertig"])+(t.Anlass?" · "+esc(t.Anlass):""), tageBis(t["soll fertig"])+" T");
-    h += zeile("− Arbeitsaufwand ("+esc(t.Aufwand||"—")+")", (AUFWAND[t.Aufwand]||0)+" T");
-    h += zeile("− Beschaffung fehlender Teile", b+" T");
-    h += '<div class="row" style="border-top:1px solid var(--line);margin-top:8px;padding-top:10px">'+
-         '<strong>Puffer</strong><span class="sp"></span>'+
-         '<span class="mono" style="font-family:\'Barlow Condensed\',sans-serif;font-size:24px;font-weight:700;color:'+pufferFarbe(p)+'">'+p+' Tage</span></div>';
+  if(t.naechstmoeglich){
+    h += '<p style="margin:0"><strong style="color:var(--sprint)">Nächstmöglich</strong> — steht ganz oben in seiner Gruppe.</p>';
+  } else if(t.soll_fertig){
+    h += zeile("Soll fertig " + de(t.soll_fertig), tageBis(t.soll_fertig) + " T");
+    h += zeile("− Arbeitsaufwand (" + esc(t.aufwand) + ")", (AUFWAND[t.aufwand] || 0) + " T");
+    h += zeile("− Beschaffung fehlender Teile", b + " T");
+    h += '<div class="row trenn"><strong>Puffer</strong><span class="sp"></span><span class="big" style="color:' + p.farbe + '">' + p.txt.replace(" T"," Tage") + '</span></div>';
   } else {
-    h += '<p class="sub" style="margin:0">Kein Termin gesetzt — läuft am Ende der Liste mit.</p>';
+    h += '<p class="sub" style="margin:0">Kein Termin — läuft am Ende der Liste mit.</p>';
   }
   h += '</div>';
 
-  /* Einschätzung */
-  h += '<div class="card"><span class="lbl">Arbeitsaufwand</span><div class="seg" style="margin-bottom:12px">';
-  ["klein","mittel","groß"].forEach(k =>
-    h += '<button data-aufwand="'+k+'" aria-pressed="'+(t.Aufwand===k)+'">'+k+' · '+AUFWAND[k]+' T</button>');
+  h += '<div class="card"><span class="lbl">Soll fertig</span>' + terminWahl("t", t.soll_fertig, t.naechstmoeglich);
+  h += '<div class="feld" style="margin-top:12px"><span class="lbl">Anlass</span><input type="text" data-c="tAnlass" value="' + esc(t.anlass || "") + '" placeholder="Wettkampf, Training…"></div>';
+  h += '<span class="lbl">Arbeitsaufwand</span><div class="seg" style="margin-bottom:12px">';
+  ["klein","mittel","groß"].forEach(k => h += segBtn("tAufwand", k, k + " · " + AUFWAND[k] + " T", t.aufwand));
   h += '</div><span class="lbl">Rad fährt?</span><div class="seg" style="margin-bottom:12px">';
-  h += '<button data-fb="ja" aria-pressed="'+(t.fahrbereit==="ja")+'">Ja, fährt</button>';
-  h += '<button class="rot" data-fb="nein" aria-pressed="'+(t.fahrbereit!=="ja")+'">Nein, steht</button>';
-  h += '</div>';
-  h += '<div class="feld"><span class="lbl">Soll fertig</span><input type="date" id="fertig" value="'+esc(t["soll fertig"]||"")+'"></div>';
-  h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" id="anlass" value="'+esc(t.Anlass||"")+'" placeholder="Wettkampf, Training…"></div>';
-  h += '<div class="feld"><span class="lbl">Arbeitsort</span><select id="tort">';
-  ORTE.forEach(o => h += '<option value="'+o+'"'+(ort===o?" selected":"")+'>'+o+'</option>');
-  h += '</select></div></div>';
+  h += segBtn("tFahrbereit", "ja", "Ja, fährt", t.fahrbereit ? "ja" : "nein");
+  h += segBtn("tFahrbereit", "nein", "Nein, steht", t.fahrbereit ? "ja" : "nein", "rotwahl");
+  h += '</div><div class="grid2"><div><span class="lbl">Arbeitsort</span><select data-c="tOrt">';
+  ORTE.forEach(o => h += '<option' + (t.arbeitsort === o ? " selected" : "") + '>' + o + '</option>');
+  h += '</select></div><div><span class="lbl">Kostenträger</span><select data-c="tKosten"><option value="">—</option>';
+  (DB.sportler||[]).forEach(s => h += '<option value="' + s.id + '"' + (t.kostentraeger_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.abrechnen ? " (wird berechnet)" : "") + '</option>');
+  h += '</select></div></div></div>';
 
-  /* Einzelstücke am Rad */
-  const sa = stueckAm(t["Rad-ID"]);
+  const sa = stueckAm(t.rad_id);
   h += '<div class="card"><span class="lbl">Einzelstücke an diesem Rad</span>';
   if(!sa.length) h += '<p class="sub" style="margin:0">Kein nummeriertes Teil zugeordnet.</p>';
-  else sa.forEach(s => {
-    h += '<div class="row" style="padding:8px 0;border-top:1px solid var(--line)">';
-    h += '<span><strong>'+esc(s.Nummer)+'</strong> '+esc(s.Typ||"")+'<br><span class="sub">'+esc(s.Detail||"")+'</span></span>';
-    h += '<span class="sp"></span>';
-    h += s.Zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : '<span class="chip ok">frei</span>';
-    h += '<button class="btn small" data-pruef="'+esc(s.Nummer)+'" data-zustand="'+(s.Zustand==="zu prüfen"?"frei":"zu prüfen")+'">'+
-         (s.Zustand==="zu prüfen" ? "freigeben" : "prüfen")+'</button></div>';
-  });
-  if(pr.length) h += '<p class="sub" style="margin:10px 0 0;color:var(--sprint)">Solange ein Teil auf „zu prüfen“ steht, lässt sich das Ticket nicht abschließen.</p>';
+  else {
+    h += '<div class="liste">';
+    sa.forEach(s => {
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.nummer) + '</strong> ' + esc(s.typ) + '<br><span class="sub">' + esc(s.detail || "") + '</span></div>';
+      h += s.zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : '<span class="chip ok">' + esc(s.zustand) + '</span>';
+      h += '<button class="btn small" data-a="pruefen" data-x="' + esc(s.nummer) + '"' + gesperrt + '>' + (s.zustand === "zu prüfen" ? "freigeben" : "prüfen") + '</button></div>';
+    });
+    h += '</div>';
+    if(pr.length) h += '<p class="sub" style="margin:10px 0 0;color:var(--sprint)">Solange ein Teil auf „zu prüfen“ steht, lässt sich das Ticket nicht abschließen.</p>';
+  }
   h += '</div>';
 
-  /* Material */
-  h += '<div class="card"><span class="lbl">Material · gebucht wird aus '+esc(ort)+'</span>';
-  const pos = posVon(t.Ticket);
-  if(pos.length){
+  const pos = positionen(t.id);
+  h += '<div class="card"><span class="lbl">Material · gebucht wird aus ' + esc(t.arbeitsort) + '</span>';
+  if(!pos.length) h += '<p class="sub" style="margin:0 0 8px">Noch nichts reserviert.</p>';
+  else {
+    h += '<div class="liste">';
     pos.forEach(pp => {
-      const fehlt = zahl(pp.Menge) > greifbar(pp.Code, ort, t.Ticket);
-      h += '<div class="row" style="padding:8px 0;border-top:1px solid var(--line)">';
-      h += '<span>'+zahl(pp.Menge)+' × '+esc(pp.Artikel||pp.Code)+'<br><span class="sub">'+esc(pp.Code)+
-           (fehlt ? ' · <span style="color:var(--warn)">fehlt, Zulauf '+lieferzeit(pp.Code)+' T</span>' : ' · vorhanden')+'</span></span>';
-      h += '<span class="sp"></span><button class="btn small" data-frei="'+esc(pp.Code)+'">freigeben</button></div>';
+      const a = artikel(pp.code), fehlt = num(pp.menge) > greifbar(pp.code, t.arbeitsort, t.id);
+      h += '<div class="eintrag"><div class="txt">' + zahl(pp.menge) + ' × ' + esc(a ? a.name : pp.code) + '<br><span class="sub">' + esc(pp.code) +
+           (fehlt ? ' · <span style="color:var(--warn)">fehlt, Lieferzeit ' + (a ? a.lieferzeit_tage : 0) + ' T</span>' : ' · vorhanden') + '</span></div>';
+      h += '<button class="btn small" data-a="posWeg" data-x="' + pp.id + '"' + gesperrt + '>freigeben</button></div>';
     });
-  } else h += '<p class="sub" style="margin:0 0 8px">Noch nichts reserviert.</p>';
-  h += '<div class="row" style="margin-top:10px;gap:8px">';
-  h += '<button class="btn small" data-scanmat="1">Teil scannen</button>';
-  h += '<select id="matsel" style="flex:1"><option value="">Teil wählen…</option>';
-  (DB.artikel||[]).filter(a => a.Aktiv !== "nein").forEach(a => {
-    const frei = greifbar(a.Code, ort, t.Ticket);
-    h += '<option value="'+esc(a.Code)+'">'+esc(a.Artikel)+' — '+frei+' frei</option>';
+    h += '</div>';
+  }
+  h += '<div class="row trenn" style="gap:8px"><button class="btn small" data-a="scan" data-x="ticketMaterial"' + gesperrt + '>Scannen</button>';
+  h += '<select data-c="tMatWahl" style="flex:1"' + gesperrt + '><option value="">Teil hinzufügen…</option>';
+  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale").forEach(a => {
+    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' — ' + zahl(greifbar(a.code, t.arbeitsort, t.id)) + ' da</option>';
   });
-  h += '</select><button class="btn small primary" data-res="1">Reservieren</button></div></div>';
+  (DB.artikel||[]).filter(a => a.aktiv && a.art === "Pauschale").forEach(a => {
+    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' (Leistung)</option>';
+  });
+  h += '</select></div></div>';
 
-  /* Abschluss */
-  h += '<div class="card"><span class="lbl">Abschluss</span>';
-  h += '<div class="feld"><span class="lbl">Kostenträger</span><select id="sportler">';
-  (DB.sportler||[]).forEach(s => h += '<option value="'+esc(s.Sportler)+'"'+(t.Sportler===s.Sportler?" selected":"")+'>'+
-    esc(s.Sportler)+(s.Abrechnen==="ja"?" (wird berechnet)":"")+'</option>');
-  h += '</select></div>';
-  h += '<div class="row" style="gap:8px;flex-wrap:wrap">';
-  h += '<button class="btn" data-annehmen="1">'+(t.Status==="angenommen"?"angenommen ✓":"Übernehmen")+'</button>';
-  h += '<button class="btn primary" data-erledigt="1">Erledigt &amp; buchen</button></div></div>';
+  h += '<div class="card"><span class="lbl">Abschluss</span><div class="row wrapr" style="gap:8px">';
+  if(t.status !== "angenommen") h += '<button class="btn" data-a="annehmen"' + gesperrt + '>Übernehmen</button>';
+  h += '<button class="btn primary" data-a="erledigt"' + gesperrt + '>Erledigt &amp; buchen</button>';
+  h += '<span class="sp"></span><button class="btn small" data-a="stornieren"' + gesperrt + '>Stornieren</button></div></div>';
   return h;
 }
-function zeile(links, rechts){
-  return '<div class="row" style="padding:4px 0"><span>'+links+'</span><span class="sp"></span><span class="mono">'+rechts+'</span></div>';
-}
+function zeile(l, r){ return '<div class="row" style="padding:4px 0"><span>' + l + '</span><span class="sp"></span><span class="mono">' + r + '</span></div>'; }
 
-/* ---------------------------------------------------------------
+/* ===============================================================
    Neues Ticket
-----------------------------------------------------------------*/
-function neuStart(){
-  neu = { radId:"", fahrer:"", problem:"", fahrbereit:false, sollFertig:iso(plusTage(4)),
-          anlass:"", arbeitsort:"Werkstatt", positionen:[] };
-}
+   ===============================================================*/
+function neuStart(){ neu = { rad:"", problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[] }; }
 function neuView(){
   if(!neu) neuStart();
   let h = '<div class="card">';
-  h += '<div class="feld"><span class="lbl">Rad</span>';
-  h += '<div class="row" style="gap:8px"><button class="btn small" data-scanrad="1">Scannen</button>';
-  h += '<select id="nrad" style="flex:1"><option value="">Fahrer oder Rad wählen…</option>';
-  (DB.raeder||[]).filter(r => r.Aktiv !== "nein").forEach(r => {
-    const f = fahrerVon(r["Rad-ID"]);
-    h += '<option value="'+esc(r["Rad-ID"])+'"'+(neu.radId===r["Rad-ID"]?" selected":"")+'>'+
-         esc(f || r.Bezeichnung)+(f ? " — "+esc(r.Bezeichnung) : "")+'</option>';
+  h += '<div class="feld"><span class="lbl">Rad</span><div class="row" style="gap:8px">';
+  h += '<button class="btn small" data-a="scan" data-x="neuRad">Scannen</button><select data-c="nRad" style="flex:1"><option value="">Fahrer oder Rad wählen…</option>';
+  (DB.raeder||[]).filter(r => r.aktiv).sort((a,b) => (a.fahrer||a.bezeichnung).localeCompare(b.fahrer||b.bezeichnung)).forEach(r => {
+    h += '<option value="' + esc(r.id) + '"' + (neu.rad === r.id ? " selected" : "") + '>' + esc(r.fahrer || r.bezeichnung) + (r.fahrer ? " — " + esc(r.bezeichnung) : "") + '</option>';
   });
   h += '</select></div></div>';
-
-  h += '<div class="feld"><span class="lbl">Was ist passiert?</span>'+
-       '<textarea id="nprob" placeholder="Sturz, Lenker verbogen, Rahmen prüfen">'+esc(neu.problem)+'</textarea></div>';
-
-  h += '<div class="feld"><span class="lbl">Rad noch fahrbereit?</span><div class="seg">'+
-       '<button data-nfb="ja" aria-pressed="'+(neu.fahrbereit)+'">Ja, fährt</button>'+
-       '<button class="rot" data-nfb="nein" aria-pressed="'+(!neu.fahrbereit)+'">Nein, steht</button></div></div>';
-
+  h += '<div class="feld"><span class="lbl">Was ist passiert?</span><textarea data-c="nProblem" placeholder="Sturz, Lenker verbogen, Rahmen prüfen">' + esc(neu.problem) + '</textarea></div>';
+  h += '<div class="feld"><span class="lbl">Rad noch fahrbereit?</span><div class="seg">';
+  h += segBtn("nFahrbereit", "ja", "Ja, fährt", neu.fahrbereit ? "ja" : "nein");
+  h += segBtn("nFahrbereit", "nein", "Nein, steht", neu.fahrbereit ? "ja" : "nein", "rotwahl") + '</div></div>';
   h += '<div class="feld"><span class="lbl">Wo wird gearbeitet?</span><div class="seg">';
-  ORTE.forEach(o => h += '<button data-nort="'+o+'" aria-pressed="'+(neu.arbeitsort===o)+'">'+o+'</button>');
+  ORTE.forEach(o => h += segBtn("nOrt", o, o, neu.arbeitsort));
   h += '</div></div>';
-
-  h += '<div class="feld"><span class="lbl">Soll fertig</span><div class="seg" style="margin-bottom:8px">';
-  [[2,"in 2 Tagen"],[4,"in 4 Tagen"],[7,"in einer Woche"],[null,"kein Termin"]].forEach(o => {
-    const v = o[0]===null ? "" : iso(plusTage(o[0]));
-    h += '<button data-nfertig="'+v+'" aria-pressed="'+((neu.sollFertig||"")===v)+'">'+o[1]+'</button>';
+  h += '<div class="feld"><span class="lbl">Soll fertig</span>' + terminWahl("n", neu.soll_fertig, neu.naechstmoeglich) + '</div>';
+  h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" data-c="nAnlass" value="' + esc(neu.anlass) + '" placeholder="Wettkampf, Training…"></div>';
+  h += '<div class="feld"><span class="lbl">Material vormerken (optional)</span><div class="row" style="gap:8px">';
+  h += '<button class="btn small" data-a="scan" data-x="neuMaterial"' + (offline ? " disabled" : "") + '>Scannen</button><select data-c="nMat" style="flex:1"><option value="">Teil wählen…</option>';
+  (DB.artikel||[]).filter(a => a.aktiv).forEach(a => {
+    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + (a.art === "Pauschale" ? " (Leistung)" : " — " + zahl(greifbar(a.code, neu.arbeitsort)) + " da") + '</option>';
   });
-  h += '</div><input type="date" id="nfertig" value="'+esc(neu.sollFertig||"")+'"></div>';
-  h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" id="nanlass" value="'+esc(neu.anlass)+'" placeholder="Wettkampf, Training…"></div>';
-
-  h += '<div class="feld"><span class="lbl">Material vormerken (optional)</span>';
-  h += '<div class="row" style="gap:8px"><button class="btn small" data-scanmatneu="1">Scannen</button>';
-  h += '<select id="nmat" style="flex:1"><option value="">Teil wählen…</option>';
-  (DB.artikel||[]).filter(a => a.Aktiv !== "nein").forEach(a => {
-    h += '<option value="'+esc(a.Code)+'">'+esc(a.Artikel)+' — '+greifbar(a.Code, neu.arbeitsort)+' frei</option>';
-  });
-  h += '</select><button class="btn small" data-nres="1">+</button></div>';
-  if(neu.positionen.length){
-    neu.positionen.forEach(p => {
-      h += '<div class="row" style="padding:7px 0;border-top:1px solid var(--line)"><span>'+p.menge+' × '+
-           esc((artikel(p.code)||{}).Artikel || p.code)+'</span><span class="sp"></span>'+
-           '<button class="btn small" data-nfrei="'+esc(p.code)+'">entfernen</button></div>';
+  h += '</select></div>';
+  if(neu.pos.length){
+    h += '<div class="liste" style="margin-top:6px">';
+    neu.pos.forEach(p => {
+      const a = artikel(p.code);
+      h += '<div class="eintrag"><div class="txt">' + zahl(p.menge) + ' × ' + esc(a ? a.name : p.code) + '</div><button class="btn small" data-a="nMatWeg" data-x="' + esc(p.code) + '">entfernen</button></div>';
     });
+    h += '</div>';
   }
-  h += '</div>';
-
-  h += '<div class="feld"><span class="lbl">Trainer</span><input type="text" id="ntrainer" value="'+esc(trainerName)+'" placeholder="Dein Name"></div>';
-  h += '<p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Annehmen.</p>';
-  h += '<button class="btn primary" style="width:100%;margin-top:8px" data-anlegen="1">Ticket anlegen</button>';
-  h += '</div>';
-  h += '<div id="scanhost"></div>';
+  h += '</div><p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Übernehmen.</p>';
+  h += '<button class="btn primary voll" data-a="anlegen">Ticket anlegen</button></div>';
   return h;
 }
-function nachNeu(){ /* nichts weiter nötig — Felder werden beim Absenden gelesen */ }
 
-function neuLesen(){
-  if(!neu) return;
-  const g = id => { const el = $(id); return el ? el.value : undefined; };
-  if(g("nrad") !== undefined && g("nrad")) neu.radId = g("nrad");
-  if(g("nprob") !== undefined) neu.problem = g("nprob");
-  if(g("nfertig") !== undefined) neu.sollFertig = g("nfertig");
-  if(g("nanlass") !== undefined) neu.anlass = g("nanlass");
-  if(g("ntrainer") !== undefined) trainerName = g("ntrainer");
-}
-
-async function ticketAnlegen(){
-  neuLesen();
-  if(!neu.radId){ toast("Erst das Rad wählen oder scannen."); return; }
-  if(!neu.problem.trim()){ toast("Bitte kurz beschreiben, was ist."); return; }
-  localStorage.setItem("wTrainer", trainerName);
-  const r = rad(neu.radId);
-  const op = { aktion:"ticketAnlegen", radId:neu.radId, fahrer:fahrerVon(neu.radId),
-    problem:neu.problem.trim(), fahrbereit:neu.fahrbereit, aufwand:"klein",
-    sollFertig:neu.sollFertig || null, anlass:neu.anlass, arbeitsort:neu.arbeitsort,
-    sportler:(r && r.Eigentümer) || "LV", trainer:trainerName, positionen:neu.positionen };
-  const antwort = await schreibe(op);
-  const name = fahrerVon(neu.radId) || radName(neu.radId);
-  neu = null;
-  view.tab = "board"; view.ticket = null;
-  if(!antwort.offline) await laden(); else render();
-  toast("Ticket für " + name + " angelegt");
-}
-
-/* ---------------------------------------------------------------
+/* ===============================================================
    Lager
-----------------------------------------------------------------*/
+   ===============================================================*/
 function lagerView(){
-  let h = '<h2 class="sec">Bestand je Ort</h2><div class="card tabwrap"><table><thead><tr>'+
-    '<th>Artikel</th><th>Wst</th><th>Bahn</th><th>Straße</th><th>Res</th><th>Frei</th><th>Min</th></tr></thead><tbody>';
-  (DB.bestand||[]).forEach(b => {
-    if(!b.Code) return;
-    const frei = zahl(b["Frei (Wst)"]), min = zahl(b.Mindest);
-    const knapp = b.Art !== "Pauschale" && min && frei < min;
-    h += '<tr class="'+(knapp?"low":"")+'"><td>'+esc(b.Artikel)+'<br><span class="sub">'+esc(b.Code)+'</span></td>';
-    h += '<td class="mono">'+zahl(b.Werkstatt)+'</td><td class="mono">'+zahl(b["Koffer Bahn"])+'</td>';
-    h += '<td class="mono">'+zahl(b["Koffer Straße"])+'</td>';
-    h += '<td class="mono" style="color:var(--warn)">'+zahl(b.Reserviert)+'</td>';
-    h += '<td class="mono"><strong style="color:'+(knapp?"var(--sprint)":"var(--ok)")+'">'+frei+'</strong></td>';
-    h += '<td class="mono sub">'+(min||"—")+'</td></tr>';
-  });
-  h += '</tbody></table></div>';
-  h += '<p class="sub">Der Mindestbestandsalarm läuft auf „Frei (Werkstatt)“ — Kofferbestand und Reservierungen zählen nicht mit.</p>';
-  return h;
-}
+  const gesperrt = offline ? " disabled" : "";
+  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px">';
+  h += '<button class="btn primary" data-a="scan" data-x="lager"' + gesperrt + '>Artikel scannen</button>';
+  h += '<button class="btn" data-a="artikelNeu"' + gesperrt + '>Neuer Artikel</button></div>';
+  h += '<div class="seg" style="margin-bottom:10px">';
+  const knapp = (DB.bestand||[]).filter(b => b.aktiv && (b.status === "nachbestellen" || b.status === "leer"));
+  h += segBtn("lagerFilter", "alle", "Alle", view.lagerFilter);
+  h += segBtn("lagerFilter", "knapp", "Nachbestellen · " + knapp.length, view.lagerFilter);
+  h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
 
-/* ---------------------------------------------------------------
-   Koffer
-----------------------------------------------------------------*/
-function kofferView(){
-  let h = "";
-  [["Koffer Bahn","Bahn"],["Koffer Straße","Straße"]].forEach(k => {
-    const ort = k[0], suffix = k[1];
-    const zeilen = (DB.koffer||[]).filter(r => r.Code &&
-      (zahl(r["Soll "+suffix]) > 0 || zahl(r["Ist "+suffix]) > 0));
-    const fehlt = zeilen.filter(r => zahl(r["fehlt "+suffix]) > 0);
-    h += '<h2 class="sec">'+ort+'</h2><div class="card">';
-    h += '<div class="row" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">';
-    h += fehlt.length ? '<span class="chip warn">'+fehlt.length+' Positionen fehlen</span>'
-                      : '<span class="chip ok">komplett gepackt</span>';
-    h += '<span class="sp"></span><button class="btn small primary" data-fill="'+ort+'">Auffüllen</button>';
-    h += '<button class="btn small" data-empty="'+ort+'">Rückgabe</button></div>';
-    h += '<div class="tabwrap"><table><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th>Wst</th><th></th></tr></thead><tbody>';
-    zeilen.forEach(r => {
-      const f = zahl(r["fehlt "+suffix]);
-      h += '<tr class="'+(f>0?"low":"")+'"><td>'+esc(r.Artikel)+'</td>';
-      h += '<td class="mono">'+zahl(r["Soll "+suffix])+'</td><td class="mono"><strong>'+zahl(r["Ist "+suffix])+'</strong></td>';
-      h += '<td class="mono" style="color:'+(f>0?"var(--sprint)":"var(--ink-2)")+'">'+(f>0?f:"–")+'</td>';
-      h += '<td class="mono sub">'+zahl(r["Werkstatt frei"])+'</td>';
-      h += '<td><button class="btn small" data-mv="'+esc(r.Code)+'|'+ort+'|1">+</button> '+
-           '<button class="btn small" data-mv="'+esc(r.Code)+'|'+ort+'|-1">−</button></td></tr>';
-    });
-    h += '</tbody></table></div>';
-    const st = (DB.stueckgut||[]).filter(s => s.Ort === ort);
-    h += '<span class="lbl" style="margin-top:12px">Einzelstücke im Koffer</span>';
-    if(!st.length) h += '<p class="sub" style="margin:0">keine</p>';
-    else st.forEach(s => {
-      h += '<div class="row" style="padding:7px 0;border-top:1px solid var(--line)">'+
-           '<span><strong>'+esc(s.Nummer)+'</strong> '+esc(s.Typ||"")+'</span><span class="sp"></span>'+
-           '<button class="btn small" data-sback="'+esc(s.Nummer)+'">in die Werkstatt</button></div>';
-    });
-    h += '</div>';
-  });
-  h += '<p class="sub">„Auffüllen“ bucht fehlende Teile aus der Werkstatt in den Koffer. Der Gesamtbestand ändert sich nicht, nur der Ort.</p>';
-  return h;
-}
-
-/* ---------------------------------------------------------------
-   Inventar
-----------------------------------------------------------------*/
-function inventarView(){
-  let h = '<h2 class="sec">Nummerierte Einzelstücke</h2>';
-  h += '<div class="feld"><div class="row" style="gap:8px">'+
-       '<button class="btn small" data-scanstueck="1">Nummer scannen</button>'+
-       '<input type="search" id="isuche" placeholder="Nummer, Typ, Fahrer" value="'+esc(view.suche)+'" style="flex:1"></div></div>';
+  let liste = (DB.bestand||[]).filter(b => b.aktiv);
+  if(view.lagerFilter === "knapp") liste = knapp;
   const q = view.suche.toLowerCase();
-  const liste = (DB.stueckgut||[]).filter(s => s.Nummer && (!q ||
-    (s.Nummer+" "+(s.Typ||"")+" "+(s.Detail||"")+" "+fahrerVon(s["am Rad"]||"")).toLowerCase().indexOf(q) >= 0));
-  if(!liste.length) return h + '<div class="leer">Nichts gefunden.</div>';
-  liste.forEach(s => {
-    const beiRad = s.Ort === "am Rad";
-    h += '<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px">';
-    h += '<span><strong>'+esc(s.Nummer)+'</strong> · '+esc(s.Typ||"")+'<br><span class="sub">'+esc(s.Detail||"")+'</span></span>';
-    h += '<span class="sp"></span>';
-    h += s.Zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : '<span class="chip ok">frei</span>';
-    h += '</div>';
-    h += '<p class="sub" style="margin:8px 0">Ort: '+(beiRad
-      ? 'am Rad von '+esc(fahrerVon(s["am Rad"]) || radName(s["am Rad"]))
-      : esc(s.Ort||"—"))+'</p>';
-    h += '<select data-move="'+esc(s.Nummer)+'"><option value="">umbuchen auf…</option>';
-    ORTE.forEach(o => h += '<option value="'+o+'">'+o+'</option>');
-    (DB.raeder||[]).filter(r => r.Aktiv !== "nein").forEach(r =>
-      h += '<option value="rad:'+esc(r["Rad-ID"])+'">an '+esc(fahrerVon(r["Rad-ID"]) || r.Bezeichnung)+'</option>');
+  if(q) liste = liste.filter(b => (b.name + " " + b.code).toLowerCase().indexOf(q) >= 0);
+  if(!liste.length) return h + '<div class="leer">' + ((DB.bestand||[]).length ? "Nichts gefunden." : "Noch keine Artikel. Unter „Neuer Artikel“ anlegen.") + '</div>';
+
+  h += '<div class="card liste">';
+  liste.forEach(b => {
+    const leistung = b.art === "Pauschale";
+    const koffer = [];
+    if(num(b.koffer_bahn)) koffer.push("Koffer Bahn " + zahl(b.koffer_bahn));
+    if(num(b.koffer_strasse)) koffer.push("Koffer Straße " + zahl(b.koffer_strasse));
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span><br>';
+    if(leistung) h += '<span class="sub">Leistung · ' + eur(b.preis) + '</span>';
+    else {
+      h += '<span class="sub">Werkstatt ' + zahl(b.werkstatt) + ' ' + esc(b.einheit);
+      if(num(b.reserviert)) h += ' · ' + zahl(b.reserviert) + ' reserviert';
+      h += ' · <strong style="color:' + (b.status === "ok" ? "var(--ok)" : "var(--sprint)") + '">' + zahl(b.frei) + ' frei</strong>';
+      if(koffer.length) h += ' · ' + esc(koffer.join(", "));
+      h += '</span>';
+      if(b.status !== "ok" && koffer.length) h += '<br><span class="sub" style="color:var(--warn)">Im Lager knapp — im Koffer liegt noch etwas.</span>';
+    }
+    h += '</div><button class="btn small" data-a="artikelMenue" data-x="' + esc(b.code) + '"' + gesperrt + '>…</button></div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function artikelMenue(code){
+  const b = bestand(code), a = artikel(code);
+  if(!a) return;
+  let h = '<h3>' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(code) + (b && a.art !== "Pauschale" ? ' · Werkstatt ' + zahl(b.werkstatt) + ' · frei ' + zahl(b.frei) : '') + '</p>';
+  h += '<div style="display:grid;gap:8px">';
+  if(a.art !== "Pauschale") h += '<button class="btn primary" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
+  h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : "An Sportler ausgeben") + '</button>';
+  if(a.art !== "Pauschale") h += '<button class="btn" data-a="formInventur" data-x="' + esc(code) + '">Inventur / Bestand korrigieren</button>';
+  h += '<button class="btn" data-a="artikelBearbeiten" data-x="' + esc(code) + '">Artikel bearbeiten</button>';
+  h += '<button class="btn" data-a="modalZu">Schließen</button></div>';
+  modal(h);
+}
+function formZugang(code){
+  const a = artikel(code);
+  modal('<h3>Zugang · ' + esc(a.name) + '</h3>' +
+    '<div class="grid2"><div class="feld"><span class="lbl">Menge (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" min="0" step="any" inputmode="decimal"></div>' +
+    '<div class="feld"><span class="lbl">Ort</span>' + ortSelect("fOrt","Werkstatt") + '</div></div>' +
+    '<div class="feld"><span class="lbl">Notiz (Lieferant, Rechnung …)</span><input type="text" id="fNotiz"></div>' +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="zugangBuchen" data-x="' + esc(code) + '">Buchen</button></div>');
+  setTimeout(() => { const e = $("fMenge"); if(e) e.focus(); }, 50);
+}
+function formAusgabe(code){
+  const a = artikel(code);
+  let s = '<select id="fSportler"><option value="">— Sportler wählen —</option>';
+  (DB.sportler||[]).filter(x => x.aktiv).forEach(x => s += '<option value="' + x.id + '">' + esc(x.name) + (x.abrechnen ? " (wird berechnet)" : "") + '</option>');
+  s += '</select>';
+  modal('<h3>' + (a.art === "Pauschale" ? "Leistung" : "Ausgabe") + ' · ' + esc(a.name) + '</h3>' +
+    '<div class="feld"><span class="lbl">An</span>' + s + '</div>' +
+    '<div class="grid2"><div class="feld"><span class="lbl">Menge (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" value="1" min="0" step="any" inputmode="decimal"></div>' +
+    '<div class="feld"><span class="lbl">Aus</span>' + ortSelect("fOrt","Werkstatt") + '</div></div>' +
+    '<div class="feld"><span class="lbl">Notiz</span><input type="text" id="fNotiz"></div>' +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="ausgabeBuchen" data-x="' + esc(code) + '">Buchen</button></div>');
+}
+function formInventur(code){
+  const a = artikel(code), b = bestand(code);
+  modal('<h3>Inventur · ' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">Gezählten Bestand eintragen — die Differenz wird als Korrektur gebucht.</p>' +
+    '<div class="grid2"><div class="feld"><span class="lbl">Ort</span>' + ortSelect("fOrt","Werkstatt") + '</div>' +
+    '<div class="feld"><span class="lbl">Gezählt (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" min="0" step="any" inputmode="decimal" placeholder="bisher ' + zahl(b ? b.werkstatt : 0) + '"></div></div>' +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="inventurBuchen" data-x="' + esc(code) + '">Übernehmen</button></div>');
+}
+function ortSelect(id, wert){
+  let h = '<select id="' + id + '">';
+  ORTE.forEach(o => h += '<option' + (o === wert ? " selected" : "") + '>' + o + '</option>');
+  return h + '</select>';
+}
+
+/* ===============================================================
+   Koffer — Überblick und Warnung
+   ===============================================================*/
+function kofferView(){
+  const gesperrt = offline ? " disabled" : "";
+  let h = "";
+  ["Koffer Bahn","Koffer Straße"].forEach(ort => {
+    const zeilen = (DB.koffer||[]).filter(k => k.ort === ort);
+    const fehlt = zeilen.filter(k => num(k.fehlt) > 0);
+    h += '<h2 class="sec">' + ort + '</h2><div class="card">';
+    h += '<div class="row" style="margin-bottom:6px">' + (!zeilen.length ? '<span class="sub">Noch keine Packliste.</span>' :
+         fehlt.length ? '<span class="chip warn">' + fehlt.length + ' Positionen unvollständig</span>' : '<span class="chip ok">komplett</span>') + '</div>';
+    if(zeilen.length){
+      h += '<div class="tabwrap"><table><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th></th></tr></thead><tbody>';
+      zeilen.forEach(k => {
+        h += '<tr class="' + (num(k.fehlt) > 0 ? "low" : "") + '"><td>' + esc(k.name) + '</td>';
+        h += '<td><input type="number" min="0" step="any" value="' + num(k.soll) + '" data-c="kofferSoll" data-x="' + esc(k.code) + '|' + ort + '" style="width:64px;min-height:36px;padding:4px 6px"' + gesperrt + '></td>';
+        h += '<td class="mono"><strong>' + zahl(k.ist) + '</strong></td>';
+        h += '<td class="mono" style="color:' + (num(k.fehlt) > 0 ? "var(--sprint)" : "var(--ink-2)") + '">' + (num(k.fehlt) > 0 ? zahl(k.fehlt) : "–") + '</td>';
+        h += '<td style="white-space:nowrap"><button class="btn small" data-a="kofferRein" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>+1</button> ' +
+             '<button class="btn small" data-a="kofferRaus" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>−1</button></td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    h += '<div class="row trenn" style="gap:8px"><select data-c="kofferNeu" data-x="' + ort + '" style="flex:1"' + gesperrt + '><option value="">Artikel zur Packliste…</option>';
+    (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
     h += '</select></div>';
+    const st = (DB.stueck||[]).filter(s => s.ort === ort);
+    if(st.length){
+      h += '<span class="lbl" style="margin-top:12px">Einzelstücke im Koffer</span>';
+      st.forEach(s => h += '<div class="sub">' + esc(s.nummer) + ' · ' + esc(s.typ) + '</div>');
+    }
+    h += '</div>';
+  });
+  h += '<p class="sub">+1 und −1 buchen zwischen Werkstatt und Koffer um. Der Gesamtbestand bleibt gleich.</p>';
+
+  h += '<h2 class="sec">Nächste Rennen</h2><div class="card">';
+  if(!(DB.termine||[]).length) h += '<p class="sub" style="margin:0 0 10px">Keine Termine eingetragen. Mit Termin warnt die App zehn Tage vorher, wenn im Koffer etwas fehlt.</p>';
+  else {
+    h += '<div class="liste">';
+    DB.termine.forEach(t => h += '<div class="eintrag"><div class="txt"><strong>' + deLang(t.datum) + '</strong> ' + esc(t.name) + '<br><span class="sub">' + esc(t.koffer || "kein Koffer") + '</span></div>' +
+      '<button class="btn small" data-a="terminWeg" data-x="' + t.id + '"' + gesperrt + '>löschen</button></div>');
+    h += '</div>';
+  }
+  h += '<div class="trenn"><div class="grid2"><div class="feld"><span class="lbl">Datum</span><input type="date" id="tDatum"></div>' +
+       '<div class="feld"><span class="lbl">Koffer</span><select id="tKoffer"><option>Koffer Bahn</option><option>Koffer Straße</option><option value="">keiner</option></select></div></div>' +
+       '<div class="feld"><span class="lbl">Rennen</span><input type="text" id="tName" placeholder="z. B. LM Bahn Cottbus"></div>' +
+       '<button class="btn" data-a="terminNeu"' + gesperrt + '>Termin eintragen</button></div></div>';
+  return h;
+}
+
+/* ===============================================================
+   Inventar — nummerierte Einzelstücke
+   ===============================================================*/
+function inventarView(){
+  const gesperrt = offline ? " disabled" : "";
+  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="scan" data-x="stueck">Nummer scannen</button>' +
+          '<button class="btn" data-a="stueckNeu"' + gesperrt + '>Neues Einzelstück</button></div>';
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Fahrer" value="' + esc(view.suche) + '"></div>';
+  const q = view.suche.toLowerCase();
+  const liste = (DB.stueck||[]).filter(s => !q || (s.nummer + " " + s.typ + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0);
+  if(!liste.length) return h + '<div class="leer">' + ((DB.stueck||[]).length ? "Nichts gefunden." : "Noch keine Einzelstücke erfasst.") + '</div>';
+  liste.forEach(s => {
+    const r = s.rad_id ? rad(s.rad_id) : null;
+    h += '<div class="card"><div class="row wrapr"><span><strong>' + esc(s.nummer) + '</strong> · ' + esc(s.typ) + '<br><span class="sub">' + esc(s.detail || "") + '</span></span><span class="sp"></span>';
+    h += s.zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : s.zustand === "defekt" ? '<span class="chip alarm">defekt</span>' : '<span class="chip ok">frei</span>';
+    h += '</div><p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + '</p>';
+    h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
+    ORTE.concat(["ausgemustert"]).forEach(o => h += '<option value="' + o + '"' + (s.ort === o ? " selected" : "") + '>' + o + '</option>');
+    (DB.raeder||[]).filter(x => x.aktiv).forEach(x => h += '<option value="rad:' + esc(x.id) + '"' + (s.rad_id === x.id ? " selected" : "") + '>an ' + esc(x.fahrer || x.bezeichnung) + '</option>');
+    h += '</select><select data-c="stueckZustand" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
+    ["frei","zu prüfen","defekt"].forEach(z => h += '<option' + (s.zustand === z ? " selected" : "") + '>' + z + '</option>');
+    h += '</select></div><button class="btn small" style="margin-top:8px" data-a="stueckBearbeiten" data-x="' + esc(s.nummer) + '"' + gesperrt + '>Details bearbeiten</button></div>';
   });
   return h;
 }
+
+/* ===============================================================
+   Verwaltung — Stammdaten, Trainer, Rechnungen, Export
+   ===============================================================*/
+function verwaltungView(){
+  let h = '<div class="seg" style="margin-bottom:12px">';
+  const offen = (DB.trainer||[]).filter(t => !t.aktiv).length;
+  [["sportler","Sportler"],["raeder","Räder"],["artikel","Artikel"],["trainer","Trainer" + (offen ? " · " + offen : "")],["rechnungen","Rechnungen"],["export","Export"]]
+    .forEach(x => h += segBtn("verw", x[0], x[1], view.verw));
+  h += '</div>';
+  if(offline) return h + '<div class="leer">Offline — Verwaltung erst mit Netz.</div>';
+  const v = view.verw;
+  if(v === "sportler")   return h + sportlerVerw();
+  if(v === "raeder")     return h + raederVerw();
+  if(v === "artikel")    return h + artikelVerw();
+  if(v === "trainer")    return h + trainerVerw();
+  if(v === "rechnungen") return h + rechnungenVerw();
+  return h + exportVerw();
+}
+function sportlerVerw(){
+  let h = '<div class="card"><span class="lbl">Neuer Sportler</span><div class="row" style="gap:8px"><input type="text" id="sName" placeholder="Name">' +
+          '<button class="btn primary" data-a="sportlerNeu">Anlegen</button></div>' +
+          '<p class="sub" style="margin:8px 0 0">Kostenträger wie LV oder BSP ebenfalls hier anlegen und „nicht abrechnen“ setzen.</p></div>';
+  h += '<div class="card liste">';
+  if(!(DB.sportler||[]).length) h += '<div class="sub">Noch niemand angelegt.</div>';
+  (DB.sportler||[]).forEach(s => {
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.name) + '</strong>' + (s.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
+    h += '<button class="btn small" data-a="sportlerAbr" data-x="' + s.id + '">' + (s.abrechnen ? "wird berechnet" : "nicht abrechnen") + '</button>';
+    h += '<button class="btn small" data-a="sportlerAktiv" data-x="' + s.id + '">' + (s.aktiv ? "deaktivieren" : "aktivieren") + '</button></div>';
+  });
+  return h + '</div>';
+}
+function raederVerw(){
+  let h = '<button class="btn primary" data-a="radNeu" style="margin-bottom:10px">Neues Rad</button><div class="card liste">';
+  if(!(DB.raeder||[]).length) h += '<div class="sub">Noch keine Räder angelegt.</div>';
+  (DB.raeder||[]).forEach(r => {
+    h += '<div class="eintrag" style="flex-wrap:wrap"><div class="txt"><strong>' + esc(r.bezeichnung) + '</strong> <span class="sub">' + esc(r.id) + ' · ' + esc(r.typ) +
+         (r.eigentuemer_id ? ' · gehört ' + esc(sportlerName(r.eigentuemer_id)) : '') + '</span>' + (r.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
+    h += '<select data-c="radFahrer" data-x="' + esc(r.id) + '" style="max-width:190px"><option value="">— kein Fahrer —</option>';
+    (DB.sportler||[]).filter(s => s.aktiv).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + '</option>');
+    h += '</select><button class="btn small" data-a="radBearbeiten" data-x="' + esc(r.id) + '">bearbeiten</button></div>';
+  });
+  return h + '</div><p class="sub">Ein Fahrerwechsel schließt die alte Zuordnung und öffnet eine neue — der Verlauf bleibt erhalten.</p>';
+}
+function artikelVerw(){
+  let h = '<button class="btn primary" data-a="artikelNeu" style="margin-bottom:10px">Neuer Artikel</button><div class="card liste">';
+  if(!(DB.artikel||[]).length) h += '<div class="sub">Noch keine Artikel angelegt.</div>';
+  (DB.artikel||[]).forEach(a => {
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(a.name) + '</strong> <span class="sub">' + esc(a.code) + ' · ' + esc(a.art) + ' · ' + eur(a.preis) +
+         (a.lieferzeit_tage ? ' · ' + a.lieferzeit_tage + ' T Lieferzeit' : '') + '</span>' + (a.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
+    h += '<button class="btn small" data-a="artikelBearbeiten" data-x="' + esc(a.code) + '">bearbeiten</button></div>';
+  });
+  return h + '</div>';
+}
+function trainerVerw(){
+  let h = '<div class="card liste">';
+  (DB.trainer||[]).forEach(t => {
+    const selbst = ich && t.user_id === ich.id;
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(t.name) + '</strong>' + (selbst ? ' <span class="sub">(du)</span>' : '') +
+         '<br><span class="sub">' + (t.aktiv ? "freigeschaltet" : "wartet auf Freischaltung seit " + deLang(t.angefragt)) + '</span></div>';
+    if(!selbst) h += '<button class="btn small' + (t.aktiv ? "" : " primary") + '" data-a="trainerAktiv" data-x="' + esc(t.user_id) + '">' + (t.aktiv ? "sperren" : "freischalten") + '</button>';
+    h += '</div>';
+  });
+  return h + '</div><p class="sub">Neue Trainer registrieren sich selbst in der App und erscheinen dann hier zur Freischaltung.</p>';
+}
+function rechnungenVerw(){
+  const summen = {};
+  (DB.offenePosten||[]).forEach(p => { summen[p.sportler_id] = (summen[p.sportler_id] || 0) + (-num(p.menge) * num(p.einzelpreis)); });
+  let h = '<h2 class="sec" style="margin-top:0">Offen, noch nicht berechnet</h2><div class="card liste">';
+  const ids = Object.keys(summen).filter(id => summen[id] > 0);
+  if(!ids.length) h += '<div class="sub">Keine offenen Posten.</div>';
+  ids.forEach(id => {
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(sportlerName(Number(id))) + '</strong><br><span class="sub">' + eur(summen[id]) + '</span></div>' +
+         '<button class="btn small primary" data-a="rechnungErstellen" data-x="' + id + '">Rechnung erstellen</button></div>';
+  });
+  h += '</div><h2 class="sec">Rechnungen</h2><div class="card liste">';
+  if(!(DB.rechnungen||[]).length) h += '<div class="sub">Noch keine Rechnungen.</div>';
+  (DB.rechnungen||[]).forEach(r => {
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(r.nummer) + '</strong> · ' + esc(sportlerName(r.sportler_id)) + '<br><span class="sub">' + deLang(r.datum) + ' · ' + eur(r.summe) + '</span></div>';
+    h += '<button class="btn small" data-a="rechnungZeigen" data-x="' + r.id + '">anzeigen</button>';
+    h += '<button class="btn small' + (r.status === "offen" ? "" : " primary") + '" data-a="rechnungStatus" data-x="' + r.id + '">' + (r.status === "offen" ? "offen" : "bezahlt ✓") + '</button></div>';
+  });
+  return h + '</div>';
+}
+function exportVerw(){
+  return '<div class="card"><p style="margin-top:0">Tabellen zum Weiterverarbeiten in Excel oder als Sicherung. Getrennt mit Semikolon, Dezimalkomma.</p>' +
+    '<div style="display:grid;gap:8px"><button class="btn" data-a="export" data-x="bestand">Bestand</button>' +
+    '<button class="btn" data-a="export" data-x="buchungen">Alle Buchungen</button>' +
+    '<button class="btn" data-a="export" data-x="tickets">Alle Tickets</button>' +
+    '<button class="btn" data-a="export" data-x="stueck">Einzelstücke</button></div></div>';
+}
+
+/* ---------------------------------------------------------------
+   Formulare für Stammdaten
+----------------------------------------------------------------*/
+function feld(label, id, wert, typ, extra){
+  return '<div class="feld"><span class="lbl">' + label + '</span><input type="' + (typ || "text") + '" id="' + id + '" value="' + esc(wert == null ? "" : wert) + '"' + (extra || "") + '></div>';
+}
+function auswahl(label, id, optionen, wert){
+  let h = '<div class="feld"><span class="lbl">' + label + '</span><select id="' + id + '">';
+  optionen.forEach(o => { const v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o; h += '<option value="' + esc(v) + '"' + (String(v) === String(wert == null ? "" : wert) ? " selected" : "") + '>' + esc(t) + '</option>'; });
+  return h + '</select></div>';
+}
+function artikelForm(code){
+  const a = code ? artikel(code) : { code:"", name:"", einheit:"Stück", preis:0, mindestbestand:0, lieferzeit_tage:0, art:"Stück", aktiv:true };
+  const verbrauch = [["","—"]].concat((DB.artikel||[]).filter(x => x.art === "Vorrat").map(x => [x.code, x.name]));
+  modal('<h3>' + (code ? "Artikel bearbeiten" : "Neuer Artikel") + '</h3>' +
+    '<div class="grid2">' + feld("Code", "aCode", a.code, "text", code ? " disabled" : ' placeholder="z. B. L-105"') + auswahl("Art", "aArt", ["Stück","Vorrat","Pauschale"], a.art) + '</div>' +
+    feld("Bezeichnung", "aName", a.name) +
+    '<div class="grid2">' + feld("Einheit", "aEinheit", a.einheit) + feld("Preis (€)", "aPreis", a.preis, "number", ' step="0.01" min="0"') + '</div>' +
+    '<div class="grid2">' + feld("Mindestbestand", "aMin", a.mindestbestand, "number", ' step="any" min="0"') + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + '</div>' +
+    '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
+    '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
+    feld("Shop-Link", "aLink", a.shop_link) + auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) +
+    '<p class="sub">Code-Schema: A Antrieb · B Bremse · C Cockpit · L Laufrad &amp; Reifen · R Rahmen · W Werkstatt, dazu 1xx Stück, 5xx Vorrat, 9xx Pauschale.</p>' +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="artikelSpeichern" data-x="' + esc(code || "") + '">Speichern</button></div>');
+}
+function radForm(id){
+  const r = id ? rad(id) : { id:"", bezeichnung:"", typ:"Bahn", rahmennummer:"", groesse:"", eigentuemer_id:null, aktiv:true, notiz:"" };
+  const eig = [["","—"]].concat((DB.sportler||[]).map(s => [s.id, s.name]));
+  modal('<h3>' + (id ? "Rad bearbeiten" : "Neues Rad") + '</h3>' +
+    '<div class="grid2">' + feld("Rad-ID", "rId", r.id, "text", id ? " disabled" : ' placeholder="z. B. BR-01"') + auswahl("Typ", "rTyp", ["Bahn","Straße","Zeitfahren","Cross","Sonstiges"], r.typ) + '</div>' +
+    feld("Bezeichnung", "rBez", r.bezeichnung, "text", ' placeholder="z. B. Bahnrad 01"') +
+    '<div class="grid2">' + feld("Rahmennummer", "rRahmen", r.rahmennummer) + feld("Größe", "rGr", r.groesse) + '</div>' +
+    auswahl("Eigentümer (zahlt Material am Rad)", "rEig", eig, r.eigentuemer_id) +
+    feld("Notiz", "rNotiz", r.notiz) + auswahl("Status", "rAktiv", [["true","aktiv"],["false","inaktiv"]], String(r.aktiv)) +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="radSpeichern" data-x="' + esc(id || "") + '">Speichern</button></div>');
+}
+function stueckForm(nr){
+  const s = nr ? (DB.stueck||[]).find(x => x.nummer === nr) : { nummer:"", typ:"", detail:"", seriennummer:"", kaufdatum:"", wert:"", notiz:"" };
+  modal('<h3>' + (nr ? "Einzelstück bearbeiten" : "Neues Einzelstück") + '</h3>' +
+    '<div class="grid2">' + feld("Nummer", "eNr", s.nummer, "text", nr ? " disabled" : ' placeholder="z. B. L-201"') + feld("Typ", "eTyp", s.typ, "text", ' placeholder="Laufrad Bahn vorne"') + '</div>' +
+    feld("Detail", "eDet", s.detail) +
+    '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + feld("Kaufdatum", "eKauf", s.kaufdatum, "date") + '</div>' +
+    '<div class="grid2">' + feld("Wert (€)", "eWert", s.wert, "number", ' step="0.01" min="0"') + feld("Notiz", "eNotiz", s.notiz) + '</div>' +
+    '<p class="sub">Nummernband x-2xx: L-2xx Laufräder, R-2xx Rahmen, C-2xx Vorbauten, W-2xx Werkzeug.</p>' +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
+}
+const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
+const zahlOderNull = id => { const v = wert(id); return v === "" ? null : Number(v.replace(",", ".")); };
+
+/* ---------------------------------------------------------------
+   Modal
+----------------------------------------------------------------*/
+function modal(html){ $("modal").innerHTML = '<div class="overlay" data-a="modalHintergrund"><div class="sheet">' + html + '</div></div>'; }
+function modalZu(){ scanStopp(); $("modal").innerHTML = ""; }
 
 /* ---------------------------------------------------------------
    Scanner (ZXing, fest eingebaut)
 ----------------------------------------------------------------*/
-let leser = null, scanZiel = null;
+let leser = null;
 async function scanStart(ziel){
-  scanZiel = ziel;
-  const host = document.createElement("div");
-  host.id = "scanoverlay";
-  host.innerHTML = '<div class="card"><div class="scanbox"><video id="cam" playsinline muted></video>'+
-    '<div class="reticle"></div></div><button class="btn" style="width:100%" data-scanstop="1">Abbrechen</button></div>';
-  app.prepend(host);
+  modal('<h3>Scannen</h3><div class="scanbox"><video id="cam" playsinline muted></video><div class="reticle"></div></div>' +
+        '<button class="btn voll" data-a="modalZu">Abbrechen</button>');
   try{
     leser = new ZXing.BrowserMultiFormatReader();
-    await leser.decodeFromVideoDevice(null, "cam", (ergebnis) => {
-      if(!ergebnis) return;
-      const text = ergebnis.getText().trim();
-      scanStop();
-      piep(true);
-      scanTreffer(text);
+    await leser.decodeFromVideoDevice(null, "cam", erg => {
+      if(!erg) return;
+      const code = erg.getText().trim();
+      modalZu(); piep(true);
+      scanTreffer(ziel, code);
     });
-  }catch(e){
-    scanStop();
-    toast("Kamera nicht verfügbar: " + e.message);
-  }
+  }catch(e){ modalZu(); toast("Kamera nicht verfügbar: " + e.message, true); }
 }
-function scanStop(){
-  try{ if(leser) leser.reset(); }catch(e){}
-  leser = null;
-  const h = $("scanoverlay"); if(h) h.remove();
-}
-function scanTreffer(code){
-  if(scanZiel === "rad"){
-    const r = rad(code) || (DB.raeder||[]).find(x => (x.Rahmennummer||"") === code);
-    if(!r){ piep(false); toast("Unbekanntes Rad: " + code); return; }
-    neuLesen(); neu.radId = r["Rad-ID"]; render(); toast("Rad: " + (fahrerVon(r["Rad-ID"]) || r.Bezeichnung));
-    return;
+function scanStopp(){ try{ if(leser) leser.reset(); }catch(e){} leser = null; }
+function scanTreffer(ziel, code){
+  if(ziel === "neuRad"){
+    const r = rad(code) || (DB.raeder||[]).find(x => x.rahmennummer === code);
+    if(!r){ piep(false); toast("Unbekanntes Rad: " + code, true); return; }
+    neu.rad = r.id; render(); toast("Rad: " + (r.fahrer || r.bezeichnung)); return;
   }
-  if(scanZiel === "matneu"){
-    if(!artikel(code)){ piep(false); toast("Unbekannter Artikel: " + code); return; }
-    neuLesen(); neuMaterial(code); return;
-  }
-  if(scanZiel === "mat"){
-    if(!artikel(code)){ piep(false); toast("Unbekannter Artikel: " + code); return; }
-    reservieren(code); return;
-  }
-  if(scanZiel === "stueck"){
-    view.suche = code; render(); return;
-  }
+  const a = artikel(code);
+  if(ziel === "stueck"){ view.suche = code; render(); return; }
+  if(!a){ piep(false); toast("Unbekannter Code: " + code, true); return; }
+  if(ziel === "neuMaterial"){ neuMaterial(code); return; }
+  if(ziel === "ticketMaterial"){ reservieren(code); return; }
+  if(ziel === "lager"){ artikelMenue(code); return; }
 }
 
 /* ---------------------------------------------------------------
    Aktionen
 ----------------------------------------------------------------*/
 function neuMaterial(code){
-  if(!neu) neuStart();
-  if(neu.positionen.some(p => p.code === code)){ toast("Steht schon auf der Liste."); return; }
-  neu.positionen.push({ code:code, menge:1 });
-  render();
-  toast((artikel(code)||{}).Artikel + " vorgemerkt");
+  if(neu.pos.some(p => p.code === code)){ toast("Steht schon auf der Liste."); return; }
+  neu.pos.push({ code, menge:1 }); render();
 }
-async function reservieren(code){
-  const t = ticketById(view.ticket);
-  if(!t) return;
-  const ort = t.Arbeitsort || "Werkstatt";
-  const knapp = greifbar(code, ort, t.Ticket) < 1;
-  await schreibe({ aktion:"reservieren", ticket:t.Ticket, code:code, menge:1 });
-  toast(knapp ? ((artikel(code)||{}).Artikel + " vorgemerkt — muss bestellt werden")
-              : ((artikel(code)||{}).Artikel + " reserviert"));
+function reservieren(code){
+  const t = ticket(view.ticket); if(!t) return;
+  aktion(() => neuIn("ticket_position", { ticket_id:t.id, code, menge:1 }),
+         () => (artikel(code)||{}).name + (greifbar(code, t.arbeitsort, t.id) < 0 ? " — muss bestellt werden" : " reserviert"));
 }
-async function kofferAuffuellen(ort){
-  const suffix = ort === "Koffer Bahn" ? "Bahn" : "Straße";
-  const zeilen = (DB.koffer||[]).filter(r => r.Code && zahl(r["fehlt "+suffix]) > 0);
-  if(!zeilen.length){ toast("Nichts aufzufüllen."); return; }
-  let gebucht = 0;
-  for(const r of zeilen){
-    const menge = Math.min(zahl(r["fehlt "+suffix]), zahl(r["Werkstatt frei"]));
-    if(menge <= 0) continue;
-    await schreibe({ aktion:"umbuchen", code:r.Code, menge:menge, von:"Werkstatt", nach:ort,
-      trainer:trainerName, notiz:"Auffüllen" }, true);
-    gebucht += menge;
+function tAendern(felder, meldung){
+  const t = ticket(view.ticket); if(!t) return;
+  aktion(() => aendern("ticket", "id=eq." + t.id, felder), meldung);
+}
+async function ticketAnlegen(){
+  if(!neu.rad){ toast("Erst das Rad wählen oder scannen.", true); return; }
+  if(!neu.problem.trim()){ toast("Bitte kurz beschreiben, was ist.", true); return; }
+  const op = { p_rad:neu.rad, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
+    p_soll_fertig:neu.soll_fertig, p_naechstmoeglich:neu.naechstmoeglich, p_anlass:neu.anlass || null,
+    p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos };
+  const r = rad(neu.rad), name = r ? (r.fahrer || r.bezeichnung) : neu.rad;
+  if(offline){
+    const q = warteschlange(); q.push(op); speichereWarteschlange(q);
+    neu = null; view.tab = "tickets"; render();
+    toast("Offline gespeichert — wird mit Netz angelegt"); return;
   }
-  toast(gebucht ? gebucht + " Teile in den " + ort + " gebucht" : "Werkstattbestand reicht nicht");
+  const erg = await aktion(() => rpc("ticket_anlegen", op), "Ticket für " + name + " angelegt");
+  if(erg !== undefined){ neu = null; view.tab = "tickets"; view.ticket = null; render(); }
 }
-async function kofferRueckgabe(ort){
-  const suffix = ort === "Koffer Bahn" ? "Bahn" : "Straße";
-  const zeilen = (DB.koffer||[]).filter(r => r.Code && zahl(r["Ist "+suffix]) > 0);
-  for(const r of zeilen){
-    await schreibe({ aktion:"umbuchen", code:r.Code, menge:zahl(r["Ist "+suffix]), von:ort, nach:"Werkstatt",
-      trainer:trainerName, notiz:"Rückgabe" }, true);
-  }
-  for(const s of (DB.stueckgut||[]).filter(x => x.Ort === ort)){
-    await schreibe({ aktion:"stueckUmbuchen", nummer:s.Nummer, ort:"Werkstatt", trainer:trainerName }, true);
-  }
-  toast("Koffer zurückgebucht");
+function csv(zeilen, spalten){
+  const zelle = v => {
+    if(v == null) return "";
+    if(typeof v === "number") return String(v).replace(".", ",");
+    const s = String(v);
+    return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  return "\uFEFF" + [spalten.join(";")].concat(zeilen.map(z => spalten.map(s => zelle(z[s])).join(";"))).join("\r\n");
 }
-async function abschliessen(){
-  const t = ticketById(view.ticket);
-  if(!t) return;
-  const offen = pruefOffen(t);
-  if(offen.length){ toast("Erst prüfen und freigeben: " + offen.map(s => s.Nummer).join(", ")); return; }
-  if(beschaffung(t) > 0 && !confirm("Es fehlt noch Material. Trotzdem abschließen?")) return;
-  const antwort = await schreibe({ aktion:"ticketAbschliessen", ticket:t.Ticket, trainer:trainerName });
-  view.ticket = null;
-  if(!antwort.offline) await laden(); else render();
-  toast(antwort.summe !== undefined ? "Erledigt · " + eur(antwort.summe) + " gebucht" : "Erledigt");
+function download(name, inhalt){
+  const url = URL.createObjectURL(new Blob([inhalt], { type:"text/csv;charset=utf-8" }));
+  const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+async function exportiere(was){
+  const d = iso(HEUTE);
+  try{
+    if(was === "bestand") download("bestand_" + d + ".csv", csv(DB.bestand, ["code","name","einheit","art","werkstatt","koffer_bahn","koffer_strasse","gesamt","reserviert","frei","mindestbestand","status","preis"]));
+    if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(DB.stueck, ["nummer","typ","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
+    if(was === "buchungen"){
+      const b = await rest("/buchung?order=zeit");
+      b.forEach(x => { x.artikel = (artikel(x.code)||{}).name || ""; x.sportler = x.sportler_id ? sportlerName(x.sportler_id) : ""; x.zeit = new Date(x.zeit).toLocaleString("de-DE"); });
+      download("buchungen_" + d + ".csv", csv(b, ["zeit","art","code","artikel","menge","ort","sportler","ticket_id","einzelpreis","abrechnen","rechnung_id","notiz"]));
+    }
+    if(was === "tickets"){
+      const t = await rest("/ticket?order=id");
+      t.forEach(x => { x.nr = tnr(x.id); x.fahrer = x.fahrer_id ? sportlerName(x.fahrer_id) : ""; x.kostentraeger = x.kostentraeger_id ? sportlerName(x.kostentraeger_id) : ""; });
+      download("tickets_" + d + ".csv", csv(t, ["nr","angelegt","rad_id","fahrer","problem","fahrbereit","aufwand","soll_fertig","naechstmoeglich","anlass","kostentraeger","arbeitsort","status","erledigt_am"]));
+    }
+  }catch(e){ toast(e.message, true); }
+}
+async function rechnungZeigen(id){
+  const r = (DB.rechnungen||[]).find(x => x.id === id);
+  try{
+    const pos = await rest("/buchung?rechnung_id=eq." + id + "&order=zeit");
+    let h = '<h3>' + esc(r.nummer) + '</h3><p class="sub" style="margin-top:-6px">' + esc(sportlerName(r.sportler_id)) + ' · ' + deLang(r.von) + ' – ' + deLang(r.bis) + '</p>';
+    h += '<div class="card tabwrap"><table><thead><tr><th>Datum</th><th>Artikel</th><th>Menge</th><th>Betrag</th></tr></thead><tbody>';
+    pos.forEach(p => { h += '<tr><td>' + new Date(p.zeit).toLocaleDateString("de-DE") + '</td><td style="text-align:left">' + esc((artikel(p.code)||{}).name || p.code) + '</td><td class="mono">' + zahl(-p.menge) + '</td><td class="mono">' + eur(-p.menge * p.einzelpreis) + '</td></tr>'; });
+    h += '</tbody></table><div class="row trenn"><strong>Summe</strong><span class="sp"></span><strong>' + eur(r.summe) + '</strong></div></div>';
+    h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Schließen</button><span class="sp"></span><button class="btn primary" data-a="drucken">Drucken</button></div>';
+    modal(h);
+  }catch(e){ toast(e.message, true); }
 }
 
-/* ---------------------------------------------------------------
-   Ereignisse
-----------------------------------------------------------------*/
-document.addEventListener("click", async (ev) => {
-  const el = ev.target.closest("button");
-  if(!el) return;
-  let d;
-
-  if(el.classList.contains("tab")){
-    scanStop();
-    view.tab = el.dataset.tab; view.ticket = null; view.suche = "";
-    if(view.tab === "neu" && !neu) neuStart();
-    render(); return;
-  }
-  if(el.id === "reload"){ await laden(); toast("Neu geladen"); return; }
-  if(el.hasAttribute("data-scanstop")){ scanStop(); return; }
-  if(el.hasAttribute("data-scanrad")){ neuLesen(); scanStart("rad"); return; }
-  if(el.hasAttribute("data-scanmatneu")){ neuLesen(); scanStart("matneu"); return; }
-  if(el.hasAttribute("data-scanmat")){ scanStart("mat"); return; }
-  if(el.hasAttribute("data-scanstueck")){ scanStart("stueck"); return; }
-
-  /* Board */
-  if((d = el.getAttribute("data-filter"))){ view.filter = d; render(); return; }
-  if((d = el.getAttribute("data-open"))){ view.ticket = d; window.scrollTo(0,0); render(); return; }
-  if(el.hasAttribute("data-back")){ view.ticket = null; render(); return; }
+/** Alle Klick-Aktionen, verteilt über data-a / data-x. */
+const A = {
+  tab: x => { view.tab = x; view.ticket = null; view.suche = ""; if(x === "neu" && !neu) neuStart(); render(); window.scrollTo(0,0); },
+  filter: x => { view.filter = x; render(); },
+  lagerFilter: x => { view.lagerFilter = x; render(); },
+  verw: x => { view.verw = x; render(); },
+  oeffnen: x => { view.ticket = Number(x); render(); window.scrollTo(0,0); },
+  zurueck: () => { view.ticket = null; render(); },
+  modalZu: () => modalZu(),
+  modalHintergrund: (x, el, ev) => { if(ev.target === el) modalZu(); },
+  scan: x => scanStart(x),
+  drucken: () => window.print(),
 
   /* Neues Ticket */
-  if((d = el.getAttribute("data-nfb"))){ neuLesen(); neu.fahrbereit = (d === "ja"); render(); return; }
-  if((d = el.getAttribute("data-nort"))){ neuLesen(); neu.arbeitsort = d; render(); return; }
-  if(el.hasAttribute("data-nfertig")){ neuLesen(); neu.sollFertig = el.getAttribute("data-nfertig") || null; render(); return; }
-  if(el.hasAttribute("data-nres")){
-    neuLesen();
-    const sel = $("nmat");
-    if(sel && sel.value) neuMaterial(sel.value); else toast("Erst ein Teil wählen.");
-    return;
-  }
-  if((d = el.getAttribute("data-nfrei"))){ neuLesen(); neu.positionen = neu.positionen.filter(p => p.code !== d); render(); return; }
-  if(el.hasAttribute("data-anlegen")){ await ticketAnlegen(); return; }
-
-  /* Koffer */
-  if((d = el.getAttribute("data-fill"))){ await kofferAuffuellen(d); return; }
-  if((d = el.getAttribute("data-empty"))){ await kofferRueckgabe(d); return; }
-  if((d = el.getAttribute("data-mv"))){
-    const [code, ort, n] = d.split("|");
-    const menge = 1;
-    if(Number(n) > 0) await schreibe({ aktion:"umbuchen", code:code, menge:menge, von:"Werkstatt", nach:ort, trainer:trainerName });
-    else await schreibe({ aktion:"umbuchen", code:code, menge:menge, von:ort, nach:"Werkstatt", trainer:trainerName });
-    return;
-  }
-  if((d = el.getAttribute("data-sback"))){
-    await schreibe({ aktion:"stueckUmbuchen", nummer:d, ort:"Werkstatt", trainer:trainerName });
-    toast(d + " in die Werkstatt gebucht"); return;
-  }
+  nFahrbereit: x => { neu.fahrbereit = x === "ja"; render(); },
+  nOrt: x => { neu.arbeitsort = x; render(); },
+  nTermin: x => { Object.assign(neu, terminWert(x)); render(); },
+  nMatWeg: x => { neu.pos = neu.pos.filter(p => p.code !== x); render(); },
+  anlegen: () => ticketAnlegen(),
 
   /* Ticket-Detail */
-  const t = view.ticket ? ticketById(view.ticket) : null;
-  if(!t) return;
-  if((d = el.getAttribute("data-aufwand"))){
-    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Aufwand": d } }); return;
-  }
-  if((d = el.getAttribute("data-fb"))){
-    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "fahrbereit": d } }); return;
-  }
-  if((d = el.getAttribute("data-pruef"))){
-    await schreibe({ aktion:"zustandSetzen", nummer:d, zustand:el.getAttribute("data-zustand") }); return;
-  }
-  if(el.hasAttribute("data-res")){
-    const sel = $("matsel");
-    if(sel && sel.value) await reservieren(sel.value); else toast("Erst ein Teil wählen.");
+  tTermin: x => { const w = terminWert(x); tAendern(w, "Termin geändert"); },
+  tAufwand: x => tAendern({ aufwand:x }),
+  tFahrbereit: x => tAendern({ fahrbereit: x === "ja" }),
+  pruefen: x => {
+    const s = (DB.stueck||[]).find(y => y.nummer === x);
+    aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), { zustand: s.zustand === "zu prüfen" ? "frei" : "zu prüfen" }));
+  },
+  posWeg: x => aktion(() => aendern("ticket_position", "id=eq." + x, { status:"storniert" }), "Reservierung freigegeben"),
+  annehmen: () => tAendern({ status:"angenommen" }, "Übernommen"),
+  erledigt: () => {
+    const t = ticket(view.ticket);
+    if(beschaffung(t) > 0 && !confirm("Es fehlt noch Material. Trotzdem abschließen?")) return;
+    aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id }), s => { view.ticket = null; return "Erledigt · " + eur(s) + " gebucht"; })
+      .then(() => { if(!ticket(t.id)){ view.ticket = null; render(); } });
+  },
+  stornieren: () => {
+    if(!confirm("Ticket stornieren? Reservierungen werden freigegeben.")) return;
+    const id = view.ticket;
+    aktion(() => aendern("ticket", "id=eq." + id, { status:"storniert" }), "Storniert").then(() => { view.ticket = null; render(); });
+  },
+
+  /* Lager */
+  artikelMenue: x => artikelMenue(x),
+  formZugang: x => formZugang(x),
+  formAusgabe: x => formAusgabe(x),
+  formInventur: x => formInventur(x),
+  zugangBuchen: x => {
+    const m = zahlOderNull("fMenge");
+    if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
+    aktion(() => neuIn("buchung", { art:"zugang", code:x, menge:m, ort:wert("fOrt"), notiz:wert("fNotiz") || null }), "Zugang gebucht");
+  },
+  ausgabeBuchen: x => {
+    const m = zahlOderNull("fMenge"), s = wert("fSportler");
+    if(!s){ toast("Bitte Sportler wählen.", true); return; }
+    if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
+    aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:m, p_ort:wert("fOrt"), p_sportler:Number(s), p_notiz:wert("fNotiz") || null }),
+           b => "Gebucht · " + eur(b));
+  },
+  inventurBuchen: x => {
+    const m = zahlOderNull("fMenge");
+    if(m === null || m < 0){ toast("Gezählte Menge fehlt.", true); return; }
+    aktion(() => rpc("inventur", { p_code:x, p_ort:wert("fOrt"), p_gezaehlt:m }), d => d == 0 ? "Stimmt bereits" : "Korrigiert um " + (d > 0 ? "+" : "") + zahl(d));
+  },
+
+  /* Koffer */
+  kofferRein: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o })); },
+  kofferRaus: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt" })); },
+  terminNeu: () => {
+    if(!wert("tDatum") || !wert("tName")){ toast("Datum und Name fehlen.", true); return; }
+    aktion(() => neuIn("termin", { datum:wert("tDatum"), name:wert("tName"), koffer:wert("tKoffer") || null }), "Termin eingetragen");
+  },
+  terminWeg: x => aktion(() => loeschen("termin", "id=eq." + x)),
+
+  /* Inventar */
+  stueckNeu: () => stueckForm(null),
+  stueckBearbeiten: x => stueckForm(x),
+  stueckSpeichern: x => {
+    const d = { typ:wert("eTyp"), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:wert("eKauf") || null, wert:zahlOderNull("eWert"), notiz:wert("eNotiz") || null };
+    if(!d.typ){ toast("Typ fehlt.", true); return; }
+    if(x) aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), d), "Gespeichert");
+    else {
+      const nr = wert("eNr").toUpperCase();
+      if(!nr){ toast("Nummer fehlt.", true); return; }
+      aktion(() => neuIn("stueck", Object.assign({ nummer:nr }, d)), nr + " angelegt");
+    }
+  },
+
+  /* Verwaltung */
+  sportlerNeu: () => { const n = wert("sName"); if(!n){ toast("Name fehlt.", true); return; } aktion(() => neuIn("sportler", { name:n }), n + " angelegt"); },
+  sportlerAbr: x => { const s = DB.sportler.find(y => y.id === Number(x)); aktion(() => aendern("sportler", "id=eq." + x, { abrechnen:!s.abrechnen })); },
+  sportlerAktiv: x => { const s = DB.sportler.find(y => y.id === Number(x)); aktion(() => aendern("sportler", "id=eq." + x, { aktiv:!s.aktiv })); },
+  radNeu: () => radForm(null),
+  radBearbeiten: x => radForm(x),
+  radSpeichern: x => {
+    const d = { bezeichnung:wert("rBez"), typ:wert("rTyp"), rahmennummer:wert("rRahmen") || null, groesse:wert("rGr") || null,
+                eigentuemer_id: wert("rEig") ? Number(wert("rEig")) : null, notiz:wert("rNotiz") || null, aktiv: wert("rAktiv") === "true" };
+    if(!d.bezeichnung){ toast("Bezeichnung fehlt.", true); return; }
+    if(x) aktion(() => aendern("rad", "id=eq." + encodeURIComponent(x), d), "Gespeichert");
+    else {
+      const id = wert("rId").toUpperCase();
+      if(!id){ toast("Rad-ID fehlt.", true); return; }
+      aktion(() => neuIn("rad", Object.assign({ id }, d)), d.bezeichnung + " angelegt");
+    }
+  },
+  artikelNeu: () => artikelForm(null),
+  artikelBearbeiten: x => artikelForm(x),
+  artikelSpeichern: x => {
+    const d = { name:wert("aName"), einheit:wert("aEinheit") || "Stück", preis:zahlOderNull("aPreis") || 0, mindestbestand:zahlOderNull("aMin") || 0,
+                lieferzeit_tage: Math.round(zahlOderNull("aLz") || 0), art:wert("aArt"), verbraucht_code:wert("aVerb") || null,
+                verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
+                shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true" };
+    if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
+    if(x) aktion(() => aendern("artikel", "code=eq." + encodeURIComponent(x), d), "Gespeichert");
+    else {
+      const code = wert("aCode").toUpperCase();
+      if(!/^[A-Z]+-[0-9]+$/.test(code)){ toast("Code im Format L-105.", true); return; }
+      aktion(() => neuIn("artikel", Object.assign({ code }, d)), code + " angelegt");
+    }
+  },
+  trainerAktiv: x => { const t = DB.trainer.find(y => y.user_id === x); aktion(() => aendern("trainer", "user_id=eq." + encodeURIComponent(x), { aktiv:!t.aktiv }), t.aktiv ? "Gesperrt" : t.name + " freigeschaltet"); },
+  rechnungErstellen: x => {
+    if(!confirm("Rechnung für " + sportlerName(Number(x)) + " über alle offenen Posten erstellen?")) return;
+    aktion(() => rpc("rechnung_erstellen", { p_sportler:Number(x), p_von:"2000-01-01", p_bis:iso(HEUTE) }), "Rechnung erstellt");
+  },
+  rechnungZeigen: x => rechnungZeigen(Number(x)),
+  rechnungStatus: x => { const r = DB.rechnungen.find(y => y.id === Number(x)); aktion(() => aendern("rechnung", "id=eq." + x, { status: r.status === "offen" ? "bezahlt" : "offen" })); },
+  export: x => exportiere(x)
+};
+
+/** Änderungen an Feldern, verteilt über data-c. */
+const C = {
+  suche: v => { view.suche = v; },
+  nRad: v => { neu.rad = v; },
+  nProblem: v => { neu.problem = v; },
+  nAnlass: v => { neu.anlass = v; },
+  nDatum: v => { neu.soll_fertig = v || null; neu.naechstmoeglich = false; render(); },
+  nMat: v => { if(v) neuMaterial(v); },
+  tDatum: v => tAendern({ soll_fertig:v || null, naechstmoeglich:false }, "Termin geändert"),
+  tAnlass: v => tAendern({ anlass:v || null }),
+  tOrt: v => tAendern({ arbeitsort:v }),
+  tKosten: v => tAendern({ kostentraeger_id: v ? Number(v) : null }),
+  tMatWahl: v => { if(v) reservieren(v); },
+  kofferSoll: (v, x) => {
+    const [c, o] = x.split("|"), s = Number(String(v).replace(",", "."));
+    if(isNaN(s) || s < 0) return;
+    aktion(() => s === 0 ? loeschen("koffer_soll", "code=eq." + encodeURIComponent(c) + "&ort=eq." + encodeURIComponent(o))
+                         : aendern("koffer_soll", "code=eq." + encodeURIComponent(c) + "&ort=eq." + encodeURIComponent(o), { soll:s }));
+  },
+  kofferNeu: (v, x) => { if(v) aktion(() => neuIn("koffer_soll", { code:v, ort:x, soll:1 }), "Zur Packliste hinzugefügt"); },
+  stueckOrt: (v, x) => {
+    const d = v.indexOf("rad:") === 0 ? { ort:"am Rad", rad_id:v.slice(4) } : { ort:v, rad_id:null };
+    aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), d), x + " umgebucht");
+  },
+  stueckZustand: (v, x) => aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), { zustand:v })),
+  radFahrer: (v, x) => aktion(() => rpc("rad_zuordnen", { p_rad:x, p_sportler: v ? Number(v) : null }), "Fahrer geändert")
+};
+
+document.addEventListener("click", ev => {
+  const tab = ev.target.closest(".tab");
+  if(tab){ A.tab(tab.dataset.tab); return; }
+  if(ev.target.id === "abmelden"){ abmelden(); return; }
+  const el = ev.target.closest("[data-a]");
+  if(!el || el.disabled) return;
+  const f = A[el.dataset.a];
+  if(f) f(el.dataset.x, el, ev);
+});
+/* Texteingaben: laufend mitschreiben, ohne neu zu zeichnen (Fokus bleibt). */
+document.addEventListener("input", ev => {
+  const el = ev.target, c = el.dataset && el.dataset.c;
+  if(c === "suche"){
+    C.suche(el.value);
+    const pos = el.selectionStart; render();
+    const n = document.querySelector('[data-c="suche"]'); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} }
     return;
   }
-  if((d = el.getAttribute("data-frei"))){
-    await schreibe({ aktion:"freigeben", ticket:t.Ticket, code:d });
-    toast("Reservierung freigegeben"); return;
-  }
-  if(el.hasAttribute("data-annehmen")){
-    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Status":"angenommen" } });
-    toast("Übernommen"); return;
-  }
-  if(el.hasAttribute("data-erledigt")){ await abschliessen(); return; }
+  if(c === "nProblem" || c === "nAnlass") C[c](el.value);
+});
+/* Auswahlfelder und abgeschlossene Eingaben: sofort übernehmen. */
+document.addEventListener("change", ev => {
+  const el = ev.target, c = el.dataset && el.dataset.c;
+  if(!c || c === "suche" || c === "nProblem") return;
+  if(c === "nAnlass") return;
+  const f = C[c];
+  if(f) f(el.value, el.dataset.x);
 });
 
-document.addEventListener("input", (ev) => {
-  const el = ev.target;
-  if(el.id === "suche" || el.id === "isuche"){
-    const pos = el.selectionStart;
-    view.suche = el.value;
+/* ===============================================================
+   Login, Freischaltung, Start
+   ===============================================================*/
+function zeigeLogin(fehler, registrierung){
+  $("tabs").hidden = true; $("abmelden").hidden = true; $("banner").innerHTML = ""; $("stand").textContent = "";
+  modalZu();
+  let h = '<div class="card" style="max-width:420px;margin:30px auto">';
+  h += '<h2 class="sec" style="margin-top:0">' + (registrierung ? "Zugang anlegen" : "Anmelden") + '</h2>';
+  if(fehler) h += '<div class="fehlerbox" style="margin-top:0">' + esc(fehler) + '</div>';
+  if(registrierung) h += '<div class="feld"><span class="lbl">Dein Name</span><input type="text" id="lName" autocomplete="name"></div>';
+  h += '<div class="feld"><span class="lbl">E-Mail</span><input type="email" id="lMail" autocomplete="username"></div>';
+  h += '<div class="feld"><span class="lbl">Passwort</span><input type="password" id="lPw" autocomplete="' + (registrierung ? "new-password" : "current-password") + '"' + (registrierung ? ' minlength="8"' : '') + '></div>';
+  h += '<button class="btn primary voll" id="lLos">' + (registrierung ? "Zugang anlegen" : "Anmelden") + '</button>';
+  h += '<p class="sub" style="text-align:center;margin:14px 0 0"><button class="btn small" id="lWechsel">' + (registrierung ? "Ich habe schon einen Zugang" : "Neu hier? Zugang anlegen") + '</button></p>';
+  h += '</div>';
+  app.innerHTML = h;
+  $("lWechsel").onclick = () => zeigeLogin(null, !registrierung);
+  const los = async () => {
+    const mail = wert("lMail"), pw = $("lPw").value;
+    if(!mail || !pw){ zeigeLogin("E-Mail und Passwort eingeben.", registrierung); return; }
+    $("lLos").disabled = true;
+    try{
+      if(registrierung){
+        const name = wert("lName");
+        if(!name){ zeigeLogin("Bitte deinen Namen eintragen.", true); return; }
+        if(pw.length < 8){ zeigeLogin("Passwort mindestens 8 Zeichen.", true); return; }
+        await registrieren(name, mail, pw);
+      } else await anmelden(mail, pw);
+      start();
+    }catch(e){ zeigeLogin(e instanceof NetzFehler ? "Keine Verbindung." : e.message, registrierung); }
+  };
+  $("lLos").onclick = los;
+  $("lPw").onkeydown = e => { if(e.key === "Enter") los(); };
+}
+
+function zeigeWarten(name){
+  $("tabs").hidden = true; $("abmelden").hidden = false; $("stand").textContent = "";
+  app.innerHTML = '<div class="card" style="max-width:420px;margin:30px auto"><h2 class="sec" style="margin-top:0">Fast geschafft</h2>' +
+    '<p>Hallo ' + esc(name) + ', dein Zugang ist angelegt. Ein Trainer muss dich unter <strong>Verwaltung → Trainer</strong> einmal freischalten.</p>' +
+    '<button class="btn primary voll" id="wNochmal">Nochmal prüfen</button></div>';
+  $("wNochmal").onclick = () => start();
+}
+
+/** Ist der angemeldete Nutzer freigeschalteter Trainer? Legt beim ersten Mal die Anfrage an. */
+async function trainerStatus(){
+  const t = await rest("/trainer?user_id=eq." + encodeURIComponent(ich.id));
+  if(t.length && t[0].aktiv) return { aktiv:true, name:t[0].name };
+  const name = (t.length && t[0].name) || localStorage.getItem("wName") || (ich.email || "").split("@")[0] || "Trainer";
+  const aktiv = await rpc("zugang_anfragen", { p_name:name });
+  return { aktiv: aktiv === true, name };
+}
+
+async function start(){
+  $("ver").textContent = APP_VERSION;
+  if(!session){ zeigeLogin(); return; }
+  app.innerHTML = '<div class="leer">Lädt…</div>';
+  $("stand").textContent = "lädt…";
+  try{
+    await holeJwt(true);
+    const st = await trainerStatus();
+    if(!st.aktiv){ zeigeWarten(st.name); return; }
+    await ladeAlles();
     render();
-    const n = $(el.id); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} }
+    sendeWarteschlange();
+  }catch(e){
+    if(e instanceof AuthFehler){ zeigeLogin(); return; }
+    if(e instanceof NetzFehler){ offlineAnzeigen(); zeigeStand(); return; }
+    app.innerHTML = '<div class="fehlerbox">' + esc(e.message) + '</div>';
   }
-});
+  zeigeStand();
+}
 
-document.addEventListener("change", async (ev) => {
-  const el = ev.target, t = view.ticket ? ticketById(view.ticket) : null;
-  if(el.id === "nrad" && neu){ neu.radId = el.value; render(); return; }
-  if(el.id === "fertig" && t){
-    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "soll fertig": el.value || null } }); return;
-  }
-  if(el.id === "anlass" && t){
-    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Anlass": el.value } }, true); return;
-  }
-  if(el.id === "tort" && t){
-    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Arbeitsort": el.value } }); return;
-  }
-  if(el.id === "sportler" && t){
-    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Sportler": el.value } }, true); return;
-  }
-  const nummer = el.getAttribute && el.getAttribute("data-move");
-  if(nummer && el.value){
-    const v = el.value;
-    if(v.indexOf("rad:") === 0){
-      await schreibe({ aktion:"stueckUmbuchen", nummer:nummer, ort:"am Rad", radId:v.slice(4), trainer:trainerName });
-      toast(nummer + " → ans Rad");
-    } else {
-      await schreibe({ aktion:"stueckUmbuchen", nummer:nummer, ort:v, trainer:trainerName });
-      toast(nummer + " → " + v);
-    }
-  }
-});
-
-window.addEventListener("online", () => { zeigeNetz(); sendeNach(); });
-window.addEventListener("offline", zeigeNetz);
-
-/* ---------------------------------------------------------------
-   Start
-----------------------------------------------------------------*/
-ladeWarteschlange();
-zeigeNetz();
-$("ver").textContent = APP_VERSION;
-laden().then(() => { if(warteschlange.length) sendeNach(); });
+start();
 
 </script>
 </body>
