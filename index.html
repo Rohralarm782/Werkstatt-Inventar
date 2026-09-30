@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Werkstatt-Lager · Materialbuchung</title>
+<title>Werkstatt RSZ MV · Tickets &amp; Lager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -29,1458 +29,1002 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0}
   body{
-    background:var(--paper);
-    color:var(--ink);
+    background:var(--paper);color:var(--ink);
     font-family:Inter,system-ui,-apple-system,sans-serif;
-    font-size:16px;line-height:1.45;
-    padding-bottom:120px;
+    font-size:16px;line-height:1.45;padding-bottom:90px;
   }
-  .wrap{max-width:560px;margin:0 auto;padding:0 16px}
+  .wrap{max-width:720px;margin:0 auto;padding:0 16px}
 
-  /* ---------- Kopf: Job-Ticket ---------- */
-  header{
-    background:var(--ink);color:#fff;
-    padding:14px 0 0;
-    border-bottom:4px solid var(--sprint);
-  }
-  .brand{display:flex;align-items:baseline;gap:10px;padding-bottom:12px}
-  .brand h1{
-    font-family:'Barlow Condensed',Impact,sans-serif;
-    font-weight:700;font-size:26px;letter-spacing:.04em;
-    text-transform:uppercase;margin:0;
-  }
+  header{background:var(--ink);color:#fff;padding:12px 0 0;border-bottom:4px solid var(--sprint)}
+  .brand{display:flex;align-items:baseline;gap:10px;padding-bottom:10px;flex-wrap:wrap}
+  .brand h1{font-family:'Barlow Condensed',Impact,sans-serif;font-weight:700;font-size:24px;
+    letter-spacing:.04em;text-transform:uppercase;margin:0}
   .brand span{font-size:12px;color:#9AA3AD;letter-spacing:.08em;text-transform:uppercase}
+  .brand .sp{flex:1}
+  .netz{font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:99px;
+    background:#233;color:#9AA3AD}
+  .netz.off{background:var(--warn);color:#fff}
+  .netz.queue{background:var(--sprint);color:#fff}
 
-  .ticket{
-    background:var(--card);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    margin:-1px 0 0;
-    box-shadow:0 6px 18px rgba(0,0,0,.06);
-    overflow:hidden;
-  }
-  .ticket-row{
-    display:flex;align-items:center;gap:12px;
-    padding:12px 14px;border-bottom:1px dashed var(--line);
-  }
-  .ticket-row:last-child{border-bottom:0}
-  .lbl{
-    font-family:'Barlow Condensed',sans-serif;
-    font-size:13px;letter-spacing:.12em;text-transform:uppercase;
-    color:var(--ink-2);width:74px;flex:none;font-weight:600;
-  }
-  select{
-    flex:1;font-size:17px;font-weight:600;font-family:inherit;color:var(--ink);
-    border:0;background:transparent;padding:6px 0;appearance:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%235C646E' stroke-width='2' fill='none'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;background-position:right center;
-  }
-  select:focus{outline:2px solid var(--steher);outline-offset:3px;border-radius:4px}
-
-  /* ---------- Tabs ---------- */
-  .tabs{display:flex;gap:8px;margin:18px 0 12px}
-  .tab{
-    flex:1;padding:13px 8px;border:1px solid var(--line);background:var(--card);
-    border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:600;
-    font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);
-    cursor:pointer;
-  }
+  .tabs{display:flex;gap:6px;margin:14px 0 12px;flex-wrap:wrap}
+  .tab{flex:1;min-width:84px;padding:11px 6px;border:1px solid var(--line);background:var(--card);
+    border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;
+    letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);cursor:pointer}
   .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .tab:focus-visible{outline:2px solid var(--steher);outline-offset:2px}
 
-  /* ---------- Scanner ---------- */
-  .scanbox{
-    position:relative;background:#0E1114;border-radius:var(--radius);
-    aspect-ratio:4/3;overflow:hidden;display:flex;align-items:center;justify-content:center;
-  }
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;margin-bottom:12px}
+  .row{display:flex;align-items:center;gap:10px}
+  .sp{flex:1}
+  .lbl{font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-2);font-weight:600;display:block;margin-bottom:5px}
+  .sub{font-size:13px;color:var(--ink-2)}
+  .mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  h2.sec{font-family:'Barlow Condensed',sans-serif;font-size:16px;letter-spacing:.1em;
+    text-transform:uppercase;margin:18px 0 8px;color:var(--ink-2)}
+  h2.sec.alarm{color:var(--sprint)}
+
+  button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;
+    padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);
+    font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn.alarm{background:var(--sprint);color:#fff;border-color:var(--sprint)}
+  .btn.small{min-height:36px;padding:0 11px;font-size:13px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  input[type=text],input[type=search],input[type=date],input[type=number],select,textarea{
+    width:100%;min-height:46px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card)}
+  textarea{min-height:88px;line-height:1.45;resize:vertical}
+  .feld{margin-bottom:12px}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:92px;min-height:46px;border:1px solid var(--line);background:var(--card);
+    border-radius:10px;font-weight:600;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .seg button.rot[aria-pressed="true"]{background:var(--sprint);border-color:var(--sprint);color:#fff}
+
+  .ticket{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;cursor:pointer}
+  .ticket.steht{border-color:#E9B4BC;background:#FFF7F8}
+  .ticket .kopf{display:flex;align-items:baseline;gap:10px}
+  .ticket .fahrer{font-family:'Barlow Condensed',sans-serif;font-size:21px;font-weight:700;
+    letter-spacing:.02em}
+  .ticket .puffer{margin-left:auto;font-family:'Barlow Condensed',sans-serif;font-size:21px;font-weight:700}
+  .ticket .prob{margin:3px 0 0}
+  .chip{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;
+    white-space:nowrap}
+  .chip.ok{background:#E4F1EA;color:var(--ok)}
+  .chip.warn{background:#FBEEDC;color:var(--warn)}
+  .chip.alarm{background:#FBE3E7;color:var(--sprint)}
+  .chip.grau{background:#EFEDE9;color:var(--ink-2)}
+
+  table{width:100%;border-collapse:collapse}
+  th{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-2);text-align:right;padding:6px 5px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:9px 5px;border-bottom:1px solid var(--line);font-size:14px;text-align:right}
+  tr.low td{background:#FFF7F8}
+  .tabwrap{overflow-x:auto}
+
+  .scanbox{position:relative;background:#0E1114;border-radius:var(--radius);aspect-ratio:4/3;
+    overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
   .scanbox video{width:100%;height:100%;object-fit:cover}
-  .reticle{
-    position:absolute;inset:18% 14%;border:2px solid rgba(255,255,255,.5);border-radius:8px;
-  }
-  .reticle::after{
-    content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:var(--sprint);
-    box-shadow:0 0 12px var(--sprint);
-  }
+  .reticle{position:absolute;inset:18% 14%;border:2px solid rgba(255,255,255,.5);border-radius:8px}
+  .reticle::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:var(--sprint);
+    box-shadow:0 0 12px var(--sprint)}
   @media (prefers-reduced-motion:no-preference){
     .reticle::after{animation:sweep 2.4s ease-in-out infinite}
     @keyframes sweep{0%,100%{top:8%}50%{top:92%}}
   }
   .scan-hint{color:#8B949E;font-size:14px;text-align:center;padding:24px;max-width:80%}
 
-  .camstate{
-    margin:6px 2px 0;font-size:12px;color:var(--ink-2);
-    display:flex;align-items:center;gap:6px;
-  }
-  .camstate b{color:var(--ink);font-weight:600}
-  .camstate.err{color:var(--sprint)}
-
-  .demo-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
-  .tile{
-    padding:12px 10px;border:1px dashed var(--line);background:var(--card);
-    border-radius:10px;text-align:left;cursor:pointer;font-family:inherit;font-size:14px;
-    font-weight:500;color:var(--ink);
-  }
-  .tile small{display:block;color:var(--ink-2);font-size:12px;font-weight:400}
-  .tile:active{background:#EFEDEA}
-
-  /* ---------- Liste ---------- */
-  .search{
-    width:100%;padding:13px 14px;font-size:16px;font-family:inherit;
-    border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:8px;
-  }
-  .item{
-    display:flex;align-items:center;gap:12px;width:100%;text-align:left;
-    padding:12px 14px;background:var(--card);border:1px solid var(--line);
-    border-radius:10px;margin-bottom:6px;cursor:pointer;font-family:inherit;
-  }
-  .item:active{background:#EFEDEA}
-  .item:disabled{opacity:.45;cursor:not-allowed}
-  .item:disabled .plus{background:#C9C5C0}
-  .item-main{flex:1;min-width:0}
-  .item-name{font-weight:600;font-size:15px}
-  .item-meta{font-size:13px;color:var(--ink-2)}
-  .stock{
-    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
-    padding:3px 8px;border-radius:6px;background:#EAF3EE;color:var(--ok);white-space:nowrap;
-  }
-  .stock.low{background:#FDF0DF;color:var(--warn)}
-  .stock.out{background:#FBE7EA;color:var(--sprint)}
-  .stock.job{background:#E8EEF8;color:var(--steher)}
-
-  /* ---------- Inventur ---------- */
-  .fill{
-    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px;margin-bottom:10px;
-  }
-  .fill h4{margin:0 0 6px;font-size:16px;display:flex;align-items:center;gap:8px}
-  .tag{
-    font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.08em;
-    text-transform:uppercase;font-weight:700;padding:2px 7px;border-radius:5px;
-    background:#EFEDEA;color:var(--ink-2);
-  }
-  .tag.vorrat{background:#E8EEF8;color:var(--steher)}
-  .sollist{
-    display:flex;justify-content:space-between;align-items:baseline;
-    font-size:13px;color:var(--ink-2);margin-bottom:10px;
-  }
-  .sollist .soll b{color:var(--ink);font-size:16px;font-variant-numeric:tabular-nums}
-  .fill-row{display:flex;gap:8px;align-items:center}
-  .fill-row input{
-    flex:1;min-width:0;padding:12px;font-size:17px;font-family:inherit;font-weight:600;
-    border:1px solid var(--line);border-radius:10px;text-align:right;
-  }
-  .fill-row input:focus{outline:2px solid var(--steher);outline-offset:1px}
-  .fill-row .unit{font-size:14px;color:var(--ink-2);min-width:34px}
-  .fill-row button{
-    border:0;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;
-    font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
-    letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
-  }
-  .fill .result{margin:10px 0 0;font-size:13px;color:var(--ok);font-weight:600}
-  .fill .result.minus{color:var(--sprint)}
-
-  .plus{
-    width:36px;height:36px;flex:none;border-radius:50%;border:0;background:var(--ink);
-    color:#fff;font-size:22px;line-height:1;font-weight:600;
-  }
-
-  /* ---------- Lieferschein / Warenkorb ---------- */
-  .note{
-    margin-top:18px;background:var(--card);border:1px solid var(--line);
-    border-radius:var(--radius);overflow:hidden;
-  }
-  .note-head{
-    display:flex;justify-content:space-between;align-items:center;
-    padding:11px 14px;background:#EFEDEA;border-bottom:1px solid var(--line);
-  }
-  .note-head h2{
-    margin:0;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
-    letter-spacing:.1em;text-transform:uppercase;
-  }
-  .note-head em{font-style:normal;font-size:13px;color:var(--ink-2)}
-  .line{
-    display:flex;align-items:center;gap:10px;padding:10px 14px;
-    border-bottom:1px solid #F0EEEB;font-variant-numeric:tabular-nums;
-  }
-  .line:last-child{border-bottom:0}
-  .qty{
-    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;
-    min-width:34px;text-align:center;background:#F1EFEC;border-radius:6px;padding:2px 6px;
-  }
-  .line-name{flex:1;font-size:15px;min-width:0}
-  .line-name small{display:block;color:var(--ink-2);font-size:12px}
-  .line-sum{font-weight:600;font-size:15px;white-space:nowrap}
-  .del{border:0;background:transparent;color:var(--ink-2);font-size:20px;padding:0 2px;cursor:pointer}
-  .empty{padding:22px 14px;color:var(--ink-2);font-size:14px;text-align:center}
-
-  /* LV-Modus: Lieferschein wird zum internen Entnahmeschein */
-  .note.lv{border-color:var(--steher)}
-  .note.lv .note-head{background:#E8EEF8;border-bottom-color:var(--steher)}
-  .note.lv .note-head h2::after{content:" · intern";color:var(--steher)}
-  .lv-hint{
-    padding:9px 14px;background:#E8EEF8;color:var(--steher);font-size:13px;
-    border-bottom:1px solid #CFDBEF;
-  }
-
-  /* ---------- Bottom bar ---------- */
-  .bar{
-    position:fixed;left:0;right:0;bottom:0;background:rgba(247,245,242,.94);
-    backdrop-filter:blur(8px);border-top:1px solid var(--line);
-    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
-  }
-  .bar-inner{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px}
-  .total{flex:1;font-variant-numeric:tabular-nums}
-  .total b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:26px;line-height:1}
-  .total span{font-size:12px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.08em}
-  .book{
-    border:0;background:var(--sprint);color:#fff;padding:16px 26px;border-radius:12px;
-    font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:700;
-    letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
-  }
-  .book:disabled{background:#C9C5C0;color:#fff}
-  .book:focus-visible{outline:3px solid var(--steher);outline-offset:2px}
-
-  /* ---------- Gebuchte Zeilen (Blick in die Tabelle) ---------- */
-  .sheet{margin-top:22px}
-  .sheet h3{
-    font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.12em;
-    text-transform:uppercase;color:var(--ink-2);margin:0 0 8px;
-  }
-  .sheet-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
-  table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}
-  th{
-    font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.08em;
-    text-transform:uppercase;color:var(--ink-2);text-align:left;
-    padding:8px 10px;border-bottom:1px solid var(--line);background:#FAF9F7;
-  }
-  td{padding:8px 10px;border-bottom:1px solid #F0EEEB;font-variant-numeric:tabular-nums}
-  tr:last-child td{border-bottom:0}
-  .datum{
-    flex:1;font-size:17px;font-weight:600;font-family:inherit;color:var(--ink);
-    border:0;background:transparent;padding:6px 0;
-  }
-  .datum:focus{outline:2px solid var(--steher);outline-offset:3px;border-radius:4px}
-  .live{
-    margin:0 0 12px;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.4;
-    background:#E8EEF8;color:var(--steher);border:1px solid #CFDBEF;
-  }
-
-  /* ---------- Rechnungen ---------- */
-  .wide{
-    width:100%;padding:15px;border:0;border-radius:12px;background:var(--ink);color:#fff;
-    font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;
-    letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
-  }
-  .wide.second{background:var(--sprint);margin-top:14px}
-  .wide:disabled{background:#C9C5C0}
-  .inv{
-    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    margin-top:12px;overflow:hidden;
-  }
-  .inv-head{
-    display:flex;justify-content:space-between;align-items:baseline;
-    padding:12px 14px;border-bottom:2px solid var(--ink);
-  }
-  .inv-head strong{font-size:17px}
-  .inv-head .nr{
-    font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.1em;
-    color:var(--ink-2);text-transform:uppercase;
-  }
-  .inv table{width:100%;font-size:14px;white-space:normal}
-  .inv td{padding:7px 14px;border-bottom:1px solid #F0EEEB}
-  .inv td:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .inv .tot td{
-    border-top:2px solid var(--ink);border-bottom:0;font-weight:700;font-size:16px;padding-top:10px;
-  }
-  .inv-note{padding:10px 14px;font-size:12px;color:var(--ink-2);background:#FAF9F7}
-  .sum-line{
-    margin-top:14px;padding:12px 14px;background:#EFEDEA;border-radius:10px;
-    font-size:14px;display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;
-  }
-
-  /* ---------- Archiv ---------- */
-  .archiv{margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}
-  .archiv h3{
-    font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.12em;
-    text-transform:uppercase;color:var(--ink-2);margin:0 0 10px;
-  }
-  .arch{
-    display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);
-    border:1px solid var(--line);border-radius:10px;margin-bottom:6px;
-  }
-  .arch-main{flex:1;min-width:0}
-  .arch-main b{display:block;font-size:15px}
-  .arch-main small{color:var(--ink-2);font-size:12px}
-  .arch .sum{font-weight:700;font-size:15px;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .arch .open{
-    width:36px;height:36px;flex:none;border-radius:8px;border:1px solid var(--line);
-    background:#fff;color:var(--ink);font-size:16px;cursor:pointer;
-  }
-  .paid{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
-  .paid input{width:22px;height:22px;accent-color:var(--ok);cursor:pointer}
-  .paid span{
-    font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.06em;
-    text-transform:uppercase;color:var(--ink-2);font-weight:600;
-  }
-  .arch.bezahlt{background:#F4F8F5;border-color:#BFDCCB}
-  .arch.bezahlt .arch-main b{color:var(--ok)}
-  .arch.storniert{opacity:.5}
-  .arch.storniert .arch-main b{text-decoration:line-through}
-
-  @media print{
-    header,.tabs,.ticket,.sheet,.bar,.wide,.toast,.sum-line,.archiv,.live,
-    #pane-scan,#pane-list,#pane-fill,.note{display:none!important}
-    body{background:#fff;padding:0}
-    .wrap{max-width:none;padding:0}
-    .inv{
-      border:0;border-radius:0;margin:0;padding:0;
-      break-after:page;page-break-after:always;
-    }
-    .inv:last-child{break-after:auto;page-break-after:auto}
-    .print-head{display:block!important;margin-bottom:14px}
-  }
-  .print-head{display:none}
-
-  .toast{
-    position:fixed;left:50%;transform:translateX(-50%);bottom:96px;
-    background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;
-    font-weight:500;opacity:0;pointer-events:none;transition:opacity .25s;z-index:20;
-  }
-  .toast.show{opacity:1}
-  .hidden{display:none!important}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;
+    padding:12px 18px;border-radius:10px;font-size:15px;z-index:60;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .leer{padding:22px;border:1px dashed var(--line);border-radius:var(--radius);color:var(--ink-2);text-align:center}
+  .fehler{background:#FBE3E7;border:1px solid #E9B4BC;color:var(--sprint);padding:12px 14px;
+    border-radius:var(--radius);margin:12px 0}
+  .fuss{margin:22px 0 8px;font-size:12px;color:var(--ink-2);text-align:center}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="wrap">
-    <div class="brand">
-      <h1>Werkstatt · Lager</h1>
-      <span>Materialbuchung</span>
-    </div>
+  <div class="wrap brand">
+    <h1>Werkstatt RSZ MV</h1>
+    <span id="stand">lädt…</span>
+    <span class="sp"></span>
+    <span class="netz" id="netz">online</span>
   </div>
 </header>
 
 <main class="wrap">
-
-  <!-- Job-Ticket: einmal einstellen, dann durchs Lager -->
-  <section class="ticket" style="margin-top:16px">
-    <div class="ticket-row">
-      <span class="lbl">Trainer</span>
-      <select id="trainer" aria-label="Trainer"></select>
-    </div>
-    <div class="ticket-row">
-      <span class="lbl">Sportler</span>
-      <select id="athlete" aria-label="Sportler"></select>
-    </div>
-  </section>
-
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" id="tab-scan" aria-selected="true">Scan</button>
-    <button class="tab" role="tab" id="tab-list" aria-selected="false">Liste</button>
-    <button class="tab" role="tab" id="tab-fill" aria-selected="false">Inventur</button>
-    <button class="tab" role="tab" id="tab-bill" aria-selected="false">Rechnung</button>
+    <button class="tab" role="tab" data-tab="board" aria-selected="true">Tickets</button>
+    <button class="tab" role="tab" data-tab="neu" aria-selected="false">Neu</button>
+    <button class="tab" role="tab" data-tab="lager" aria-selected="false">Lager</button>
+    <button class="tab" role="tab" data-tab="koffer" aria-selected="false">Koffer</button>
+    <button class="tab" role="tab" data-tab="inventar" aria-selected="false">Inventar</button>
   </div>
-
-  <!-- Scannen -->
-  <section id="pane-scan">
-    <div class="scanbox">
-      <video id="video" playsinline muted class="hidden"></video>
-      <div id="reticle" class="reticle hidden"></div>
-      <p id="scanHint" class="scan-hint">Kamera startet…</p>
-    </div>
-    <p id="camState" class="camstate">—</p>
-    <div id="demoTiles" class="demo-tiles hidden"></div>
-  </section>
-
-  <!-- Liste -->
-  <section id="pane-list" class="hidden">
-    <input id="search" class="search" type="search" placeholder="Artikel suchen…" aria-label="Artikel suchen">
-    <div id="itemList"></div>
-  </section>
-
-  <!-- Inventur -->
-  <section id="pane-fill" class="hidden">
-    <p class="live" style="margin-bottom:12px">
-      <b>Soll ist gerechnet, Ist ist gezählt.</b> Der Soll-Bestand driftet immer —
-      jemand nimmt sich schnell was, eine Flasche wird großzügiger geleert als geschätzt,
-      ein Teil geht kaputt. Zähl nach und trag ein, was wirklich da ist. Die Differenz
-      wird als Korrektur festgehalten, nichts wird überschrieben.
-    </p>
-    <div id="fillList"></div>
-  </section>
-
-  <!-- Rechnungen -->
-  <section id="pane-bill" class="hidden">
-    <div class="ticket" style="margin-bottom:12px">
-      <div class="ticket-row">
-        <span class="lbl">Zeitraum</span>
-        <select id="billPreset" aria-label="Zeitraum"></select>
-      </div>
-      <div class="ticket-row">
-        <span class="lbl">Von</span>
-        <input type="date" id="billFrom" class="datum" aria-label="Von">
-      </div>
-      <div class="ticket-row">
-        <span class="lbl">Bis</span>
-        <input type="date" id="billTo" class="datum" aria-label="Bis">
-      </div>
-    </div>
-    <p id="billLive" class="live hidden"></p>
-    <button id="previewBtn" class="wide">Offene Posten anzeigen</button>
-    <div id="billOut"></div>
-
-    <section class="archiv">
-      <h3>Alle Rechnungen</h3>
-      <div id="archivOut"><p class="empty">wird geladen…</p></div>
-    </section>
-  </section>
-
-  <!-- Lieferschein -->
-  <section class="note" id="noteSec">
-    <div class="note-head">
-      <h2>Lieferschein</h2>
-      <em id="noteFor">–</em>
-    </div>
-    <div id="cart"><p class="empty">Noch nichts erfasst. Scannen oder aus der Liste tippen.</p></div>
-  </section>
-
-  <!-- So landet es in der Tabelle -->
-  <section class="sheet" id="sheetSec">
-    <h3>Blatt „Entnahmen“ — so wird gespeichert</h3>
-    <div class="sheet-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Zeit</th><th>Sportler</th><th>Artikel</th><th>Menge</th>
-            <th>Einzelpreis</th><th>Summe</th><th>Abrechnen</th><th>Trainer</th>
-          </tr>
-        </thead>
-        <tbody id="sheetBody">
-          <tr><td colspan="7" style="color:var(--ink-2);white-space:normal">Noch keine Buchung. Nach „Buchen“ erscheinen die Zeilen hier — genau so gehen sie in die Google Tabelle.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <div id="app"></div>
+  <p class="fuss">Version <span id="ver"></span> · <button class="btn small" id="reload">Neu laden</button></p>
 </main>
 
-<div class="bar" id="barSec">
-  <div class="bar-inner">
-    <div class="total">
-      <b id="totalSum">0,00 €</b>
-      <span id="totalCount">0 Positionen</span>
-    </div>
-    <button id="bookBtn" class="book" disabled>Buchen</button>
-  </div>
-</div>
-
-<div id="toast" class="toast"></div>
+<div id="toast"></div>
 
 <script>
-/* ---------------------------------------------------------------
-   EINSTELLUNG — hier die Web-App-URL aus Apps Script eintragen.
-   Bleibt sie leer, läuft die Seite im Demo-Modus mit Testdaten.
-----------------------------------------------------------------*/
-const API_URL = "https://script.google.com/macros/s/AKfycbwlURzNtjvoV0CO_-wCLSwNZdrYW0_RrmUSK1WO_LQ8MOGqenOO-Ep0OdJ27y-BwWUafA/exec";
+/* ===============================================================
+   Werkstatt RSZ MV — Tickets, Lager, Koffer, Inventar
+   Frontend gegen das Apps-Script-Backend der neuen Arbeitsmappe.
+   ===============================================================*/
+
+const APP_VERSION = "2.0.0";
+
+/* Web-App-URL der neuen Bereitstellung eintragen (Apps Script >
+   Bereitstellen > Web-App). Sie endet auf /exec. */
+const API_URL = "";
 
 /* ---------------------------------------------------------------
-   DEMO-DATEN (nur ohne API_URL)
+   Zustand
 ----------------------------------------------------------------*/
-let TRAINER  = ["Hauke","Silke","Tom"];
-// "LV" = Landesverband: eigene Räder und Werkstattmaterial.
-// Wird nicht an Eltern abgerechnet, der Bestand sinkt aber trotzdem.
-let SPORTLER = ["LV — Landesverband","Lukas M.","Jonas K.","Mia S.","Emma L.","Ben T."];
-let LV = "LV — Landesverband";
-
-let ARTIKEL = [
-  {code:"A-101", name:"11fach Kette",              einheit:"Stück", preis:20.00, bestand:9,  min:3, art:"Stück"},
-  {code:"A-102", name:"Shimano Bremsbelag",        einheit:"Paar",  preis:20.00, bestand:8,  min:4, art:"Stück"},
-  {code:"A-104", name:"Bremszug",                  einheit:"Stück", preis: 4.00, bestand:25, min:6, art:"Stück"},
-  {code:"A-105", name:"Lenkerband",                einheit:"Rolle", preis:15.00, bestand:5,  min:2, art:"Stück"},
-  {code:"A-106", name:"Schlauchreifen Tempo",      einheit:"Stück", preis:80.00, bestand:6,  min:4, art:"Stück"},
-  {code:"A-107", name:"Schlauchreifen Pista",      einheit:"Stück", preis:90.00, bestand:1,  min:2, art:"Stück"},
-  {code:"V-201", name:"Bremsflüssigkeit Mineral",  einheit:"ml",    preis: 0.00, bestand:880,min:200, art:"Vorrat"},
-  {code:"V-203", name:"Kettenöl",                  einheit:"ml",    preis: 0.00, bestand:500,min:50,  art:"Vorrat"},
-  {code:"A-109", name:"Bremse entlüften (Shimano)",einheit:"Bremse",preis: 5.00, bestand:null, min:0,
-   art:"Pauschale", verbraucht:"V-201", verbrauch:60},
-  {code:"A-111", name:"Kette reinigen & ölen",     einheit:"Rad",   preis: 3.00, bestand:null, min:0,
-   art:"Pauschale", verbraucht:"V-203", verbrauch:10}
-];
-
-/* ---------------------------------------------------------------
-   ZUSTAND
-----------------------------------------------------------------*/
-let cart = [];              // {code, name, einheit, preis, menge}
-let gebucht = [];           // simulierte Tabellenzeilen
-let scanning = false;
-
-/* Solange die Tabelle noch nicht geantwortet hat, wird NICHTS angezeigt.
-   Demo-Daten kurz aufblitzen zu lassen wäre die gefährlichste Variante:
-   sie sehen echt aus, und wer schnell tippt, bucht auf einen erfundenen
-   Bestand. Lieber zwei Sekunden „lädt…" als zwei Sekunden Lüge. */
-let bereit = !API_URL;      // im Demo-Modus sofort, sonst erst nach dem Laden
+let DB = null;                 // Daten aus dem Sheet
+let view = { tab:"board", ticket:null, filter:"offen", suche:"" };
+let neu = null;                // Entwurf für ein neues Ticket
+let warteschlange = [];        // Schreibvorgänge, die noch raus müssen
+let trainerName = localStorage.getItem("wTrainer") || "";
 
 const $ = id => document.getElementById(id);
-const eur = n => n.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+const app = $("app");
 
 /* ---------------------------------------------------------------
-   AUFBAU
+   Kleinkram
 ----------------------------------------------------------------*/
-function fillSelect(el, arr, placeholder){
-  el.innerHTML = `<option value="">${placeholder}</option>` +
-    arr.map(v => `<option>${v}</option>`).join("");
-}
+const HEUTE = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+function plusTage(n){ const d = new Date(HEUTE.getTime()); d.setDate(d.getDate()+n); return d; }
+function iso(d){ const m=d.getMonth()+1, t=d.getDate();
+  return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(t<10?"0":"")+t; }
+function de(s){ if(!s) return ""; const p=String(s).split("-"); return p.length===3 ? p[2]+"."+p[1]+"." : String(s); }
+function tageBis(s){ if(!s) return null; const d=new Date(String(s)+"T00:00:00");
+  return isNaN(d) ? null : Math.round((d-HEUTE)/86400000); }
+function esc(s){ return String(s==null?"":s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function eur(n){ return (Number(n)||0).toFixed(2).replace(".",",")+" €"; }
+function zahl(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
 
-/* ---------------------------------------------------------------
-   TRAINER MERKEN
-   Das Gerät gehört einem Menschen. Also fragt die App genau einmal
-   nach dem Trainer und danach nie wieder — geändert werden kann er
-   trotzdem jederzeit oben im Feld.
-   Der Sportler wird bewusst NICHT gemerkt: der wechselt ständig, und
-   ein voreingestellter Sportler wäre die gefährlichste Fehlerquelle
-   im ganzen System.
-----------------------------------------------------------------*/
-const TRAINER_KEY = "werkstatt.trainer";
-
-function merkeTrainer(name){
-  try{ name ? localStorage.setItem(TRAINER_KEY, name)
-            : localStorage.removeItem(TRAINER_KEY); }
-  catch(e){}                       // privater Modus o. ä. — dann eben nicht
-}
-function holeTrainer(){
-  try{ return localStorage.getItem(TRAINER_KEY) || ""; }
-  catch(e){ return ""; }
-}
-/* Nach jedem Neuaufbau der Liste wieder einsetzen — aber nur, wenn es
-   den Trainer noch gibt. Wer aus den Stammdaten fliegt, bleibt nicht kleben. */
-function setzeTrainer(){
-  const gemerkt = holeTrainer();
-  if (gemerkt && TRAINER.includes(gemerkt)) $("trainer").value = gemerkt;
-  else if (gemerkt) merkeTrainer("");
-}
-
-if (bereit){
-  fillSelect($("trainer"), TRAINER, "wählen…");
-  fillSelect($("athlete"), SPORTLER, "wählen…");
-  setzeTrainer();
-} else {
-  // Platzhalter, bis die Stammdaten da sind — keine erfundenen Namen
-  $("trainer").innerHTML = '<option value="">lädt…</option>';
-  $("athlete").innerHTML = '<option value="">lädt…</option>';
-}
-
-$("trainer").addEventListener("change", () => {
-  merkeTrainer($("trainer").value);
-  render();
-});
-$("athlete").addEventListener("change", render);
-
-/* ---------------------------------------------------------------
-   TABS
-----------------------------------------------------------------*/
-$("tab-scan").onclick = () => switchTab("scan");
-$("tab-list").onclick = () => switchTab("list");
-
-$("tab-bill").onclick = () => switchTab("bill");
-$("tab-fill").onclick = () => switchTab("fill");
-
-function switchTab(which){
-  ["scan","list","fill","bill"].forEach(t => {
-    $("tab-" + t).setAttribute("aria-selected", t === which);
-    $("pane-" + t).classList.toggle("hidden", t !== which);
-  });
-  // Warenkorb und Buchen-Leiste gehören nicht in Rechnung und Füllstand
-  const aus = (which === "bill" || which === "fill");
-  $("noteSec").classList.toggle("hidden", aus);
-  $("sheetSec").classList.toggle("hidden", aus);
-  $("barSec").classList.toggle("hidden", aus);
-  if (which === "fill") renderFill();
-  if (which === "bill") ladeArchiv();
-  if (which === "scan") startCamera(); else stopCamera();
-}
-
-/* ---------------------------------------------------------------
-   INVENTUR
-   Soll = gerechnet (Zugänge minus Entnahmen). Ist = gezählt.
-   Die Differenz erzeugt eine Korrekturzeile im Blatt Zugänge.
-
-   Bewusst ohne Schwund-Anzeige: hier wird gezählt, nicht bewertet.
-   Die Korrekturen stehen alle in der Tabelle — wer die Verluste
-   auswerten will, tut das dort, nicht mit dem Handy im Regal.
-----------------------------------------------------------------*/
-function renderFill(){
-  const zaehlbar = ARTIKEL.filter(a => a.art !== "Pauschale");
-  if (!zaehlbar.length){
-    $("fillList").innerHTML = `<p class="empty" style="background:var(--card);
-      border:1px solid var(--line);border-radius:var(--radius)">Keine Artikel.</p>`;
-    return;
-  }
-
-  $("fillList").innerHTML = zaehlbar.map(a => `
-    <div class="fill" data-code="${a.code}">
-      <h4>${a.name} <span class="tag ${a.art === "Vorrat" ? "vorrat" : ""}">${a.art}</span></h4>
-      <div class="sollist">
-        <span class="soll">Soll <b>${a.bestand}</b> ${a.einheit}</span>
-      </div>
-      <div class="fill-row">
-        <input type="number" inputmode="numeric" min="0"
-               step="${a.art === "Vorrat" ? 10 : 1}"
-               placeholder="Ist — gezählt" aria-label="Gezählter Bestand ${a.name}">
-        <span class="unit">${a.einheit}</span>
-        <button>Buchen</button>
-      </div>
-      <p class="result hidden"></p>
-    </div>`).join("");
-
-  $("fillList").querySelectorAll(".fill").forEach(karte => {
-    karte.querySelector("button").onclick = () => meldeFuellstand(karte);
-    karte.querySelector("input").addEventListener("keydown", e => {
-      if (e.key === "Enter") meldeFuellstand(karte);
-    });
-  });
-}
-
-async function meldeFuellstand(karte){
-  const code    = karte.dataset.code;
-  const input   = karte.querySelector("input");
-  const btn     = karte.querySelector("button");
-  const out     = karte.querySelector(".result");
-  const trainer = $("trainer").value;
-  const gemessen = Number(input.value);
-
-  if (!trainer){ warnBeep(); toast("Erst oben den Trainer wählen"); return; }
-  if (input.value === "" || isNaN(gemessen) || gemessen < 0){
-    warnBeep(); toast("Bitte einen Wert eintragen"); return;
-  }
-
-  const a = ARTIKEL.find(x => x.code === code);
-  const diff = gemessen - a.bestand;
-  btn.disabled = true; btn.textContent = "…";
-
-  try{
-    if (API_URL){
-      const res = await fetch(API_URL, {
-        method:"POST",
-        headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({aktion:"inventur", trainer, code, gemessen})
-      });
-      const d = await res.json();
-      if (!d.ok) throw new Error(d.fehler);
-    }
-    a.bestand = gemessen;
-    out.classList.remove("hidden");
-
-    if (diff === 0){
-      out.className = "result";
-      out.textContent = "Soll und Ist stimmen überein.";
-      beep();
-    } else if (diff < 0){
-      out.className = "result minus";
-      out.textContent = `${Math.abs(diff)} ${a.einheit} weniger als gerechnet. Korrigiert.`;
-      warnBeep();
-    } else {
-      out.className = "result";
-      out.textContent = `${diff} ${a.einheit} mehr als gerechnet. Korrigiert.`;
-      beep();
-    }
-
-    karte.querySelector(".soll").innerHTML = `Soll <b>${gemessen}</b> ${a.einheit}`;
-    input.value = "";
-    renderList();
-  }catch(e){
-    warnBeep();
-    out.classList.remove("hidden");
-    out.className = "result minus";
-    out.textContent = "Fehlgeschlagen: " + e.message;
-  }
-  btn.disabled = false; btn.textContent = "Buchen";
-}
-
-/* ---------------------------------------------------------------
-   RECHNUNGEN
-   Abgerechnet wird immer ein ganzer Monat. Es erscheinen nur Posten,
-   die noch KEINE Rechnungsnummer tragen — deshalb kann derselbe
-   Artikel nie zweimal auf eine Rechnung geraten, auch wenn jemand
-   den Monat versehentlich ein zweites Mal abrechnet.
-----------------------------------------------------------------*/
-let entwurf = null;   // {von, bis, rechnungen:[{sportler, posten[], summe}]}
-
-const iso  = d => d.toISOString().slice(0,10);
-const heute = () => new Date();
-
-/* Voreinstellungen. "Alles Offene" ist der Normalfall — weil ein Posten mit
-   Rechnungsnummer nie wieder auftaucht, kann man gefahrlos immer alles bis
-   zum Stichtag einsammeln. Halbjährlich abrechnen = zweimal im Jahr klicken. */
-function presets(){
-  const h = heute(), j = h.getFullYear(), m = h.getMonth();
-  const p = [
-    {id:"offen_heute", text:"Alles Offene bis heute",
-     von:new Date(2020,0,1), bis:h},
-    {id:"offen_vormonat", text:"Alles Offene bis Ende letzter Monat",
-     von:new Date(2020,0,1), bis:new Date(j, m, 0)},
-    {id:"monat_akt", text:"Laufender Monat",
-     von:new Date(j, m, 1), bis:h},
-    {id:"monat_vor", text:"Letzter Monat",
-     von:new Date(j, m-1, 1), bis:new Date(j, m, 0)},
-    {id:"hj1", text:"1. Halbjahr " + j, von:new Date(j,0,1), bis:new Date(j,5,30)},
-    {id:"hj2", text:"2. Halbjahr " + j, von:new Date(j,6,1), bis:new Date(j,11,31)},
-  ];
-  // Im 1. Halbjahr ist meist das 2. Halbjahr des Vorjahres gefragt
-  if (m < 6) p.push({id:"hj2v", text:"2. Halbjahr " + (j-1),
-                     von:new Date(j-1,6,1), bis:new Date(j-1,11,31)});
-  p.push({id:"frei", text:"Freier Zeitraum", von:null, bis:null});
-  return p;
-}
-
-(function initZeitraum(){
-  const sel = $("billPreset");
-  presets().forEach(p => {
-    const o = document.createElement("option");
-    o.value = p.id; o.textContent = p.text;
-    sel.appendChild(o);
-  });
-  sel.onchange = () => {
-    const p = presets().find(x => x.id === sel.value);
-    if (p.von){ $("billFrom").value = iso(p.von); $("billTo").value = iso(p.bis); }
-    pruefeLaufend();
-  };
-  // Datumsfelder von Hand geändert → auf "Freier Zeitraum" springen
-  ["billFrom","billTo"].forEach(id => $(id).onchange = () => {
-    sel.value = "frei"; pruefeLaufend();
-  });
-  sel.dispatchEvent(new Event("change"));   // Startwert setzen
-})();
-
-/* Ehrlicher Hinweis, wenn der Zeitraum noch nicht vorbei ist. */
-function pruefeLaufend(){
-  const el = $("billLive");
-  const bis = new Date($("billTo").value + "T23:59:59");
-  if (bis >= heute()){
-    el.classList.remove("hidden");
-    el.innerHTML = "<b>Laufender Zeitraum.</b> Du siehst auch Posten von heute. " +
-      "Festschreiben ist trotzdem ungefährlich — was später noch dazukommt, " +
-      "taucht beim nächsten Lauf wieder auf und wird nachberechnet.";
-  } else {
-    el.classList.add("hidden");
-  }
-}
-
-function zeitraum(){
-  return {
-    von: new Date($("billFrom").value + "T00:00:00"),
-    bis: new Date($("billTo").value + "T23:59:59")
-  };
-}
-function zeitraumText(){
-  const {von, bis} = zeitraum();
-  const f = d => d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
-  return f(von) + " – " + f(bis);
-}
-
-$("previewBtn").onclick = async () => {
-  const btn = $("previewBtn");
-  const {von, bis} = zeitraum();
-  if (isNaN(von) || isNaN(bis) || von > bis){
-    warnBeep(); toast("Zeitraum stimmt nicht"); return;
-  }
-  btn.disabled = true; btn.textContent = "lädt…";
-
-  try{
-    if (API_URL){
-      const res = await fetch(API_URL, {
-        method:"POST",
-        headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({aktion:"rechnung_vorschau",
-          von: von.toISOString(), bis: bis.toISOString()})
-      });
-      const d = await res.json();
-      if (!d.ok) throw new Error(d.fehler);
-      entwurf = {von, bis, rechnungen: d.rechnungen};
-    } else {
-      entwurf = {von, bis, rechnungen: demoRechnungen()};
-    }
-    zeigeRechnungen();
-  }catch(e){
-    warnBeep(); toast("Konnte nicht laden: " + e.message);
-  }
-  btn.disabled = false; btn.textContent = "Offene Posten anzeigen";
-};
-
-/* Demo-Modus: aus den in dieser Sitzung gebuchten Zeilen */
-function demoRechnungen(){
-  const proSportler = {};
-  gebucht.filter(g => g.sportler !== LV).forEach(g => {
-    (proSportler[g.sportler] = proSportler[g.sportler] || []).push(g);
-  });
-  return Object.keys(proSportler).map(s => {
-    const posten = proSportler[s].map(g => ({
-      artikel:g.artikel, menge:g.menge, preis:g.preis, summe:g.preis*g.menge
-    }));
-    return {sportler:s, posten, summe: posten.reduce((x,p) => x+p.summe, 0)};
-  });
-}
-
-/* ---------------------------------------------------------------
-   ARCHIV
-   Jede festgeschriebene Rechnung bleibt abrufbar — die Posten stehen ja
-   mit ihrer Rechnungsnummer in der Tabelle. Wer die PDF verliert, druckt
-   sie einfach neu, Wort für Wort identisch.
-----------------------------------------------------------------*/
-let archivListe = [];
-
-async function ladeArchiv(){
-  if (!API_URL){
-    $("archivOut").innerHTML = `<p class="empty">Im Demo-Modus gibt es kein Archiv.</p>`;
-    return;
-  }
-  try{
-    const res = await fetch(API_URL, {
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({aktion:"rechnung_archiv"})
-    });
-    const d = await res.json();
-    if (!d.ok) throw new Error(d.fehler);
-    archivListe = d.archiv;
-    renderArchiv();
-  }catch(e){
-    $("archivOut").innerHTML = `<p class="empty">Archiv konnte nicht geladen werden: ${e.message}</p>`;
-  }
-}
-
-function renderArchiv(){
-  if (!archivListe.length){
-    $("archivOut").innerHTML = `<p class="empty">Noch keine Rechnung festgeschrieben.</p>`;
-    return;
-  }
-
-  const offen = archivListe.filter(r => r.status === "offen")
-                           .reduce((s,r) => s + r.summe, 0);
-
-  $("archivOut").innerHTML = archivListe.map(r => `
-    <div class="arch ${r.status}" data-nr="${r.nummer}">
-      <label class="paid" title="Zahlung erhalten">
-        <input type="checkbox" ${r.status === "bezahlt" ? "checked" : ""}
-               ${r.status === "storniert" ? "disabled" : ""}>
-        <span>${r.status === "storniert" ? "storno" : "bezahlt"}</span>
-      </label>
-      <span class="arch-main">
-        <b>${r.sportler}</b>
-        <small>${r.nummer} · ${r.datum} · ${r.positionen} Pos.</small>
-      </span>
-      <span class="sum">${eur(r.summe)}</span>
-      <button class="open" title="Rechnung anzeigen und drucken">↓</button>
-    </div>`).join("") + `
-    <div class="sum-line">
-      <span>noch offen</span>
-      <b>${eur(offen)}</b>
-    </div>`;
-
-  $("archivOut").querySelectorAll(".arch").forEach(el => {
-    const nr = el.dataset.nr;
-    el.querySelector(".open").onclick = () => zeigeAlte(nr);
-    const box = el.querySelector("input");
-    if (!box.disabled) box.onchange = () => setzeStatus(nr, box.checked ? "bezahlt" : "offen", box);
-  });
-}
-
-/* Alte Rechnung aus den Rohdaten neu aufbauen und drucken. */
-async function zeigeAlte(nr){
-  try{
-    const res = await fetch(API_URL, {
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({aktion:"rechnung_holen", nummer: nr})
-    });
-    const d = await res.json();
-    if (!d.ok) throw new Error(d.fehler);
-
-    const r = d.rechnungen[0];
-    entwurf = {
-      von: new Date($("billFrom").value + "T00:00:00"),
-      bis: new Date($("billTo").value + "T23:59:59"),
-      rechnungen: d.rechnungen,
-      zeitraumFest: (r.von && r.bis) ? r.von + " – " + r.bis : ""
-    };
-    zeigeRechnungen();
-    $("billOut").scrollIntoView({behavior:"smooth", block:"start"});
-    toast("Rechnung " + nr + " wiederhergestellt");
-  }catch(e){
-    warnBeep(); toast("Konnte nicht laden: " + e.message);
-  }
-}
-
-async function setzeStatus(nr, status, box){
-  box.disabled = true;
-  try{
-    const res = await fetch(API_URL, {
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({aktion:"rechnung_status", nummer: nr, status})
-    });
-    const d = await res.json();
-    if (!d.ok) throw new Error(d.fehler);
-
-    const eintrag = archivListe.find(r => r.nummer === nr);
-    if (eintrag) eintrag.status = status;
-    renderArchiv();
-    beep();
-    toast("Rechnung " + nr + ": " + status);
-  }catch(e){
-    warnBeep(); toast("Fehlgeschlagen: " + e.message);
-    box.checked = !box.checked; box.disabled = false;
-  }
-}
-
-function zeigeRechnungen(){
-  const out = $("billOut");
-  const zr = entwurf.zeitraumFest || zeitraumText();
-
-  if (!entwurf.rechnungen.length){
-    out.innerHTML = `<p class="empty" style="background:var(--card);border:1px solid var(--line);
-      border-radius:var(--radius);margin-top:12px">
-      Für ${zr} sind keine offenen Posten da. Entweder wurde nichts gebucht — oder der Zeitraum ist
-      schon abgerechnet.</p>`;
-    return;
-  }
-
-  const gesamt = entwurf.rechnungen.reduce((s,r) => s + r.summe, 0);
-
-  out.innerHTML = entwurf.rechnungen.map(r => `
-    <div class="inv">
-      <div class="print-head">
-        <strong>Landesverband Radsport Mecklenburg-Vorpommern — Materialabrechnung</strong>
-      </div>
-      <div class="inv-head">
-        <strong>${r.sportler}</strong>
-        <span class="nr">${r.nummer || "Entwurf"} · ${zr}</span>
-      </div>
-      <table>
-        ${r.posten.map(p => `
-          <tr>
-            <td>${p.menge}× ${p.artikel}<br><span style="color:var(--ink-2);font-size:12px">
-              à ${eur(p.preis)}${p.datum ? " · " + p.datum : ""}</span></td>
-            <td>${eur(p.summe)}</td>
-          </tr>`).join("")}
-        <tr class="tot"><td>Gesamt</td><td>${eur(r.summe)}</td></tr>
-      </table>
-      <p class="inv-note">Zahlbar innerhalb von 14 Tagen. Bei Rückfragen zu einzelnen Positionen
-        bitte an den Trainer wenden, der die Entnahme gebucht hat.</p>
-    </div>`).join("") + `
-    <div class="sum-line">
-      <span>${entwurf.rechnungen.length} Rechnungen · ${zr}</span>
-      <b>${eur(gesamt)}</b>
-    </div>
-    <button id="lockBtn" class="wide second">
-      ${entwurf.rechnungen[0].nummer ? "Drucken / als PDF sichern" : "Festschreiben & drucken"}
-    </button>
-    <p class="inv-note" style="background:transparent;padding:10px 2px">
-      „Festschreiben\" vergibt Rechnungsnummern und markiert die Posten in der Tabelle als
-      abgerechnet. Danach tauchen sie hier nicht mehr auf.</p>`;
-
-  $("lockBtn").onclick = festschreiben;
-}
-
-async function festschreiben(){
-  const btn = $("lockBtn");
-
-  // schon festgeschrieben? Dann nur noch drucken.
-  if (entwurf.rechnungen[0].nummer){ window.print(); return; }
-
-  btn.disabled = true; btn.textContent = "schreibt…";
-  try{
-    if (API_URL){
-      const res = await fetch(API_URL, {
-        method:"POST",
-        headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({aktion:"rechnung_festschreiben",
-          von: entwurf.von.toISOString(), bis: entwurf.bis.toISOString()})
-      });
-      const d = await res.json();
-      if (!d.ok) throw new Error(d.fehler);
-      entwurf.rechnungen = d.rechnungen;      // jetzt mit Nummern
-    } else {
-      const jahr = entwurf.von.getFullYear();
-      entwurf.rechnungen.forEach((r,i) =>
-        r.nummer = jahr + "-" + String(i+1).padStart(4,"0"));
-    }
-    zeigeRechnungen();
-    toast(entwurf.rechnungen.length + " Rechnungen festgeschrieben");
-    ladeArchiv();
-    setTimeout(() => window.print(), 600);
-  }catch(e){
-    warnBeep(); toast("Fehlgeschlagen: " + e.message);
-    btn.disabled = false; btn.textContent = "Festschreiben & drucken";
-  }
-}
-
-/* ---------------------------------------------------------------
-   LISTE
-----------------------------------------------------------------*/
-/* Wie viel ist noch greifbar? Pauschalen sind Leistungen — die gehen immer. */
-function frei(a){
-  if (a.art === "Pauschale") return Infinity;
-  const z = cart.find(x => x.code === a.code);
-  return a.bestand - (z ? z.menge : 0);
-}
-function stockClass(a){
-  if (a.art === "Pauschale") return "job";
-  const f = frei(a);
-  if (f <= 0) return "out";
-  if (f <= a.min) return "low";
-  return "ok";
-}
-function stockLabel(a){
-  if (a.art === "Pauschale") return "Leistung";
-  const f = frei(a);
-  if (f <= 0) return "leer";
-  return f + (f <= a.min ? " · knapp" : "");
-}
-function renderList(){
-  const q = $("search").value.trim().toLowerCase();
-  // Vorräte tauchen hier nicht auf — sie werden über Pauschalen verbraucht,
-  // nicht einzeln gebucht. Niemand rechnet in Millilitern ab.
-  const treffer = ARTIKEL.filter(a =>
-    a.art !== "Vorrat" &&
-    (a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q)));
-
-  $("itemList").innerHTML = treffer.length ? treffer.map(a => `
-    <button class="item" data-code="${a.code}" ${frei(a) <= 0 ? "disabled" : ""}>
-      <span class="stock ${stockClass(a)}">${stockLabel(a)}</span>
-      <span class="item-main">
-        <span class="item-name">${a.name}</span>
-        <span class="item-meta">${a.code} · ${eur(a.preis)} / ${a.einheit}</span>
-      </span>
-      <span class="plus" aria-hidden="true">+</span>
-    </button>`).join("")
-    : `<p class="empty">Kein Artikel gefunden.</p>`;
-
-  $("itemList").querySelectorAll(".item").forEach(b =>
-    b.onclick = () => add(b.dataset.code));
-}
-$("search").addEventListener("input", renderList);
-
-/* ---------------------------------------------------------------
-   WARENKORB
-----------------------------------------------------------------*/
-function add(code){
-  if (!bereit){ warnBeep(); toast("Lager lädt noch — kurz warten"); return; }
-  const a = ARTIKEL.find(x => x.code === code);
-  if (!a) return;
-
-  if (a.art === "Vorrat"){
-    warnBeep();
-    toast(`${a.name} wird nicht einzeln gebucht — nimm die Pauschale`);
-    return;
-  }
-
-  const zeile = cart.find(z => z.code === code);
-  const imKorb = zeile ? zeile.menge : 0;
-  const rest = a.art === "Pauschale" ? Infinity : a.bestand - imKorb;
-
-  if (rest <= 0){
-    warnBeep();
-    toast(a.bestand === 0
-      ? `${a.name}: Bestand ist leer`
-      : `${a.name}: nur noch ${a.bestand} im Lager`);
-    return;
-  }
-
-  if (zeile) zeile.menge++;
-  else cart.push({code:a.code, name:a.name, einheit:a.einheit, preis:a.preis,
-                  menge:1, art:a.art, verbraucht:a.verbraucht, verbrauch:a.verbrauch});
-  beep();
-
-  const neu = zeile ? zeile.menge : 1;
-  let msg = `${a.name} · ${neu}×`;
-
-  // Pauschale: zeigen, was dem Vorrat abgezogen wird — sonst wundert sich
-  // später jemand, warum die Flasche schneller leer wird als gedacht.
-  if (a.art === "Pauschale" && a.verbraucht && a.verbrauch){
-    const v = ARTIKEL.find(x => x.code === a.verbraucht);
-    if (v){
-      const zieht = a.verbrauch * neu;
-      msg += ` · ${zieht} ${v.einheit} ${v.name}`;
-      if (v.bestand - zieht < 0) msg += " — Vorrat rechnerisch leer!";
-    }
-  } else if (rest === 1){
-    msg += " — letztes Stück";
-  }
-  toast(msg);
-  render();
-}
-function remove(code){
-  cart = cart.filter(z => z.code !== code);
-  render();
-}
-function summe(){ return cart.reduce((s,z) => s + z.preis * z.menge, 0); }
-
-function renderCart(){
-  const sportler = $("athlete").value;
-  const istLV = sportler === LV;
-  $("noteFor").textContent = sportler || "kein Sportler gewählt";
-  document.querySelector(".note").classList.toggle("lv", istLV);
-
-  const hinweis = istLV
-    ? `<p class="lv-hint">Material des Landesverbands — Bestand sinkt, wird aber nicht abgerechnet.</p>` : "";
-
-  $("cart").innerHTML = hinweis + (cart.length ? cart.map(z => `
-    <div class="line">
-      <span class="qty">${z.menge}×</span>
-      <span class="line-name">${z.name}<small>${eur(z.preis)} / ${z.einheit}</small></span>
-      <span class="line-sum">${eur(z.preis * z.menge)}</span>
-      <button class="del" data-code="${z.code}" aria-label="${z.name} entfernen">×</button>
-    </div>`).join("")
-    : `<p class="empty">Noch nichts erfasst. Scannen oder aus der Liste tippen.</p>`);
-
-  $("cart").querySelectorAll(".del").forEach(b =>
-    b.onclick = () => remove(b.dataset.code));
-
-  $("totalSum").textContent = eur(summe());
-  $("totalCount").textContent =
-    (cart.length === 1 ? "1 Position" : cart.length + " Positionen") +
-    (istLV ? " · nicht abrechnen" : "");
-  $("bookBtn").disabled = !(cart.length && sportler && $("trainer").value);
-}
-
-function renderSheet(){
-  $("sheetBody").innerHTML = gebucht.length ? gebucht.map(r => {
-    const lv = r.sportler === LV;
-    return `
-    <tr${lv ? ' style="color:var(--ink-2)"' : ""}>
-      <td>${r.zeit}</td><td>${lv ? "LV" : r.sportler}</td><td>${r.artikel}</td>
-      <td>${r.menge}</td><td>${eur(r.preis)}</td><td>${eur(r.preis*r.menge)}</td>
-      <td>${lv ? "nein" : "ja"}</td><td>${r.trainer}</td>
-    </tr>`;}).join("")
-    : `<tr><td colspan="8" style="color:var(--ink-2);white-space:normal">Noch keine Buchung. Nach „Buchen“ erscheinen die Zeilen hier — genau so gehen sie in die Google Tabelle.</td></tr>`;
-}
-
-function render(){
-  if (!bereit){
-    $("itemList").innerHTML =
-      `<p class="empty" style="background:var(--card);border:1px solid var(--line);
-        border-radius:10px">Lager wird geladen…</p>`;
-    $("bookBtn").disabled = true;
-    return;
-  }
-  renderList(); renderCart(); renderSheet();
-}
-
-/* ---------------------------------------------------------------
-   BUCHEN
-   Der Preis wird als Snapshot mitgeschrieben, nicht nur verlinkt.
-   Die Bestandsprüfung passiert NOCHMAL im Apps Script — der Browser
-   kennt nur einen Stand von vorhin, zwei Trainer könnten gleichzeitig
-   das letzte Stück greifen.
-----------------------------------------------------------------*/
-$("bookBtn").onclick = async () => {
-  const btn = $("bookBtn");
-  const sportler = $("athlete").value, trainer = $("trainer").value;
-  const anzahl = cart.length;
-
-  if (API_URL){
-    btn.disabled = true; btn.textContent = "sendet…";
-    try{
-      const res = await fetch(API_URL, {
-        method:"POST",
-        // text/plain vermeidet den CORS-Preflight, den Apps Script nicht beantwortet
-        headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({trainer, sportler,
-          positionen: cart.map(z => ({code:z.code, menge:z.menge}))})
-      });
-      const data = await res.json();
-      if (!data.ok){
-        warnBeep();
-        toast(data.fehler || "Buchung abgelehnt");
-        if (data.bestand) data.bestand.forEach(b => {
-          const a = ARTIKEL.find(x => x.code === b.code);
-          if (a) a.bestand = b.bestand;      // Stand vom Server übernehmen
-        });
-        btn.textContent = "Buchen"; render();
-        return;
-      }
-      data.bestand.forEach(b => {
-        const a = ARTIKEL.find(x => x.code === b.code);
-        if (a) a.bestand = b.bestand;
-      });
-      // z. B. "Bremsflüssigkeit ist rechnerisch leer — bitte Füllstand melden."
-      if (data.warnungen && data.warnungen.length) setTimeout(() => {
-        warnBeep(); toast(data.warnungen[0]);
-      }, 2000);
-    }catch(e){
-      warnBeep();
-      toast("Kein Netz — Warenkorb bleibt erhalten, nochmal versuchen");
-      btn.textContent = "Buchen"; btn.disabled = false;
-      return;
-    }
-    btn.textContent = "Buchen";
-  } else {
-    // Demo-Modus: Bestand lokal abziehen, inklusive Vorratsverbrauch der Pauschalen
-    cart.forEach(z => {
-      const a = ARTIKEL.find(x => x.code === z.code);
-      if (a && a.art === "Stück") a.bestand = Math.max(0, a.bestand - z.menge);
-      if (a && a.art === "Pauschale" && a.verbraucht){
-        const v = ARTIKEL.find(x => x.code === a.verbraucht);
-        if (v) v.bestand = Math.max(0, v.bestand - a.verbrauch * z.menge);
-      }
-    });
-  }
-
-  const zeit = new Date().toLocaleString("de-DE",
-    {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
-  cart.forEach(z => gebucht.unshift({
-    zeit, sportler, artikel:z.name, menge:z.menge, preis:z.preis, trainer
-  }));
-  cart = [];
-  render();
-  toast(`${anzahl} ${anzahl===1?"Position":"Positionen"} für ${sportler} gebucht`);
-};
-
-/* ---------------------------------------------------------------
-   STAMMDATEN LADEN
-----------------------------------------------------------------*/
-async function laden(){
-  if (!API_URL){ zeigeStatus("Demo-Modus — keine API_URL eingetragen.", false); return; }
-  try{
-    const res = await fetch(API_URL);
-    const text = await res.text();
-
-    let d;
-    try{ d = JSON.parse(text); }
-    catch(e){
-      // Kein JSON = Google hat eine HTML-Seite geschickt (Login oder Fehler)
-      throw new Error(/accounts\.google|Anmeldung|Sign in/i.test(text)
-        ? "Die Bereitstellung verlangt eine Anmeldung. In Apps Script: Bereitstellung bearbeiten → Zugriff auf „Jeder\" stellen."
-        : "Antwort war kein JSON. Öffne die /exec-URL direkt im Browser, dann siehst du die Meldung von Google.");
-    }
-    if (!d.ok) throw new Error(d.fehler || "Unbekannter Fehler im Apps Script.");
-    if (!d.artikel || !d.artikel.length) throw new Error("Tabelle geladen, aber kein Artikel im Blatt „Material\".");
-
-    TRAINER  = d.trainer;
-    SPORTLER = d.sportler;
-    LV       = d.lv || "";
-    ARTIKEL  = d.artikel;
-    bereit   = true;                 // ab jetzt sind die Daten echt
-    fillSelect($("trainer"), TRAINER, "wählen…");
-    fillSelect($("athlete"), SPORTLER, "wählen…");
-    setzeTrainer();
-    zeigeStatus("", true);
-    render();
-  }catch(e){
-    // Erst jetzt die Demo-Daten freigeben — zusammen mit der roten Leiste,
-    // die unmissverständlich sagt, dass sie nicht echt sind.
-    bereit = true;
-    fillSelect($("trainer"), TRAINER, "wählen…");
-    fillSelect($("athlete"), SPORTLER, "wählen…");
-    setzeTrainer();
-    zeigeStatus(e.message, false);
-    render();
-  }
-}
-
-/* Rote Leiste oben: lieber ein klarer Fehler als heimliche Demo-Daten. */
-function zeigeStatus(msg, ok){
-  let el = $("status");
-  if (!el){
-    el = document.createElement("div");
-    el.id = "status";
-    document.querySelector("main").prepend(el);
-  }
-  if (ok || !msg){ el.remove(); return; }
-  el.style.cssText =
-    "margin:16px 0 0;padding:12px 14px;border-radius:10px;font-size:14px;line-height:1.4;" +
-    "background:#FBE7EA;color:#8A0A1F;border:1px solid #C8102E";
-  el.innerHTML = "<b>Keine Verbindung zur Tabelle — es laufen Demo-Daten.</b><br>" + msg;
-}
-
-/* ---------------------------------------------------------------
-   KAMERA + QR
-   Fällt automatisch auf simulierte Regalfächer zurück, wenn die
-   Kamera hier nicht freigegeben ist (z. B. in der Vorschau).
-----------------------------------------------------------------*/
-/* Holt die Artikelnummer aus dem Scan. Verkraftet:
-     "B-101"                        nackter Code
-     "B-101 Shimano Bremsbelag"     Code + Name (Etikett mit Klartext im QR)
-     "b-101"                        Kleinschreibung
-     ".../?code=B-101"              URL
-   Die Nummer steht immer vorn und enthält nie ein Leerzeichen — das macht
-   das Abschneiden eindeutig. */
-function codeAus(roh){
-  let s = String(roh).trim();
-  const m = s.match(/[?&]code=([^&\s]+)/i);
-  if (m) s = m[1];
-  else if (s.includes("/")) s = s.split("/").filter(Boolean).pop();
-  s = s.split(/[\s\n|;]/)[0];          // alles ab dem ersten Trenner weg
-  return s.trim().toUpperCase();
-}
-
-let stream = null, raf = null;
-const canvas = document.createElement("canvas");
-const ctx = canvas.getContext("2d", {willReadFrequently:true});
-let lastCode = "", lastTime = 0, letzterVersuch = 0;
-
-/* ZXing liest QR und Code128 aus demselben Bild. Beide Formate sind
-   ausdrücklich erlaubt — sonst rät die Bibliothek und wird langsam. */
-let leser = null;
-function bauLeser(){
-  const Z = window.ZXing;
-  const r = new Z.MultiFormatReader();
-  const hints = new Map();
-  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,
-            [Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.CODE_128]);
-  hints.set(Z.DecodeHintType.TRY_HARDER, true);
-  r.setHints(hints);
-  return r;
-}
-
-async function startCamera(){
-  if (scanning) return;
-  const st = $("camState");
-
-  if (!window.ZXing){
-    st.className = "camstate err";
-    st.innerHTML = "<b>Scan-Bibliothek nicht geladen.</b> Seite neu laden.";
-    fallback(); return;
-  }
-  if (!leser) leser = bauLeser();
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    st.className = "camstate err";
-    st.innerHTML = "<b>Kein Kamerazugriff möglich.</b> Läuft die Seite über https?";
-    fallback(); return;
-  }
-
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-    const v = $("video");
-    v.srcObject = stream;
-    await v.play();
-    v.classList.remove("hidden");
-    $("reticle").classList.remove("hidden");
-    $("scanHint").classList.add("hidden");
-    $("demoTiles").classList.add("hidden");
-    st.className = "camstate";
-    st.innerHTML = "<b>Kamera läuft.</b> QR oder Barcode aus ca. 15 cm ins Bild halten.";
-    scanning = true;
-    tick();
-  }catch(e){
-    st.className = "camstate err";
-    st.innerHTML = "<b>Kamera abgelehnt:</b> " + (e.name || e.message) +
-      " — im Browser den Kamerazugriff für diese Seite erlauben.";
-    fallback();
-  }
-}
-function stopCamera(){
-  scanning = false;
-  if (raf) cancelAnimationFrame(raf);
-  if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null;
-  $("video").classList.add("hidden");
-}
-function tick(){
-  if (!scanning) return;
-  const v = $("video");
-  const jetzt = Date.now();
-
-  // Nicht bei jedem Frame dekodieren. ZXing ist gründlicher als jsQR und
-  // damit teurer — 8 Versuche pro Sekunde reichen völlig und halten das
-  // Kamerabild auf älteren Handys flüssig.
-  if (v.readyState === v.HAVE_ENOUGH_DATA && jetzt - letzterVersuch > 120){
-    letzterVersuch = jetzt;
-
-    // Auf max. 640 px Breite herunterrechnen: schneller, und für einen
-    // Code aus 15 cm Entfernung immer noch reichlich Auflösung.
-    const skala = Math.min(1, 640 / v.videoWidth);
-    const w = Math.round(v.videoWidth * skala);
-    const h = Math.round(v.videoHeight * skala);
-    canvas.width = w; canvas.height = h;
-    ctx.drawImage(v, 0, 0, w, h);
-
-    const img = ctx.getImageData(0, 0, w, h).data;
-    const lum = new Uint8ClampedArray(w * h);
-    for (let i = 0, p = 0; p < lum.length; i += 4, p++){
-      // Standard-Luminanz. Grün zählt am meisten, so sieht das Auge auch.
-      lum[p] = (img[i]*306 + img[i+1]*601 + img[i+2]*117 + 512) >> 10;
-    }
-
-    try{
-      const Z = window.ZXing;
-      const quelle = new Z.RGBLuminanceSource(lum, w, h);
-      const bitmap = new Z.BinaryBitmap(new Z.HybridBinarizer(quelle));
-      const treffer = leser.decode(bitmap);
-      const roh = treffer.getText();
-
-      if (roh && (roh !== lastCode || jetzt - lastTime > 1500)){
-        lastCode = roh; lastTime = jetzt;
-        const code = codeAus(roh);
-        const artikel = ARTIKEL.find(a => a.code.toUpperCase() === code);
-        const format = Z.BarcodeFormat[treffer.getBarcodeFormat()] === "QR_CODE" ? "QR" : "Barcode";
-
-        $("camState").className = "camstate";
-        $("camState").innerHTML = `Gelesen (${format}): <b>${code}</b>` +
-          (artikel ? "" : " — steht nicht im Blatt „Material\"");
-        if (artikel) add(artikel.code);
-        else warnBeep();
-      }
-    }catch(e){
-      // NotFoundException = einfach kein Code im Bild. Der Normalfall.
-    }finally{
-      leser.reset();
-    }
-  }
-  raf = requestAnimationFrame(tick);
-}
-function fallback(){
-  $("scanHint").textContent = "Kamera hier nicht freigegeben. Tippe ein Regalfach an — das simuliert einen Scan.";
-  $("scanHint").classList.remove("hidden");
-  $("demoTiles").classList.remove("hidden");
-  $("demoTiles").innerHTML = ARTIKEL.filter(a => a.art !== "Vorrat").slice(0,6).map(a =>
-    `<button class="tile" data-code="${a.code}">${a.name}<small>Regalfach ${a.code}</small></button>`).join("");
-  $("demoTiles").querySelectorAll(".tile").forEach(b =>
-    b.onclick = () => add(b.dataset.code));
-}
-
-/* ---------------------------------------------------------------
-   RÜCKMELDUNG: piepen + Vibrieren, damit man nicht hinschauen muss
-----------------------------------------------------------------*/
-let audioCtx = null;
-function beep(){
-  try{
-    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.frequency.value = 1180; o.type = "square";
-    g.gain.setValueAtTime(.05, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(.0001, audioCtx.currentTime + .12);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + .12);
-  }catch(e){}
-  if (navigator.vibrate) navigator.vibrate(35);
-}
-function warnBeep(){
-  try{
-    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
-    [0, .16].forEach(t => {
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.frequency.value = 220; o.type = "sawtooth";
-      const s = audioCtx.currentTime + t;
-      g.gain.setValueAtTime(.05, s);
-      g.gain.exponentialRampToValueAtTime(.0001, s + .13);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(s); o.stop(s + .13);
-    });
-  }catch(e){}
-  if (navigator.vibrate) navigator.vibrate([60,50,60]);
-}
 let toastTimer = null;
 function toast(msg){
-  const t = $("toast");
-  t.textContent = msg; t.classList.add("show");
+  $("toast").innerHTML = '<div class="toast">'+esc(msg)+'</div>';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+  toastTimer = setTimeout(() => { $("toast").innerHTML = ""; }, 3000);
+}
+function piep(ok){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = ok ? 880 : 220; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(.12, ctx.currentTime); o.start();
+    g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+.18);
+    o.stop(ctx.currentTime+.2);
+  }catch(e){}
 }
 
-render();
-laden();
-startCamera();
+const AUFWAND = { "klein":0, "mittel":1, "groß":5 };
+const ORTE = ["Werkstatt","Koffer Bahn","Koffer Straße"];
+
+/* ---------------------------------------------------------------
+   Offline-Puffer
+   Am Wettkampf ist oft kein Netz. Schreibvorgänge landen erst
+   lokal, werden optimistisch angezeigt und später nachgesendet.
+----------------------------------------------------------------*/
+function ladeWarteschlange(){
+  try{ warteschlange = JSON.parse(localStorage.getItem("wQueue") || "[]"); }
+  catch(e){ warteschlange = []; }
+}
+function speichereWarteschlange(){
+  try{ localStorage.setItem("wQueue", JSON.stringify(warteschlange)); }catch(e){}
+}
+function zeigeNetz(){
+  const el = $("netz");
+  if(warteschlange.length){ el.className = "netz queue"; el.textContent = warteschlange.length + " offen"; }
+  else if(!navigator.onLine){ el.className = "netz off"; el.textContent = "offline"; }
+  else { el.className = "netz"; el.textContent = "online"; }
+}
+
+async function post(op){
+  const r = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },  // kein CORS-Preflight
+    body: JSON.stringify(op)
+  });
+  const text = await r.text();
+  let d;
+  try{ d = JSON.parse(text); }
+  catch(e){ throw new Error("Antwort war kein JSON. /exec-URL direkt im Browser öffnen, dann zeigt Google die Meldung."); }
+  if(d.fehler) throw new Error(d.fehler);
+  return d;
+}
+
+/** Schreibt sofort, wenn möglich — sonst in die Warteschlange. */
+async function schreibe(op, stillschweigend){
+  lokalAnwenden(op);
+  render();
+  if(!navigator.onLine){
+    warteschlange.push(op); speichereWarteschlange(); zeigeNetz();
+    if(!stillschweigend) toast("Kein Netz — wird nachgesendet");
+    return { offline:true };
+  }
+  try{
+    const d = await post(op);
+    zeigeNetz();
+    return d;
+  }catch(e){
+    warteschlange.push(op); speichereWarteschlange(); zeigeNetz();
+    toast("Später nachsenden: " + e.message);
+    return { offline:true };
+  }
+}
+
+async function sendeNach(){
+  if(!warteschlange.length || !navigator.onLine) { zeigeNetz(); return; }
+  const offen = warteschlange.slice();
+  while(offen.length){
+    const op = offen[0];
+    try{ await post(op); offen.shift(); warteschlange.shift(); speichereWarteschlange(); }
+    catch(e){ zeigeNetz(); toast("Nachsenden hakt: " + e.message); return; }
+  }
+  zeigeNetz();
+  toast("Nachgesendet");
+  await laden();
+}
+
+/* ---------------------------------------------------------------
+   Laden
+----------------------------------------------------------------*/
+async function laden(){
+  if(!API_URL){
+    app.innerHTML = '<div class="fehler"><strong>Keine Web-App-URL hinterlegt.</strong><br>' +
+      'In der index.html oben <code>API_URL</code> auf die /exec-Adresse der Apps-Script-Bereitstellung setzen.</div>';
+    $("stand").textContent = "nicht verbunden";
+    return;
+  }
+  try{
+    const r = await fetch(API_URL + "?action=alles");
+    const d = await r.json();
+    if(d.fehler) throw new Error(d.fehler);
+    DB = d;
+    try{ localStorage.setItem("wCache", JSON.stringify(d)); }catch(e){}
+    $("stand").textContent = "Stand " + String(d.stand||"").replace("T"," ").slice(0,16);
+  }catch(e){
+    let cache = null;
+    try{ cache = JSON.parse(localStorage.getItem("wCache")||"null"); }catch(x){}
+    if(cache){ DB = cache; $("stand").textContent = "Offline-Stand"; toast("Offline — letzter bekannter Stand"); }
+    else { app.innerHTML = '<div class="fehler">Laden fehlgeschlagen: ' + esc(e.message) + '</div>'; return; }
+  }
+  render();
+}
+
+/* ---------------------------------------------------------------
+   Zugriff auf die Sheet-Daten
+----------------------------------------------------------------*/
+function rad(id){ return (DB.raeder||[]).find(r => r["Rad-ID"] === id) || null; }
+function radName(id){ const r = rad(id); return r ? (r.Bezeichnung || id) : id; }
+function fahrerVon(id){
+  const z = (DB.zuordnung||[])
+    .filter(x => x["Rad-ID"] === id && !x["gültig bis"])
+    .sort((a,b) => String(b["gültig ab"]).localeCompare(String(a["gültig ab"])));
+  return z.length ? z[0].Fahrer : "";
+}
+function wer(t){ return t.Fahrer || fahrerVon(t["Rad-ID"]) || radName(t["Rad-ID"]); }
+function artikel(code){ return (DB.artikel||[]).find(a => a.Code === code) || null; }
+function bestandRow(code){ return (DB.bestand||[]).find(b => b.Code === code) || null; }
+function lieferzeit(code){ const a = artikel(code); return a ? zahl(a["Lieferzeit (T)"]) : 0; }
+
+function posVon(ticket){ return (DB.positionen||[]).filter(p => p.Ticket === ticket && p.Status === "reserviert"); }
+function stueckAm(radId){ return (DB.stueckgut||[]).filter(s => s["am Rad"] === radId); }
+function pruefOffen(t){ return stueckAm(t["Rad-ID"]).filter(s => s.Zustand === "zu prüfen"); }
+
+/** Wieviel ist am Arbeitsort greifbar? Werkstatt = frei (Bestand minus Reservierungen). */
+function greifbar(code, ort, ohneTicket){
+  const b = bestandRow(code);
+  if(!b) return 0;
+  if(ort === "Werkstatt"){
+    let frei = zahl(b["Frei (Wst)"]);
+    if(ohneTicket){
+      posVon(ohneTicket).forEach(p => { if(p.Code === code) frei += zahl(p.Menge); });
+    }
+    return frei;
+  }
+  return zahl(b[ort]);
+}
+function beschaffung(t){
+  let max = 0;
+  posVon(t.Ticket).forEach(p => {
+    if(zahl(p.Menge) > greifbar(p.Code, t.Arbeitsort || "Werkstatt", t.Ticket)){
+      max = Math.max(max, lieferzeit(p.Code));
+    }
+  });
+  return max;
+}
+function puffer(t){
+  const bis = tageBis(t["soll fertig"]);
+  if(bis === null) return null;
+  return bis - (AUFWAND[t.Aufwand] || 0) - beschaffung(t);
+}
+function pufferFarbe(p){
+  if(p === null) return "var(--ink-2)";
+  if(p <= 1) return "var(--sprint)";
+  if(p <= 4) return "var(--warn)";
+  return "var(--ok)";
+}
+function sortiert(list){
+  return list.slice().sort((a,b) => {
+    const pa = puffer(a), pb = puffer(b);
+    if(pa === null && pb === null) return 0;
+    if(pa === null) return 1;
+    if(pb === null) return -1;
+    return pa - pb;
+  });
+}
+function offeneTickets(){ return (DB.tickets||[]).filter(t => t.Status !== "erledigt"); }
+function ticketById(id){ return (DB.tickets||[]).find(t => t.Ticket === id) || null; }
+
+/* ---------------------------------------------------------------
+   Optimistisch lokal anwenden, damit die Anzeige sofort stimmt
+----------------------------------------------------------------*/
+function lokalAnwenden(op){
+  if(!DB) return;
+  if(op.aktion === "ticketAendern"){
+    const t = ticketById(op.ticket);
+    if(t) Object.keys(op.felder).forEach(k => t[k] = op.felder[k]);
+  }
+  if(op.aktion === "reservieren"){
+    DB.positionen.push({ "Ticket":op.ticket, "Code":op.code,
+      "Artikel":(artikel(op.code)||{}).Artikel || op.code, "Menge":op.menge||1, "Status":"reserviert" });
+    const b = bestandRow(op.code);
+    if(b){ b.Reserviert = zahl(b.Reserviert)+ (op.menge||1); b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) - (op.menge||1); }
+  }
+  if(op.aktion === "freigeben"){
+    const i = DB.positionen.findIndex(p => p.Ticket === op.ticket && p.Code === op.code && p.Status === "reserviert");
+    if(i >= 0){
+      const m = zahl(DB.positionen[i].Menge);
+      DB.positionen.splice(i,1);
+      const b = bestandRow(op.code);
+      if(b){ b.Reserviert = zahl(b.Reserviert) - m; b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) + m; }
+    }
+  }
+  if(op.aktion === "zustandSetzen"){
+    const s = (DB.stueckgut||[]).find(x => x.Nummer === op.nummer);
+    if(s) s.Zustand = op.zustand;
+  }
+  if(op.aktion === "stueckUmbuchen"){
+    const s = (DB.stueckgut||[]).find(x => x.Nummer === op.nummer);
+    if(s){ s.Ort = op.ort; s["am Rad"] = op.ort === "am Rad" ? (op.radId||"") : ""; }
+  }
+  if(op.aktion === "umbuchen"){
+    const b = bestandRow(op.code);
+    if(b){ b[op.von] = zahl(b[op.von]) - zahl(op.menge); b[op.nach] = zahl(b[op.nach]) + zahl(op.menge);
+      if(op.von === "Werkstatt") b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) - zahl(op.menge);
+      if(op.nach === "Werkstatt") b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) + zahl(op.menge); }
+    const k = (DB.koffer||[]).find(x => x.Code === op.code);
+    if(k){
+      if(op.nach === "Koffer Bahn"){ k["Ist Bahn"] = zahl(k["Ist Bahn"]) + zahl(op.menge); k["fehlt Bahn"] = Math.max(0, zahl(k["Soll Bahn"]) - zahl(k["Ist Bahn"])); }
+      if(op.nach === "Koffer Straße"){ k["Ist Straße"] = zahl(k["Ist Straße"]) + zahl(op.menge); k["fehlt Straße"] = Math.max(0, zahl(k["Soll Straße"]) - zahl(k["Ist Straße"])); }
+      if(op.von === "Koffer Bahn"){ k["Ist Bahn"] = zahl(k["Ist Bahn"]) - zahl(op.menge); k["fehlt Bahn"] = Math.max(0, zahl(k["Soll Bahn"]) - zahl(k["Ist Bahn"])); }
+      if(op.von === "Koffer Straße"){ k["Ist Straße"] = zahl(k["Ist Straße"]) - zahl(op.menge); k["fehlt Straße"] = Math.max(0, zahl(k["Soll Straße"]) - zahl(k["Ist Straße"])); }
+    }
+  }
+  if(op.aktion === "ticketAbschliessen"){
+    const t = ticketById(op.ticket);
+    if(t) t.Status = "erledigt";
+    DB.positionen = (DB.positionen||[]).filter(p => p.Ticket !== op.ticket);
+  }
+  if(op.aktion === "ticketAnlegen"){
+    const nr = "T-lokal-" + Date.now();
+    DB.tickets.push({ "Ticket":nr, "angelegt":iso(HEUTE), "Rad-ID":op.radId, "Fahrer":op.fahrer,
+      "Problem":op.problem, "fahrbereit":op.fahrbereit ? "ja":"nein", "Aufwand":op.aufwand||"klein",
+      "soll fertig":op.sollFertig||"", "Anlass":op.anlass||"", "Sportler":op.sportler||"",
+      "Arbeitsort":op.arbeitsort||"Werkstatt", "Status":"offen", "Trainer":op.trainer||"" });
+    (op.positionen||[]).forEach(p => {
+      DB.positionen.push({ "Ticket":nr, "Code":p.code, "Artikel":(artikel(p.code)||{}).Artikel || p.code,
+        "Menge":p.menge, "Status":"reserviert" });
+      const b = bestandRow(p.code);
+      if(b){ b.Reserviert = zahl(b.Reserviert)+zahl(p.menge); b["Frei (Wst)"] = zahl(b["Frei (Wst)"]) - zahl(p.menge); }
+    });
+  }
+}
+
+/* ===============================================================
+   Ansichten
+   ===============================================================*/
+function render(){
+  if(!DB) return;
+  document.querySelectorAll(".tab").forEach(b =>
+    b.setAttribute("aria-selected", String(b.dataset.tab === view.tab)));
+  $("ver").textContent = APP_VERSION;
+  if(view.tab === "neu")      { app.innerHTML = neuView(); nachNeu(); return; }
+  if(view.tab === "lager")    { app.innerHTML = lagerView(); return; }
+  if(view.tab === "koffer")   { app.innerHTML = kofferView(); return; }
+  if(view.tab === "inventar") { app.innerHTML = inventarView(); return; }
+  app.innerHTML = view.ticket ? detailView(view.ticket) : boardView();
+}
+
+/* ---------------------------------------------------------------
+   Board
+----------------------------------------------------------------*/
+function boardView(){
+  let liste = offeneTickets();
+  const q = view.suche.toLowerCase();
+  if(q) liste = liste.filter(t =>
+    (wer(t)+" "+radName(t["Rad-ID"])+" "+(t.Problem||"")).toLowerCase().indexOf(q) >= 0);
+  if(view.filter === "steht")    liste = liste.filter(t => t.fahrbereit === "nein");
+  if(view.filter === "material") liste = liste.filter(t => beschaffung(t) > 0);
+
+  const alle = offeneTickets();
+  const steht = sortiert(liste.filter(t => t.fahrbereit === "nein"));
+  const faehrt = sortiert(liste.filter(t => t.fahrbereit !== "nein"));
+
+  let h = '<div class="seg" style="margin-bottom:10px">';
+  h += chip("offen", "Offen · " + alle.length);
+  h += chip("steht", "Steht · " + alle.filter(t => t.fahrbereit === "nein").length);
+  h += chip("material", "Material · " + alle.filter(t => beschaffung(t) > 0).length);
+  h += '</div>';
+  h += '<div class="feld"><input type="search" id="suche" placeholder="Fahrer, Rad, Problem" value="'+esc(view.suche)+'"></div>';
+
+  h += '<h2 class="sec alarm">Rad steht</h2>';
+  h += steht.length ? steht.map(t => ticketZeile(t,true)).join("") : '<div class="leer">Kein Rad steht.</div>';
+  h += '<h2 class="sec">Fahrbereit — nach Puffer</h2>';
+  h += faehrt.length ? faehrt.map(t => ticketZeile(t,false)).join("") : '<div class="leer">Nichts offen.</div>';
+  h += '<p class="sub" style="margin-top:14px">Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit.</p>';
+  return h;
+}
+function chip(key,label){
+  return '<button data-filter="'+key+'" aria-pressed="'+(view.filter===key)+'">'+esc(label)+'</button>';
+}
+function ticketZeile(t, steht){
+  const p = puffer(t), ms = matChip(t), pr = pruefOffen(t).length;
+  let h = '<button class="ticket'+(steht?" steht":"")+'" data-open="'+esc(t.Ticket)+'">';
+  h += '<span class="kopf"><span class="fahrer">'+esc(wer(t))+'</span>';
+  h += '<span class="sub">'+esc(radName(t["Rad-ID"]))+'</span>';
+  h += '<span class="puffer mono" style="color:'+pufferFarbe(p)+'">'+(p===null?"—":p+" T")+'</span></span>';
+  h += '<p class="prob">'+esc(t.Problem||"")+'</p>';
+  h += '<span class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">';
+  h += '<span class="chip '+ms.cls+'">'+esc(ms.txt)+'</span>';
+  h += '<span class="chip grau">'+esc(t.Aufwand||"—")+'</span>';
+  h += '<span class="chip grau">'+(t["soll fertig"] ? de(t["soll fertig"])+(t.Anlass?" · "+esc(t.Anlass):"") : "kein Termin")+'</span>';
+  if((t.Arbeitsort||"Werkstatt") !== "Werkstatt") h += '<span class="chip warn">'+esc(t.Arbeitsort)+'</span>';
+  if(pr) h += '<span class="chip alarm">'+pr+' zu prüfen</span>';
+  h += '</span></button>';
+  return h;
+}
+function matChip(t){
+  const pos = posVon(t.Ticket);
+  if(!pos.length) return { cls:"grau", txt:"kein Material" };
+  const b = beschaffung(t);
+  if(b > 0) return { cls:"warn", txt:"Bestellen · "+b+" T" };
+  return { cls:"ok", txt:"Reserviert · "+pos.length };
+}
+
+/* ---------------------------------------------------------------
+   Ticket-Detail
+----------------------------------------------------------------*/
+function detailView(id){
+  const t = ticketById(id);
+  if(!t){ view.ticket = null; return boardView(); }
+  const p = puffer(t), b = beschaffung(t), ort = t.Arbeitsort || "Werkstatt";
+  const pr = pruefOffen(t);
+
+  let h = '<button class="btn small" data-back="1" style="margin-bottom:10px">← Alle Tickets</button>';
+  h += '<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px">';
+  h += '<span class="fahrer" style="font-family:\'Barlow Condensed\',sans-serif;font-size:26px;font-weight:700">'+esc(wer(t))+'</span>';
+  h += '<span class="sub">'+esc(radName(t["Rad-ID"]))+' · '+esc(t.Ticket)+'</span><span class="sp"></span>';
+  h += t.fahrbereit === "nein" ? '<span class="chip alarm">Rad steht</span>' : '<span class="chip ok">fahrbereit</span>';
+  h += '</div><p style="margin:10px 0 0">'+esc(t.Problem||"")+'</p>';
+  h += '<p class="sub" style="margin:6px 0 0">Gemeldet von '+esc(t.Trainer||"—")+
+       (t.Sportler ? ' · Kostenträger '+esc(t.Sportler) : '')+'</p></div>';
+
+  /* Priorität */
+  h += '<div class="card"><span class="lbl">Priorität</span>';
+  if(t["soll fertig"]){
+    h += zeile("Soll fertig "+de(t["soll fertig"])+(t.Anlass?" · "+esc(t.Anlass):""), tageBis(t["soll fertig"])+" T");
+    h += zeile("− Arbeitsaufwand ("+esc(t.Aufwand||"—")+")", (AUFWAND[t.Aufwand]||0)+" T");
+    h += zeile("− Beschaffung fehlender Teile", b+" T");
+    h += '<div class="row" style="border-top:1px solid var(--line);margin-top:8px;padding-top:10px">'+
+         '<strong>Puffer</strong><span class="sp"></span>'+
+         '<span class="mono" style="font-family:\'Barlow Condensed\',sans-serif;font-size:24px;font-weight:700;color:'+pufferFarbe(p)+'">'+p+' Tage</span></div>';
+  } else {
+    h += '<p class="sub" style="margin:0">Kein Termin gesetzt — läuft am Ende der Liste mit.</p>';
+  }
+  h += '</div>';
+
+  /* Einschätzung */
+  h += '<div class="card"><span class="lbl">Arbeitsaufwand</span><div class="seg" style="margin-bottom:12px">';
+  ["klein","mittel","groß"].forEach(k =>
+    h += '<button data-aufwand="'+k+'" aria-pressed="'+(t.Aufwand===k)+'">'+k+' · '+AUFWAND[k]+' T</button>');
+  h += '</div><span class="lbl">Rad fährt?</span><div class="seg" style="margin-bottom:12px">';
+  h += '<button data-fb="ja" aria-pressed="'+(t.fahrbereit==="ja")+'">Ja, fährt</button>';
+  h += '<button class="rot" data-fb="nein" aria-pressed="'+(t.fahrbereit!=="ja")+'">Nein, steht</button>';
+  h += '</div>';
+  h += '<div class="feld"><span class="lbl">Soll fertig</span><input type="date" id="fertig" value="'+esc(t["soll fertig"]||"")+'"></div>';
+  h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" id="anlass" value="'+esc(t.Anlass||"")+'" placeholder="Wettkampf, Training…"></div>';
+  h += '<div class="feld"><span class="lbl">Arbeitsort</span><select id="tort">';
+  ORTE.forEach(o => h += '<option value="'+o+'"'+(ort===o?" selected":"")+'>'+o+'</option>');
+  h += '</select></div></div>';
+
+  /* Einzelstücke am Rad */
+  const sa = stueckAm(t["Rad-ID"]);
+  h += '<div class="card"><span class="lbl">Einzelstücke an diesem Rad</span>';
+  if(!sa.length) h += '<p class="sub" style="margin:0">Kein nummeriertes Teil zugeordnet.</p>';
+  else sa.forEach(s => {
+    h += '<div class="row" style="padding:8px 0;border-top:1px solid var(--line)">';
+    h += '<span><strong>'+esc(s.Nummer)+'</strong> '+esc(s.Typ||"")+'<br><span class="sub">'+esc(s.Detail||"")+'</span></span>';
+    h += '<span class="sp"></span>';
+    h += s.Zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : '<span class="chip ok">frei</span>';
+    h += '<button class="btn small" data-pruef="'+esc(s.Nummer)+'" data-zustand="'+(s.Zustand==="zu prüfen"?"frei":"zu prüfen")+'">'+
+         (s.Zustand==="zu prüfen" ? "freigeben" : "prüfen")+'</button></div>';
+  });
+  if(pr.length) h += '<p class="sub" style="margin:10px 0 0;color:var(--sprint)">Solange ein Teil auf „zu prüfen“ steht, lässt sich das Ticket nicht abschließen.</p>';
+  h += '</div>';
+
+  /* Material */
+  h += '<div class="card"><span class="lbl">Material · gebucht wird aus '+esc(ort)+'</span>';
+  const pos = posVon(t.Ticket);
+  if(pos.length){
+    pos.forEach(pp => {
+      const fehlt = zahl(pp.Menge) > greifbar(pp.Code, ort, t.Ticket);
+      h += '<div class="row" style="padding:8px 0;border-top:1px solid var(--line)">';
+      h += '<span>'+zahl(pp.Menge)+' × '+esc(pp.Artikel||pp.Code)+'<br><span class="sub">'+esc(pp.Code)+
+           (fehlt ? ' · <span style="color:var(--warn)">fehlt, Zulauf '+lieferzeit(pp.Code)+' T</span>' : ' · vorhanden')+'</span></span>';
+      h += '<span class="sp"></span><button class="btn small" data-frei="'+esc(pp.Code)+'">freigeben</button></div>';
+    });
+  } else h += '<p class="sub" style="margin:0 0 8px">Noch nichts reserviert.</p>';
+  h += '<div class="row" style="margin-top:10px;gap:8px">';
+  h += '<button class="btn small" data-scanmat="1">Teil scannen</button>';
+  h += '<select id="matsel" style="flex:1"><option value="">Teil wählen…</option>';
+  (DB.artikel||[]).filter(a => a.Aktiv !== "nein").forEach(a => {
+    const frei = greifbar(a.Code, ort, t.Ticket);
+    h += '<option value="'+esc(a.Code)+'">'+esc(a.Artikel)+' — '+frei+' frei</option>';
+  });
+  h += '</select><button class="btn small primary" data-res="1">Reservieren</button></div></div>';
+
+  /* Abschluss */
+  h += '<div class="card"><span class="lbl">Abschluss</span>';
+  h += '<div class="feld"><span class="lbl">Kostenträger</span><select id="sportler">';
+  (DB.sportler||[]).forEach(s => h += '<option value="'+esc(s.Sportler)+'"'+(t.Sportler===s.Sportler?" selected":"")+'>'+
+    esc(s.Sportler)+(s.Abrechnen==="ja"?" (wird berechnet)":"")+'</option>');
+  h += '</select></div>';
+  h += '<div class="row" style="gap:8px;flex-wrap:wrap">';
+  h += '<button class="btn" data-annehmen="1">'+(t.Status==="angenommen"?"angenommen ✓":"Übernehmen")+'</button>';
+  h += '<button class="btn primary" data-erledigt="1">Erledigt &amp; buchen</button></div></div>';
+  return h;
+}
+function zeile(links, rechts){
+  return '<div class="row" style="padding:4px 0"><span>'+links+'</span><span class="sp"></span><span class="mono">'+rechts+'</span></div>';
+}
+
+/* ---------------------------------------------------------------
+   Neues Ticket
+----------------------------------------------------------------*/
+function neuStart(){
+  neu = { radId:"", fahrer:"", problem:"", fahrbereit:false, sollFertig:iso(plusTage(4)),
+          anlass:"", arbeitsort:"Werkstatt", positionen:[] };
+}
+function neuView(){
+  if(!neu) neuStart();
+  let h = '<div class="card">';
+  h += '<div class="feld"><span class="lbl">Rad</span>';
+  h += '<div class="row" style="gap:8px"><button class="btn small" data-scanrad="1">Scannen</button>';
+  h += '<select id="nrad" style="flex:1"><option value="">Fahrer oder Rad wählen…</option>';
+  (DB.raeder||[]).filter(r => r.Aktiv !== "nein").forEach(r => {
+    const f = fahrerVon(r["Rad-ID"]);
+    h += '<option value="'+esc(r["Rad-ID"])+'"'+(neu.radId===r["Rad-ID"]?" selected":"")+'>'+
+         esc(f || r.Bezeichnung)+(f ? " — "+esc(r.Bezeichnung) : "")+'</option>';
+  });
+  h += '</select></div></div>';
+
+  h += '<div class="feld"><span class="lbl">Was ist passiert?</span>'+
+       '<textarea id="nprob" placeholder="Sturz, Lenker verbogen, Rahmen prüfen">'+esc(neu.problem)+'</textarea></div>';
+
+  h += '<div class="feld"><span class="lbl">Rad noch fahrbereit?</span><div class="seg">'+
+       '<button data-nfb="ja" aria-pressed="'+(neu.fahrbereit)+'">Ja, fährt</button>'+
+       '<button class="rot" data-nfb="nein" aria-pressed="'+(!neu.fahrbereit)+'">Nein, steht</button></div></div>';
+
+  h += '<div class="feld"><span class="lbl">Wo wird gearbeitet?</span><div class="seg">';
+  ORTE.forEach(o => h += '<button data-nort="'+o+'" aria-pressed="'+(neu.arbeitsort===o)+'">'+o+'</button>');
+  h += '</div></div>';
+
+  h += '<div class="feld"><span class="lbl">Soll fertig</span><div class="seg" style="margin-bottom:8px">';
+  [[2,"in 2 Tagen"],[4,"in 4 Tagen"],[7,"in einer Woche"],[null,"kein Termin"]].forEach(o => {
+    const v = o[0]===null ? "" : iso(plusTage(o[0]));
+    h += '<button data-nfertig="'+v+'" aria-pressed="'+((neu.sollFertig||"")===v)+'">'+o[1]+'</button>';
+  });
+  h += '</div><input type="date" id="nfertig" value="'+esc(neu.sollFertig||"")+'"></div>';
+  h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" id="nanlass" value="'+esc(neu.anlass)+'" placeholder="Wettkampf, Training…"></div>';
+
+  h += '<div class="feld"><span class="lbl">Material vormerken (optional)</span>';
+  h += '<div class="row" style="gap:8px"><button class="btn small" data-scanmatneu="1">Scannen</button>';
+  h += '<select id="nmat" style="flex:1"><option value="">Teil wählen…</option>';
+  (DB.artikel||[]).filter(a => a.Aktiv !== "nein").forEach(a => {
+    h += '<option value="'+esc(a.Code)+'">'+esc(a.Artikel)+' — '+greifbar(a.Code, neu.arbeitsort)+' frei</option>';
+  });
+  h += '</select><button class="btn small" data-nres="1">+</button></div>';
+  if(neu.positionen.length){
+    neu.positionen.forEach(p => {
+      h += '<div class="row" style="padding:7px 0;border-top:1px solid var(--line)"><span>'+p.menge+' × '+
+           esc((artikel(p.code)||{}).Artikel || p.code)+'</span><span class="sp"></span>'+
+           '<button class="btn small" data-nfrei="'+esc(p.code)+'">entfernen</button></div>';
+    });
+  }
+  h += '</div>';
+
+  h += '<div class="feld"><span class="lbl">Trainer</span><input type="text" id="ntrainer" value="'+esc(trainerName)+'" placeholder="Dein Name"></div>';
+  h += '<p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Annehmen.</p>';
+  h += '<button class="btn primary" style="width:100%;margin-top:8px" data-anlegen="1">Ticket anlegen</button>';
+  h += '</div>';
+  h += '<div id="scanhost"></div>';
+  return h;
+}
+function nachNeu(){ /* nichts weiter nötig — Felder werden beim Absenden gelesen */ }
+
+function neuLesen(){
+  if(!neu) return;
+  const g = id => { const el = $(id); return el ? el.value : undefined; };
+  if(g("nrad") !== undefined && g("nrad")) neu.radId = g("nrad");
+  if(g("nprob") !== undefined) neu.problem = g("nprob");
+  if(g("nfertig") !== undefined) neu.sollFertig = g("nfertig");
+  if(g("nanlass") !== undefined) neu.anlass = g("nanlass");
+  if(g("ntrainer") !== undefined) trainerName = g("ntrainer");
+}
+
+async function ticketAnlegen(){
+  neuLesen();
+  if(!neu.radId){ toast("Erst das Rad wählen oder scannen."); return; }
+  if(!neu.problem.trim()){ toast("Bitte kurz beschreiben, was ist."); return; }
+  localStorage.setItem("wTrainer", trainerName);
+  const r = rad(neu.radId);
+  const op = { aktion:"ticketAnlegen", radId:neu.radId, fahrer:fahrerVon(neu.radId),
+    problem:neu.problem.trim(), fahrbereit:neu.fahrbereit, aufwand:"klein",
+    sollFertig:neu.sollFertig || null, anlass:neu.anlass, arbeitsort:neu.arbeitsort,
+    sportler:(r && r.Eigentümer) || "LV", trainer:trainerName, positionen:neu.positionen };
+  const antwort = await schreibe(op);
+  const name = fahrerVon(neu.radId) || radName(neu.radId);
+  neu = null;
+  view.tab = "board"; view.ticket = null;
+  if(!antwort.offline) await laden(); else render();
+  toast("Ticket für " + name + " angelegt");
+}
+
+/* ---------------------------------------------------------------
+   Lager
+----------------------------------------------------------------*/
+function lagerView(){
+  let h = '<h2 class="sec">Bestand je Ort</h2><div class="card tabwrap"><table><thead><tr>'+
+    '<th>Artikel</th><th>Wst</th><th>Bahn</th><th>Straße</th><th>Res</th><th>Frei</th><th>Min</th></tr></thead><tbody>';
+  (DB.bestand||[]).forEach(b => {
+    if(!b.Code) return;
+    const frei = zahl(b["Frei (Wst)"]), min = zahl(b.Mindest);
+    const knapp = b.Art !== "Pauschale" && min && frei < min;
+    h += '<tr class="'+(knapp?"low":"")+'"><td>'+esc(b.Artikel)+'<br><span class="sub">'+esc(b.Code)+'</span></td>';
+    h += '<td class="mono">'+zahl(b.Werkstatt)+'</td><td class="mono">'+zahl(b["Koffer Bahn"])+'</td>';
+    h += '<td class="mono">'+zahl(b["Koffer Straße"])+'</td>';
+    h += '<td class="mono" style="color:var(--warn)">'+zahl(b.Reserviert)+'</td>';
+    h += '<td class="mono"><strong style="color:'+(knapp?"var(--sprint)":"var(--ok)")+'">'+frei+'</strong></td>';
+    h += '<td class="mono sub">'+(min||"—")+'</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<p class="sub">Der Mindestbestandsalarm läuft auf „Frei (Werkstatt)“ — Kofferbestand und Reservierungen zählen nicht mit.</p>';
+  return h;
+}
+
+/* ---------------------------------------------------------------
+   Koffer
+----------------------------------------------------------------*/
+function kofferView(){
+  let h = "";
+  [["Koffer Bahn","Bahn"],["Koffer Straße","Straße"]].forEach(k => {
+    const ort = k[0], suffix = k[1];
+    const zeilen = (DB.koffer||[]).filter(r => r.Code &&
+      (zahl(r["Soll "+suffix]) > 0 || zahl(r["Ist "+suffix]) > 0));
+    const fehlt = zeilen.filter(r => zahl(r["fehlt "+suffix]) > 0);
+    h += '<h2 class="sec">'+ort+'</h2><div class="card">';
+    h += '<div class="row" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">';
+    h += fehlt.length ? '<span class="chip warn">'+fehlt.length+' Positionen fehlen</span>'
+                      : '<span class="chip ok">komplett gepackt</span>';
+    h += '<span class="sp"></span><button class="btn small primary" data-fill="'+ort+'">Auffüllen</button>';
+    h += '<button class="btn small" data-empty="'+ort+'">Rückgabe</button></div>';
+    h += '<div class="tabwrap"><table><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th>Wst</th><th></th></tr></thead><tbody>';
+    zeilen.forEach(r => {
+      const f = zahl(r["fehlt "+suffix]);
+      h += '<tr class="'+(f>0?"low":"")+'"><td>'+esc(r.Artikel)+'</td>';
+      h += '<td class="mono">'+zahl(r["Soll "+suffix])+'</td><td class="mono"><strong>'+zahl(r["Ist "+suffix])+'</strong></td>';
+      h += '<td class="mono" style="color:'+(f>0?"var(--sprint)":"var(--ink-2)")+'">'+(f>0?f:"–")+'</td>';
+      h += '<td class="mono sub">'+zahl(r["Werkstatt frei"])+'</td>';
+      h += '<td><button class="btn small" data-mv="'+esc(r.Code)+'|'+ort+'|1">+</button> '+
+           '<button class="btn small" data-mv="'+esc(r.Code)+'|'+ort+'|-1">−</button></td></tr>';
+    });
+    h += '</tbody></table></div>';
+    const st = (DB.stueckgut||[]).filter(s => s.Ort === ort);
+    h += '<span class="lbl" style="margin-top:12px">Einzelstücke im Koffer</span>';
+    if(!st.length) h += '<p class="sub" style="margin:0">keine</p>';
+    else st.forEach(s => {
+      h += '<div class="row" style="padding:7px 0;border-top:1px solid var(--line)">'+
+           '<span><strong>'+esc(s.Nummer)+'</strong> '+esc(s.Typ||"")+'</span><span class="sp"></span>'+
+           '<button class="btn small" data-sback="'+esc(s.Nummer)+'">in die Werkstatt</button></div>';
+    });
+    h += '</div>';
+  });
+  h += '<p class="sub">„Auffüllen“ bucht fehlende Teile aus der Werkstatt in den Koffer. Der Gesamtbestand ändert sich nicht, nur der Ort.</p>';
+  return h;
+}
+
+/* ---------------------------------------------------------------
+   Inventar
+----------------------------------------------------------------*/
+function inventarView(){
+  let h = '<h2 class="sec">Nummerierte Einzelstücke</h2>';
+  h += '<div class="feld"><div class="row" style="gap:8px">'+
+       '<button class="btn small" data-scanstueck="1">Nummer scannen</button>'+
+       '<input type="search" id="isuche" placeholder="Nummer, Typ, Fahrer" value="'+esc(view.suche)+'" style="flex:1"></div></div>';
+  const q = view.suche.toLowerCase();
+  const liste = (DB.stueckgut||[]).filter(s => s.Nummer && (!q ||
+    (s.Nummer+" "+(s.Typ||"")+" "+(s.Detail||"")+" "+fahrerVon(s["am Rad"]||"")).toLowerCase().indexOf(q) >= 0));
+  if(!liste.length) return h + '<div class="leer">Nichts gefunden.</div>';
+  liste.forEach(s => {
+    const beiRad = s.Ort === "am Rad";
+    h += '<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px">';
+    h += '<span><strong>'+esc(s.Nummer)+'</strong> · '+esc(s.Typ||"")+'<br><span class="sub">'+esc(s.Detail||"")+'</span></span>';
+    h += '<span class="sp"></span>';
+    h += s.Zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : '<span class="chip ok">frei</span>';
+    h += '</div>';
+    h += '<p class="sub" style="margin:8px 0">Ort: '+(beiRad
+      ? 'am Rad von '+esc(fahrerVon(s["am Rad"]) || radName(s["am Rad"]))
+      : esc(s.Ort||"—"))+'</p>';
+    h += '<select data-move="'+esc(s.Nummer)+'"><option value="">umbuchen auf…</option>';
+    ORTE.forEach(o => h += '<option value="'+o+'">'+o+'</option>');
+    (DB.raeder||[]).filter(r => r.Aktiv !== "nein").forEach(r =>
+      h += '<option value="rad:'+esc(r["Rad-ID"])+'">an '+esc(fahrerVon(r["Rad-ID"]) || r.Bezeichnung)+'</option>');
+    h += '</select></div>';
+  });
+  return h;
+}
+
+/* ---------------------------------------------------------------
+   Scanner (ZXing, fest eingebaut)
+----------------------------------------------------------------*/
+let leser = null, scanZiel = null;
+async function scanStart(ziel){
+  scanZiel = ziel;
+  const host = document.createElement("div");
+  host.id = "scanoverlay";
+  host.innerHTML = '<div class="card"><div class="scanbox"><video id="cam" playsinline muted></video>'+
+    '<div class="reticle"></div></div><button class="btn" style="width:100%" data-scanstop="1">Abbrechen</button></div>';
+  app.prepend(host);
+  try{
+    leser = new ZXing.BrowserMultiFormatReader();
+    await leser.decodeFromVideoDevice(null, "cam", (ergebnis) => {
+      if(!ergebnis) return;
+      const text = ergebnis.getText().trim();
+      scanStop();
+      piep(true);
+      scanTreffer(text);
+    });
+  }catch(e){
+    scanStop();
+    toast("Kamera nicht verfügbar: " + e.message);
+  }
+}
+function scanStop(){
+  try{ if(leser) leser.reset(); }catch(e){}
+  leser = null;
+  const h = $("scanoverlay"); if(h) h.remove();
+}
+function scanTreffer(code){
+  if(scanZiel === "rad"){
+    const r = rad(code) || (DB.raeder||[]).find(x => (x.Rahmennummer||"") === code);
+    if(!r){ piep(false); toast("Unbekanntes Rad: " + code); return; }
+    neuLesen(); neu.radId = r["Rad-ID"]; render(); toast("Rad: " + (fahrerVon(r["Rad-ID"]) || r.Bezeichnung));
+    return;
+  }
+  if(scanZiel === "matneu"){
+    if(!artikel(code)){ piep(false); toast("Unbekannter Artikel: " + code); return; }
+    neuLesen(); neuMaterial(code); return;
+  }
+  if(scanZiel === "mat"){
+    if(!artikel(code)){ piep(false); toast("Unbekannter Artikel: " + code); return; }
+    reservieren(code); return;
+  }
+  if(scanZiel === "stueck"){
+    view.suche = code; render(); return;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Aktionen
+----------------------------------------------------------------*/
+function neuMaterial(code){
+  if(!neu) neuStart();
+  if(neu.positionen.some(p => p.code === code)){ toast("Steht schon auf der Liste."); return; }
+  neu.positionen.push({ code:code, menge:1 });
+  render();
+  toast((artikel(code)||{}).Artikel + " vorgemerkt");
+}
+async function reservieren(code){
+  const t = ticketById(view.ticket);
+  if(!t) return;
+  const ort = t.Arbeitsort || "Werkstatt";
+  const knapp = greifbar(code, ort, t.Ticket) < 1;
+  await schreibe({ aktion:"reservieren", ticket:t.Ticket, code:code, menge:1 });
+  toast(knapp ? ((artikel(code)||{}).Artikel + " vorgemerkt — muss bestellt werden")
+              : ((artikel(code)||{}).Artikel + " reserviert"));
+}
+async function kofferAuffuellen(ort){
+  const suffix = ort === "Koffer Bahn" ? "Bahn" : "Straße";
+  const zeilen = (DB.koffer||[]).filter(r => r.Code && zahl(r["fehlt "+suffix]) > 0);
+  if(!zeilen.length){ toast("Nichts aufzufüllen."); return; }
+  let gebucht = 0;
+  for(const r of zeilen){
+    const menge = Math.min(zahl(r["fehlt "+suffix]), zahl(r["Werkstatt frei"]));
+    if(menge <= 0) continue;
+    await schreibe({ aktion:"umbuchen", code:r.Code, menge:menge, von:"Werkstatt", nach:ort,
+      trainer:trainerName, notiz:"Auffüllen" }, true);
+    gebucht += menge;
+  }
+  toast(gebucht ? gebucht + " Teile in den " + ort + " gebucht" : "Werkstattbestand reicht nicht");
+}
+async function kofferRueckgabe(ort){
+  const suffix = ort === "Koffer Bahn" ? "Bahn" : "Straße";
+  const zeilen = (DB.koffer||[]).filter(r => r.Code && zahl(r["Ist "+suffix]) > 0);
+  for(const r of zeilen){
+    await schreibe({ aktion:"umbuchen", code:r.Code, menge:zahl(r["Ist "+suffix]), von:ort, nach:"Werkstatt",
+      trainer:trainerName, notiz:"Rückgabe" }, true);
+  }
+  for(const s of (DB.stueckgut||[]).filter(x => x.Ort === ort)){
+    await schreibe({ aktion:"stueckUmbuchen", nummer:s.Nummer, ort:"Werkstatt", trainer:trainerName }, true);
+  }
+  toast("Koffer zurückgebucht");
+}
+async function abschliessen(){
+  const t = ticketById(view.ticket);
+  if(!t) return;
+  const offen = pruefOffen(t);
+  if(offen.length){ toast("Erst prüfen und freigeben: " + offen.map(s => s.Nummer).join(", ")); return; }
+  if(beschaffung(t) > 0 && !confirm("Es fehlt noch Material. Trotzdem abschließen?")) return;
+  const antwort = await schreibe({ aktion:"ticketAbschliessen", ticket:t.Ticket, trainer:trainerName });
+  view.ticket = null;
+  if(!antwort.offline) await laden(); else render();
+  toast(antwort.summe !== undefined ? "Erledigt · " + eur(antwort.summe) + " gebucht" : "Erledigt");
+}
+
+/* ---------------------------------------------------------------
+   Ereignisse
+----------------------------------------------------------------*/
+document.addEventListener("click", async (ev) => {
+  const el = ev.target.closest("button");
+  if(!el) return;
+  let d;
+
+  if(el.classList.contains("tab")){
+    scanStop();
+    view.tab = el.dataset.tab; view.ticket = null; view.suche = "";
+    if(view.tab === "neu" && !neu) neuStart();
+    render(); return;
+  }
+  if(el.id === "reload"){ await laden(); toast("Neu geladen"); return; }
+  if(el.hasAttribute("data-scanstop")){ scanStop(); return; }
+  if(el.hasAttribute("data-scanrad")){ neuLesen(); scanStart("rad"); return; }
+  if(el.hasAttribute("data-scanmatneu")){ neuLesen(); scanStart("matneu"); return; }
+  if(el.hasAttribute("data-scanmat")){ scanStart("mat"); return; }
+  if(el.hasAttribute("data-scanstueck")){ scanStart("stueck"); return; }
+
+  /* Board */
+  if((d = el.getAttribute("data-filter"))){ view.filter = d; render(); return; }
+  if((d = el.getAttribute("data-open"))){ view.ticket = d; window.scrollTo(0,0); render(); return; }
+  if(el.hasAttribute("data-back")){ view.ticket = null; render(); return; }
+
+  /* Neues Ticket */
+  if((d = el.getAttribute("data-nfb"))){ neuLesen(); neu.fahrbereit = (d === "ja"); render(); return; }
+  if((d = el.getAttribute("data-nort"))){ neuLesen(); neu.arbeitsort = d; render(); return; }
+  if(el.hasAttribute("data-nfertig")){ neuLesen(); neu.sollFertig = el.getAttribute("data-nfertig") || null; render(); return; }
+  if(el.hasAttribute("data-nres")){
+    neuLesen();
+    const sel = $("nmat");
+    if(sel && sel.value) neuMaterial(sel.value); else toast("Erst ein Teil wählen.");
+    return;
+  }
+  if((d = el.getAttribute("data-nfrei"))){ neuLesen(); neu.positionen = neu.positionen.filter(p => p.code !== d); render(); return; }
+  if(el.hasAttribute("data-anlegen")){ await ticketAnlegen(); return; }
+
+  /* Koffer */
+  if((d = el.getAttribute("data-fill"))){ await kofferAuffuellen(d); return; }
+  if((d = el.getAttribute("data-empty"))){ await kofferRueckgabe(d); return; }
+  if((d = el.getAttribute("data-mv"))){
+    const [code, ort, n] = d.split("|");
+    const menge = 1;
+    if(Number(n) > 0) await schreibe({ aktion:"umbuchen", code:code, menge:menge, von:"Werkstatt", nach:ort, trainer:trainerName });
+    else await schreibe({ aktion:"umbuchen", code:code, menge:menge, von:ort, nach:"Werkstatt", trainer:trainerName });
+    return;
+  }
+  if((d = el.getAttribute("data-sback"))){
+    await schreibe({ aktion:"stueckUmbuchen", nummer:d, ort:"Werkstatt", trainer:trainerName });
+    toast(d + " in die Werkstatt gebucht"); return;
+  }
+
+  /* Ticket-Detail */
+  const t = view.ticket ? ticketById(view.ticket) : null;
+  if(!t) return;
+  if((d = el.getAttribute("data-aufwand"))){
+    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Aufwand": d } }); return;
+  }
+  if((d = el.getAttribute("data-fb"))){
+    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "fahrbereit": d } }); return;
+  }
+  if((d = el.getAttribute("data-pruef"))){
+    await schreibe({ aktion:"zustandSetzen", nummer:d, zustand:el.getAttribute("data-zustand") }); return;
+  }
+  if(el.hasAttribute("data-res")){
+    const sel = $("matsel");
+    if(sel && sel.value) await reservieren(sel.value); else toast("Erst ein Teil wählen.");
+    return;
+  }
+  if((d = el.getAttribute("data-frei"))){
+    await schreibe({ aktion:"freigeben", ticket:t.Ticket, code:d });
+    toast("Reservierung freigegeben"); return;
+  }
+  if(el.hasAttribute("data-annehmen")){
+    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Status":"angenommen" } });
+    toast("Übernommen"); return;
+  }
+  if(el.hasAttribute("data-erledigt")){ await abschliessen(); return; }
+});
+
+document.addEventListener("input", (ev) => {
+  const el = ev.target;
+  if(el.id === "suche" || el.id === "isuche"){
+    const pos = el.selectionStart;
+    view.suche = el.value;
+    render();
+    const n = $(el.id); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} }
+  }
+});
+
+document.addEventListener("change", async (ev) => {
+  const el = ev.target, t = view.ticket ? ticketById(view.ticket) : null;
+  if(el.id === "nrad" && neu){ neu.radId = el.value; render(); return; }
+  if(el.id === "fertig" && t){
+    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "soll fertig": el.value || null } }); return;
+  }
+  if(el.id === "anlass" && t){
+    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Anlass": el.value } }, true); return;
+  }
+  if(el.id === "tort" && t){
+    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Arbeitsort": el.value } }); return;
+  }
+  if(el.id === "sportler" && t){
+    await schreibe({ aktion:"ticketAendern", ticket:t.Ticket, felder:{ "Sportler": el.value } }, true); return;
+  }
+  const nummer = el.getAttribute && el.getAttribute("data-move");
+  if(nummer && el.value){
+    const v = el.value;
+    if(v.indexOf("rad:") === 0){
+      await schreibe({ aktion:"stueckUmbuchen", nummer:nummer, ort:"am Rad", radId:v.slice(4), trainer:trainerName });
+      toast(nummer + " → ans Rad");
+    } else {
+      await schreibe({ aktion:"stueckUmbuchen", nummer:nummer, ort:v, trainer:trainerName });
+      toast(nummer + " → " + v);
+    }
+  }
+});
+
+window.addEventListener("online", () => { zeigeNetz(); sendeNach(); });
+window.addEventListener("offline", zeigeNetz);
+
+/* ---------------------------------------------------------------
+   Start
+----------------------------------------------------------------*/
+ladeWarteschlange();
+zeigeNetz();
+$("ver").textContent = APP_VERSION;
+laden().then(() => { if(warteschlange.length) sendeNach(); });
+
 </script>
 </body>
 </html>
