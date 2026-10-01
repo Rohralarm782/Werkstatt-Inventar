@@ -1,9 +1,10 @@
 # Version
 
-**5.3.1** — 01.10.2026
+**6.2.0** — 01.10.2026
 
-Inventar nach Kategorie gegliedert (Überschrift je Kategorie mit Anzahl).
-Enthält auch 5.3.0: Inventur „Alles auf einmal“ über Werkstatt und Koffer.
+Neues Ticket: Rad und Einzelstück in einer gemeinsamen Liste mit Suche,
+Serien kompakt als eine Zeile. Enthält auch 5.3.2 bis 6.1.0 — zwei
+Migrationen nötig (6.0.0, dann 6.1.0).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -12,6 +13,11 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 6.2.0 | 01.10.2026 | Gemeinsame Auswahlliste Rad/Einzelstück |
+| 6.1.0 | 01.10.2026 | Neues Ticket mit Einzelstück, setzt „zu prüfen“ |
+| 6.0.0 | 01.10.2026 | Tickets für Einzelstücke, Rad-Marke repariert |
+| 5.4.0 | 01.10.2026 | Kaufdatum Monat/Jahr, Kategorien klappbar |
+| 5.3.2 | 01.10.2026 | Kaufdatum-Fix, Serie bearbeiten |
 | 5.3.1 | 01.10.2026 | Inventar nach Kategorie gegliedert |
 | 5.3.0 | 01.10.2026 | Inventur über alle Orte in einem Durchgang |
 | 5.2.0 | 01.10.2026 | Inventar: Kategorie-Menü, Serien „4×“, Löschen |

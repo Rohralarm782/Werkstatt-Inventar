@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 5.2.0 — für eine NEUE, leere Datenbank.
+--  Stand 6.1.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 5.1.0 aus nur db/migration_5.2.0.sql.)
+--   von 5.2.0 aus db/migration_6.0.0.sql und danach db/migration_6.1.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -139,7 +139,7 @@ create table stueck (
 create table ticket (
   id                bigint generated always as identity primary key,
   angelegt          timestamptz not null default now(),
-  rad_id            text not null references rad (id),
+  rad_id            text references rad (id),       -- Rad und/oder Einzelstück (siehe Prüfung unten)
   fahrer_id         bigint references sportler (id),   -- Stand beim Anlegen, bleibt stehen
   problem           text not null,
   fahrbereit        boolean not null default true,
@@ -158,8 +158,11 @@ create table ticket (
   erledigt_von      text,
   client_id         uuid unique,      -- Kennung vom Gerät, verhindert doppelte Tickets
   storniert_am      timestamptz,
-  storniert_von     text
+  storniert_von     text,
+  stueck_nummer     text references stueck (nummer),
+  constraint ticket_rad_oder_stueck check (rad_id is not null or stueck_nummer is not null)
 );
+create index ticket_stueck on ticket (stueck_nummer);
 
 create table ticket_position (
   id         bigint generated always as identity primary key,
@@ -303,7 +306,8 @@ create view v_rad with (security_invoker = true) as
 select r.id, r.bezeichnung, r.typ, r.rahmennummer, r.groesse, r.eigentuemer_id, r.aktiv, r.notiz,
        z.sportler_id as fahrer_id,
        s.name        as fahrer,
-       z.gueltig_ab  as fahrer_seit
+       z.gueltig_ab  as fahrer_seit,
+       r.marke
 from rad r
 left join zuordnung z on z.rad_id = r.id and z.gueltig_bis is null
 left join sportler s  on s.id = z.sportler_id;
@@ -408,11 +412,12 @@ create function ticket_anlegen(
   p_soll_fertig date default null, p_naechstmoeglich boolean default false,
   p_anlass text default null, p_arbeitsort text default 'Werkstatt',
   p_positionen jsonb default '[]'::jsonb, p_bearbeiter text default null,
-  p_client_id uuid default null
+  p_client_id uuid default null, p_stueck text default null
 ) returns bigint
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_id      bigint;
+  v_rad     text := nullif(trim(coalesce(p_rad, '')), '');
   v_fahrer  bigint;
   v_kt      bigint;
   v_pos     jsonb;
@@ -424,13 +429,21 @@ begin
 
   if coalesce(trim(p_problem), '') = '' then raise exception 'Problem fehlt'; end if;
 
-  select sportler_id into v_fahrer from zuordnung where rad_id = p_rad and gueltig_bis is null;
-  select eigentuemer_id into v_kt from rad where id = p_rad;
-  if not found then raise exception 'Unbekanntes Rad: %', p_rad; end if;
+  if p_stueck is not null then
+    if not exists (select 1 from stueck where nummer = p_stueck) then raise exception 'Unbekanntes Einzelstück: %', p_stueck; end if;
+    if v_rad is null then select rad_id into v_rad from stueck where nummer = p_stueck; end if;
+  end if;
+  if v_rad is null and p_stueck is null then raise exception 'Rad oder Einzelstück fehlt'; end if;
 
-  insert into ticket (rad_id, fahrer_id, problem, fahrbereit, soll_fertig, naechstmoeglich,
+  if v_rad is not null then
+    select sportler_id into v_fahrer from zuordnung where rad_id = v_rad and gueltig_bis is null;
+    select eigentuemer_id into v_kt from rad where id = v_rad;
+    if not found then raise exception 'Unbekanntes Rad: %', v_rad; end if;
+  end if;
+
+  insert into ticket (rad_id, stueck_nummer, fahrer_id, problem, fahrbereit, soll_fertig, naechstmoeglich,
                       anlass, kostentraeger_id, arbeitsort, angelegt_von, client_id)
-  values (p_rad, v_fahrer, trim(p_problem), p_fahrbereit, p_soll_fertig, coalesce(p_naechstmoeglich, false),
+  values (v_rad, p_stueck, v_fahrer, trim(p_problem), coalesce(p_fahrbereit, true), p_soll_fertig, coalesce(p_naechstmoeglich, false),
           nullif(trim(p_anlass), ''), v_kt, p_arbeitsort, p_bearbeiter, p_client_id)
   on conflict (client_id) do nothing
   returning id into v_id;
@@ -445,6 +458,12 @@ begin
     insert into ticket_position (ticket_id, code, menge)
     values (v_id, v_pos ->> 'code', coalesce((v_pos ->> 'menge')::numeric, 1));
   end loop;
+
+  -- Einzelstück mit Ticket muss geprüft werden: „frei“ wird zu „zu prüfen“
+  -- („defekt“ bleibt „defekt“).
+  if p_stueck is not null then
+    update stueck set zustand = 'zu prüfen' where nummer = p_stueck and zustand = 'frei';
+  end if;
 
   return v_id;
 end $$;
@@ -464,7 +483,7 @@ begin
   if t.status in ('erledigt', 'storniert') then raise exception 'Ticket ist bereits abgeschlossen'; end if;
 
   select string_agg(nummer, ', ') into v_offen
-    from stueck where rad_id = t.rad_id and zustand = 'zu prüfen';
+    from stueck where (rad_id = t.rad_id or nummer = t.stueck_nummer) and zustand = 'zu prüfen';
   if v_offen is not null then raise exception 'Erst prüfen und freigeben: %', v_offen; end if;
 
   for p in select * from ticket_position
@@ -930,7 +949,7 @@ grant execute on function
   umbuchen(text, numeric, text, text, text, text),
   inventur(text, text, numeric, text),
   inventur_buchen(text, jsonb, text, uuid),
-  ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid),
+  ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid, text),
   ticket_abschliessen(bigint, text),
   ticket_stornieren(bigint, text),
   rechnung_erstellen(bigint, date, date),
