@@ -109,6 +109,17 @@
   .liste .eintrag{display:flex;align-items:center;gap:8px 10px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
   .liste .eintrag:first-child{border-top:none}
   .liste .eintrag .txt{flex:1 1 140px;min-width:0}
+  .liste .eintrag.inv{padding:8px 6px;margin:0 -6px;border-radius:8px}
+  .liste .eintrag.inv.ok .diff{color:var(--ok)}
+  .liste .eintrag.inv.abw{background:#FBEEDC}
+  .liste .eintrag.inv.abw .diff{color:var(--warn)}
+  .liste .eintrag.inv .diff{min-width:40px;text-align:right;font-weight:700;flex:0 0 auto}
+  .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+  .foto{position:relative;display:block;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;aspect-ratio:1/1;background:#EFEDE9;cursor:pointer}
+  .foto img{width:100%;height:100%;object-fit:cover;display:block}
+  .foto .weg{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:13px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:26px;padding:0;cursor:pointer}
+  img.fotogross{display:block;max-width:100%;max-height:70vh;margin:0 auto;border-radius:10px}
+  .btn.warnwahl{border-color:var(--warn);color:var(--warn)}
   .liste .eintrag input.menge{width:68px;flex:0 0 auto;min-height:38px;padding:4px 6px;text-align:right}
   table{width:100%;border-collapse:collapse}
   th{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);text-align:right;padding:6px 5px;border-bottom:1px solid var(--line)}
@@ -174,7 +185,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "4.0.2";
+const APP_VERSION = "5.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -296,10 +307,11 @@ async function ladeAlles(){
     rest("/termin?datum=gte." + tag + "&order=datum"),
     rest("/person?order=name"),
     rest("/rechnung?order=id.desc&limit=100"),
-    rest("/buchung?abrechnen=is.true&rechnung_id=is.null&art=eq.entnahme&select=sportler_id,menge,einzelpreis,zeit")
+    rest("/v_offene_posten?order=zeit"),
+    rest("/zaehlung")
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten] = await Promise.all(q);
-  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten };
+  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung] = await Promise.all(q);
+  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB })); }catch(e){}
@@ -374,10 +386,15 @@ function neueId(){
   const h = Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
   return h.slice(0,8) + "-" + h.slice(8,12) + "-" + h.slice(12,16) + "-" + h.slice(16,20) + "-" + h.slice(20);
 }
+/** In die Warteschlange — passt sie mit Fotos nicht mehr in den Gerätespeicher, ohne Fotos. Rückgabe false = Fotos fehlen. */
 function inWarteschlange(op){
-  const q = warteschlange();
-  if(!q.some(x => x.p_client_id === op.p_client_id)) q.push(op);
-  speichereWarteschlange(q);
+  const ohne = x => x.p_client_id !== op.p_client_id;
+  try{ speichereWarteschlange(warteschlange().filter(ohne).concat([op])); return true; }
+  catch(e){
+    const kurz = Object.assign({}, op); delete kurz._fotos;
+    speichereWarteschlange(warteschlange().filter(ohne).concat([kurz]));
+    return !(op._fotos && op._fotos.length);
+  }
 }
 
 function offlineAnzeigen(){
@@ -404,7 +421,7 @@ async function sendeWarteschlange(){
       const op = q[0];
       if(!op.p_client_id){ op.p_client_id = neueId(); speichereWarteschlange(q); }   // aus 4.0.1 übrig
       try{
-        await rpc("ticket_anlegen", op);
+        await ticketSenden(op);
         gesendet++;
       }catch(e){
         if(e instanceof NetzFehler) break;            // bleibt stehen, später mit derselben Kennung
@@ -541,7 +558,7 @@ function render(){
   const v = view.tab;
   app.innerHTML =
     v === "neu"        ? neuView() :
-    v === "lager"      ? lagerView() :
+    v === "lager"      ? (view.inventur && inv ? inventurView() : lagerView()) :
     v === "koffer"     ? kofferView() :
     v === "inventar"   ? inventarView() :
     v === "verwaltung" ? verwaltungView() :
@@ -682,6 +699,8 @@ function detailView(id){
   (DB.sportler||[]).forEach(s => h += '<option value="' + s.id + '"' + (t.kostentraeger_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.abrechnen ? " (wird berechnet)" : "") + '</option>');
   h += '</select></div></div></div>';
 
+  h += fotoKarte(t);
+
   const sa = stueckAm(t.rad_id);
   h += '<div class="card"><span class="lbl">Einzelstücke an diesem Rad</span>';
   if(!sa.length) h += '<p class="sub" style="margin:0">Kein nummeriertes Teil zugeordnet.</p>';
@@ -733,7 +752,7 @@ function zeile(l, r){ return '<div class="row" style="padding:4px 0"><span>' + l
 /* ===============================================================
    Neues Ticket
    ===============================================================*/
-function neuStart(){ neu = { rad:"", problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[] }; }
+function neuStart(){ neu = { rad:"", problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[] }; }
 function neuView(){
   if(!neu) neuStart();
   let h = '<button class="btn small" data-a="tab" data-x="tickets" style="margin-bottom:10px">← Alle Tickets</button>';
@@ -768,6 +787,16 @@ function neuView(){
     });
     h += '</div>';
   }
+  h += '</div>';
+  if(!neu.fotos) neu.fotos = [];
+  h += '<div class="feld"><span class="lbl">Fotos (optional)</span>';
+  if(neu.fotos.length){
+    h += '<div class="fotos" style="margin-bottom:8px">';
+    neu.fotos.forEach(f => h += '<div class="foto"><img src="data:image/jpeg;base64,' + f.thumb + '" alt="Foto"><button class="weg" data-a="nFotoWeg" data-x="' + f.client_id + '" aria-label="Foto entfernen">×</button></div>');
+    h += '</div>';
+  }
+  h += '<label class="btn small">+ Foto<input type="file" accept="image/*" multiple hidden data-c="nFoto"></label>';
+  if(offline) h += '<p class="sub" style="margin:6px 0 0">Offline: höchstens ' + FOTOS_OFFLINE + ' Fotos, sie werden mit dem Ticket nachgesendet.</p>';
   h += '</div><p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Übernehmen.</p>';
   h += '<button class="btn primary voll" data-a="anlegen">Ticket anlegen</button></div>';
   return h;
@@ -780,7 +809,8 @@ function lagerView(){
   const gesperrt = offline ? " disabled" : "";
   let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px">';
   h += '<button class="btn primary" data-a="scan" data-x="lager"' + gesperrt + '>Artikel scannen</button>';
-  h += '<button class="btn" data-a="artikelNeu"' + gesperrt + '>Neuer Artikel</button></div>';
+  h += '<button class="btn" data-a="artikelNeu"' + gesperrt + '>Neuer Artikel</button>';
+  h += '<button class="btn' + (inv ? " warnwahl" : "") + '" data-a="invStart">' + (inv ? "Inventur fortsetzen · " + esc(inv.ort) : "Inventur") + '</button></div>';
   h += '<div class="seg" style="margin-bottom:10px">';
   const knapp = (DB.bestand||[]).filter(b => b.aktiv && (b.status === "nachbestellen" || b.status === "leer"));
   h += segBtn("lagerFilter", "alle", "Alle", view.lagerFilter);
@@ -823,6 +853,7 @@ function artikelMenue(code){
   if(a.art !== "Pauschale") h += '<button class="btn primary" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
   h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : "An Sportler ausgeben") + '</button>';
   if(a.art !== "Pauschale") h += '<button class="btn" data-a="formInventur" data-x="' + esc(code) + '">Inventur / Bestand korrigieren</button>';
+  h += '<button class="btn" data-a="buchungenArtikel" data-x="' + esc(code) + '">Buchungen · Fehlbuchung stornieren</button>';
   h += '<button class="btn" data-a="artikelBearbeiten" data-x="' + esc(code) + '">Artikel bearbeiten</button>';
   h += '<button class="btn" data-a="modalZu">Schließen</button></div>';
   modal(h);
@@ -859,6 +890,125 @@ function ortSelect(id, wert, dataC, dataX){
   let h = '<select id="' + id + '"' + (dataC ? ' data-c="' + dataC + '" data-x="' + esc(dataX || "") + '"' : '') + '>';
   ORTE.forEach(o => h += '<option' + (o === wert ? " selected" : "") + '>' + o + '</option>');
   return h + '</select>';
+}
+
+/* ===============================================================
+   Inventur-Modus — schnell durchzählen, am Ende alles in einem Schritt
+   buchen. Die Zählung liegt bis dahin auf dem Gerät (übersteht Neuladen).
+   Je Artikel wird der Systembestand IM MOMENT DES ZÄHLENS gemerkt (b);
+   gebucht wird nur gezählt − b, damit Buchungen während der Inventur
+   erhalten bleiben.
+   ===============================================================*/
+function invLaden(){ try{ return JSON.parse(localStorage.getItem("wInventur") || "null"); }catch(e){ return null; } }
+function invSpeichern(){
+  try{ if(inv) localStorage.setItem("wInventur", JSON.stringify(inv)); else localStorage.removeItem("wInventur"); }
+  catch(e){ toast("Zählung konnte auf dem Gerät nicht gesichert werden.", true); }
+}
+let inv = invLaden();                       // { id, ort, start, z:{ code:{ g, b } } }
+let invAnsicht = { filter:"alle", buchstabe:"" };
+
+function invArtikel(){ return (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale"); }
+function invSystem(code){ const b = bestand(code); return b ? amOrt(b, inv.ort) : 0; }
+function invZuletzt(code){ const z = (DB.zaehlung||[]).find(x => x.code === code && x.ort === inv.ort); return z ? z.gezaehlt_am : null; }
+function invStatus(code){ const z = inv.z[code]; return !z ? "offen" : num(z.g) !== num(z.b) ? "abw" : "ok"; }
+function invBuchstabe(code){ const m = /^([A-Z]+)-/.exec(code); return m ? m[1] : "?"; }
+function invFortschritt(){
+  const codes = Object.keys(inv.z), alle = invArtikel().length;
+  const abw = codes.filter(c => invStatus(c) === "abw").length;
+  return codes.length + " von " + alle + " gezählt" + (abw ? " · " + abw + " Abweichung" + (abw === 1 ? "" : "en") : "");
+}
+function invZeile(b){
+  const z = inv.z[b.code], sys = amOrt(b, inv.ort), zl = invZuletzt(b.code);
+  let diff = "";
+  if(z){ const d = num(z.g) - num(z.b); diff = d === 0 ? "✓" : (d > 0 ? "+" : "") + zahl(d); }
+  return '<div class="eintrag inv ' + invStatus(b.code) + '" id="inv-' + esc(b.code) + '">' +
+    '<div class="txt"><strong>' + esc(b.name) + '</strong><br><span class="sub">' + esc(b.code) + ' · System ' + zahl(sys) + ' ' + esc(b.einheit) +
+    (zl ? ' · zuletzt ' + deLang(zl) : ' · noch nie gezählt') + '</span></div>' +
+    '<span class="diff mono">' + diff + '</span>' +
+    '<input type="number" class="menge" min="0" step="any" inputmode="decimal" enterkeyhint="next" data-c="invZahl" data-x="' + esc(b.code) + '" value="' + (z ? num(z.g) : "") + '" placeholder="Zahl" aria-label="Gezählt: ' + esc(b.name) + '">' +
+    '<button class="btn small" data-a="invOk" data-x="' + esc(b.code) + '" title="Stimmt mit System überein">✓</button></div>';
+}
+function inventurView(){
+  let liste = invArtikel();
+  const buchstaben = Array.from(new Set(liste.map(b => invBuchstabe(b.code)))).sort();
+  let h = '<div class="card"><div class="row wrapr" style="gap:8px"><button class="btn small" data-a="invPause">← Lager</button>' +
+          '<span class="big" style="font-size:22px">Inventur · ' + esc(inv.ort) + '</span><span class="sp"></span>' +
+          '<button class="btn small primary" data-a="scan" data-x="inventur">Scannen</button></div>';
+  h += '<p class="sub" style="margin:8px 0 0">Begonnen ' + new Date(inv.start).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) +
+       ' · <strong id="invStand">' + invFortschritt() + '</strong></p>';
+  h += '<div class="row" style="gap:8px;margin-top:10px"><button class="btn small" data-a="invAbbrechen">Verwerfen</button><span class="sp"></span>' +
+       '<button class="btn primary" data-a="invAbschluss">Übernehmen …</button></div></div>';
+
+  h += '<div class="seg" style="margin-bottom:8px">' + segBtn("invFilter", "alle", "Alle", invAnsicht.filter) +
+       segBtn("invFilter", "offen", "Noch offen", invAnsicht.filter) + segBtn("invFilter", "abw", "Abweichung", invAnsicht.filter) + '</div>';
+  if(buchstaben.length > 1){
+    h += '<div class="row wrapr" style="gap:6px;margin-bottom:8px"><button class="btn small' + (!invAnsicht.buchstabe ? " primary" : "") + '" data-a="invBuchstabe" data-x="">alle</button>';
+    buchstaben.forEach(x => h += '<button class="btn small' + (invAnsicht.buchstabe === x ? " primary" : "") + '" data-a="invBuchstabe" data-x="' + esc(x) + '">' + esc(x) + '</button>');
+    h += '</div>';
+  }
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
+
+  if(invAnsicht.buchstabe) liste = liste.filter(b => invBuchstabe(b.code) === invAnsicht.buchstabe);
+  if(invAnsicht.filter === "offen") liste = liste.filter(b => invStatus(b.code) === "offen");
+  if(invAnsicht.filter === "abw")   liste = liste.filter(b => invStatus(b.code) === "abw");
+  const q = view.suche.toLowerCase();
+  if(q) liste = liste.filter(b => (b.name + " " + b.code).toLowerCase().indexOf(q) >= 0);
+  if(!liste.length) return h + '<div class="leer">Nichts in dieser Auswahl.</div>';
+  h += '<div class="card liste">' + liste.map(invZeile).join("") + '</div>';
+  h += '<p class="sub">Zahl eintragen und Enter — weiter zur nächsten Zeile. ✓ = stimmt mit dem System. Leeres Feld = nicht gezählt. ' +
+       'Gebucht wird erst mit „Übernehmen“; bis dahin bleibt die Zählung auf diesem Gerät.</p>';
+  return h;
+}
+function invSetzen(code, wertText){
+  const n = wertText === "" || wertText == null ? null : Number(String(wertText).replace(",", "."));
+  if(n === null) delete inv.z[code];
+  else if(isNaN(n) || n < 0){ toast("Ungültige Zahl.", true); }
+  else {
+    const alt = inv.z[code];
+    // gleiche Zahl nochmal bestätigt: Bezugspunkt bleibt der vom ersten Zählen
+    if(!alt || num(alt.g) !== n) inv.z[code] = { g:n, b:invSystem(code) };
+  }
+  invSpeichern();
+  const b = bestand(code), el = document.getElementById("inv-" + code);
+  if(el && b){
+    // Das Feld, das gerade den Fokus hat, verliert ihn beim Ersetzen — dessen
+    // "change" darf dann nicht ein zweites Mal hier landen.
+    const akt = document.activeElement;
+    if(akt && el.contains(akt) && akt.dataset) akt.dataset.c = "";
+    const neuZeile = document.createElement("div");
+    neuZeile.innerHTML = invZeile(b);
+    el.replaceWith(neuZeile.firstChild);
+  }
+  const st = $("invStand"); if(st) st.textContent = invFortschritt();
+}
+function invWeiter(code){
+  const felder = Array.from(document.querySelectorAll('[data-c="invZahl"]'));
+  const i = felder.findIndex(e => e.dataset.x === code), n = felder[i + 1];
+  if(n){ n.focus(); try{ n.select(); }catch(e){} n.scrollIntoView({ block:"center", behavior:"smooth" }); }
+  else { const e = document.activeElement; if(e && e.blur) e.blur(); }
+}
+function invAbschluss(){
+  const codes = Object.keys(inv.z);
+  if(!codes.length){ toast("Noch nichts gezählt.", true); return; }
+  const abw = codes.filter(c => invStatus(c) === "abw");
+  const bewegt = codes.filter(c => num(invSystem(c)) !== num(inv.z[c].b));
+  const offen = invArtikel().length - codes.length;
+  let h = '<h3>Inventur übernehmen · ' + esc(inv.ort) + '</h3>';
+  h += '<p class="sub" style="margin-top:-6px">' + codes.length + ' gezählt, davon ' + (codes.length - abw.length) + ' ohne Abweichung' +
+       (offen ? ' · ' + offen + ' nicht gezählt — bleiben unverändert' : '') + '.</p>';
+  if(abw.length){
+    h += '<div class="card tabwrap"><table><thead><tr><th>Artikel</th><th>System</th><th>gezählt</th><th>Korrektur</th></tr></thead><tbody>';
+    abw.forEach(c => {
+      const z = inv.z[c], a = artikel(c), d = num(z.g) - num(z.b);
+      h += '<tr><td style="text-align:left">' + esc(a ? a.name : c) + '<br><span class="sub">' + esc(c) + '</span></td><td class="mono">' + zahl(z.b) + '</td><td class="mono">' + zahl(z.g) + '</td>' +
+           '<td class="mono" style="color:' + (d < 0 ? "var(--sprint)" : "var(--ok)") + '"><strong>' + (d > 0 ? "+" : "") + zahl(d) + '</strong></td></tr>';
+    });
+    h += '</tbody></table></div>';
+  } else h += '<p>Keine Abweichungen — es wird nur festgehalten, dass gezählt wurde.</p>';
+  if(bewegt.length) h += '<p class="sub">Bei ' + bewegt.length + ' Artikel' + (bewegt.length === 1 ? '' : 'n') + ' wurde seit dem Zählen gebucht. Diese Buchungen bleiben erhalten; korrigiert wird nur die Abweichung zum Zeitpunkt des Zählens.</p>';
+  h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Zurück</button><span class="sp"></span>' +
+       '<button class="btn primary" data-a="invBuchen">' + (abw.length ? abw.length + " Korrektur" + (abw.length === 1 ? "" : "en") + " buchen" : "Zählung abschließen") + '</button></div>';
+  modal(h);
 }
 
 /* ===============================================================
@@ -919,13 +1069,13 @@ function inventarView(){
   const gesperrt = offline ? " disabled" : "";
   let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="scan" data-x="stueck">Nummer scannen</button>' +
           '<button class="btn" data-a="stueckNeu"' + gesperrt + '>Neues Einzelstück</button></div>';
-  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Fahrer" value="' + esc(view.suche) + '"></div>';
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer" value="' + esc(view.suche) + '"></div>';
   const q = view.suche.toLowerCase();
-  const liste = (DB.stueck||[]).filter(s => !q || (s.nummer + " " + s.typ + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0);
+  const liste = (DB.stueck||[]).filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0);
   if(!liste.length) return h + '<div class="leer">' + ((DB.stueck||[]).length ? "Nichts gefunden." : "Noch keine Einzelstücke erfasst.") + '</div>';
   liste.forEach(s => {
     const r = s.rad_id ? rad(s.rad_id) : null;
-    h += '<div class="card"><div class="row wrapr"><span><strong>' + esc(s.nummer) + '</strong> · ' + esc(s.typ) + '<br><span class="sub">' + esc(s.detail || "") + '</span></span><span class="sp"></span>';
+    h += '<div class="card"><div class="row wrapr"><span><strong>' + esc(s.nummer) + '</strong> · ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br><span class="sub">' + esc(s.detail || "") + '</span></span><span class="sp"></span>';
     h += s.zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : s.zustand === "defekt" ? '<span class="chip alarm">defekt</span>' : '<span class="chip ok">frei</span>';
     h += '</div><p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + '</p>';
     h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
@@ -972,7 +1122,7 @@ function raederVerw(){
   let h = '<button class="btn primary" data-a="radNeu" style="margin-bottom:10px">Neues Rad</button><div class="card liste">';
   if(!(DB.raeder||[]).length) h += '<div class="sub">Noch keine Räder angelegt.</div>';
   (DB.raeder||[]).forEach(r => {
-    h += '<div class="eintrag" style="flex-wrap:wrap"><div class="txt"><strong>' + esc(r.bezeichnung) + '</strong> <span class="sub">' + esc(r.id) + ' · ' + esc(r.typ) +
+    h += '<div class="eintrag" style="flex-wrap:wrap"><div class="txt"><strong>' + esc(r.bezeichnung) + '</strong> <span class="sub">' + esc(r.id) + ' · ' + esc(r.typ) + (r.marke ? ' · ' + esc(r.marke) : '') +
          (r.eigentuemer_id ? ' · gehört ' + esc(sportlerName(r.eigentuemer_id)) : '') + '</span>' + (r.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
     h += '<select data-c="radFahrer" data-x="' + esc(r.id) + '" style="max-width:190px"><option value="">— kein Fahrer —</option>';
     (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
@@ -1008,14 +1158,17 @@ function rechnungenVerw(){
   if(!ids.length) h += '<div class="sub">Keine offenen Posten.</div>';
   ids.forEach(id => {
     h += '<div class="eintrag"><div class="txt"><strong>' + esc(sportlerName(Number(id))) + '</strong><br><span class="sub">' + eur(summen[id]) + '</span></div>' +
-         '<button class="btn small primary" data-a="rechnungErstellen" data-x="' + id + '">Rechnung erstellen</button></div>';
+         '<div class="knoepfe"><button class="btn small" data-a="postenZeigen" data-x="' + id + '">Posten</button>' +
+         '<button class="btn small primary" data-a="rechnungErstellen" data-x="' + id + '">Rechnung erstellen</button></div></div>';
   });
   h += '</div><h2 class="sec">Rechnungen</h2><div class="card liste">';
   if(!(DB.rechnungen||[]).length) h += '<div class="sub">Noch keine Rechnungen.</div>';
   (DB.rechnungen||[]).forEach(r => {
-    h += '<div class="eintrag"><div class="txt"><strong>' + esc(r.nummer) + '</strong> · ' + esc(sportlerName(r.sportler_id)) + '<br><span class="sub">' + deLang(r.datum) + ' · ' + eur(r.summe) + '</span></div>';
+    const st = r.status === "storniert";
+    h += '<div class="eintrag"><div class="txt"><strong' + (st ? ' style="text-decoration:line-through;color:var(--ink-2)"' : '') + '>' + esc(r.nummer) + '</strong> · ' + esc(sportlerName(r.sportler_id)) + '<br><span class="sub">' + deLang(r.datum) + ' · ' + eur(r.summe) + '</span></div>';
     h += '<div class="knoepfe"><button class="btn small" data-a="rechnungZeigen" data-x="' + r.id + '">anzeigen</button>';
-    h += '<button class="btn small' + (r.status === "offen" ? "" : " primary") + '" data-a="rechnungStatus" data-x="' + r.id + '">' + (r.status === "offen" ? "offen" : "bezahlt ✓") + '</button></div></div>';
+    h += st ? '<span class="chip grau">storniert</span></div></div>'
+            : '<button class="btn small' + (r.status === "offen" ? "" : " primary") + '" data-a="rechnungStatus" data-x="' + r.id + '">' + (r.status === "offen" ? "offen" : "bezahlt ✓") + '</button></div></div>';
   });
   return h + '</div>';
 }
@@ -1038,39 +1191,116 @@ function auswahl(label, id, optionen, wert){
   optionen.forEach(o => { const v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o; h += '<option value="' + esc(v) + '"' + (String(v) === String(wert == null ? "" : wert) ? " selected" : "") + '>' + esc(t) + '</option>'; });
   return h + '</select></div>';
 }
+/* ---------------------------------------------------------------
+   Automatische Nummern: Buchstabe + Gruppe → die Datenbank vergibt beim
+   Speichern die nächste freie Nummer (höchste + 1). Die Vorschau zeigt,
+   was es voraussichtlich wird.
+----------------------------------------------------------------*/
+const BUCHSTABEN = [["A","Antrieb"],["B","Bremse"],["C","Cockpit"],["L","Laufrad & Reifen"],["R","Rahmen"],["W","Werkstatt"]];
+const GRUPPE_FUER_ART = { "Stück":1, "Vorrat":5, "Pauschale":9 };
+let nrForm = null;      // { typ:"artikel"|"stueck"|"rad", modus:"auto"|"eigen" }
+let nrLauf = 0;
+
+function buchstabenListe(){
+  const da = {};
+  BUCHSTABEN.forEach(b => da[b[0]] = b[1]);
+  (DB.artikel||[]).map(a => a.code).concat((DB.stueck||[]).map(x => x.nummer)).forEach(c => {
+    const m = /^([A-Z]{1,3})-/.exec(c || ""); if(m && !da[m[1]]) da[m[1]] = "";
+  });
+  return '<datalist id="buchstabenDL">' + Object.keys(da).sort().map(k => '<option value="' + k + '">' + esc(da[k]) + '</option>').join("") + '</datalist>';
+}
+/** Nummernfeld für neue Artikel/Einzelstücke/Räder: automatisch (Standard) oder eigene Nummer. */
+function nummernWahl(typ, gruppe){
+  nrForm = { typ, modus:"auto" };
+  let h = '<div class="feld"><span class="lbl">' + (typ === "rad" ? "Rad-ID" : typ === "stueck" ? "Nummer" : "Code") + '</span>';
+  h += '<div class="seg" style="margin-bottom:8px">' + segBtn("nrModus", "auto", "automatisch", "auto") + segBtn("nrModus", "eigen", "eigene Nummer", "auto") + '</div>';
+  h += '<div id="nrAuto">';
+  if(typ !== "rad"){
+    h += '<div class="grid2"><div><span class="lbl">Buchstabe</span><input type="text" id="nrBuch" list="buchstabenDL" maxlength="3" autocapitalize="characters" placeholder="z. B. B" data-c="nrVorschau"></div>';
+    h += '<div><span class="lbl">Gruppe</span><select id="nrGruppe" data-c="nrVorschau">';
+    for(let g = 1; g <= 9; g++) h += '<option value="' + g + '"' + (g === gruppe ? " selected" : "") + '>' + g + 'xx</option>';
+    h += '</select></div></div>' + buchstabenListe();
+  }
+  h += '<p class="sub" style="margin:6px 0 0" id="nrVorschau">' + (typ === "rad" ? "" : "Buchstabe eingeben …") + '</p></div>';
+  h += '<div id="nrEigen" hidden><input type="text" id="nrEigenWert" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : "z. B. B-120") + '"></div>';
+  return h + '</div>';
+}
+async function vorschauNummer(){
+  const el = $("nrVorschau"); if(!el || !nrForm || nrForm.modus !== "auto") return;
+  const lauf = ++nrLauf;
+  let fn, args;
+  if(nrForm.typ === "rad"){ fn = "naechste_rad_id"; args = { p_typ:wert("rTyp") || "Bahn" }; }
+  else {
+    const b = wert("nrBuch").toUpperCase();
+    if(!b){ el.textContent = "Buchstabe eingeben …"; el.style.color = ""; return; }
+    fn = "naechster_code"; args = { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")) };
+  }
+  el.textContent = "…";
+  try{
+    const nr = await rpc(fn, args);
+    if(lauf !== nrLauf) return;
+    el.style.color = ""; el.innerHTML = 'wird voraussichtlich <strong class="mono">' + esc(nr) + '</strong> — endgültig beim Speichern';
+  }catch(e){
+    if(lauf !== nrLauf) return;
+    el.style.color = "var(--sprint)"; el.textContent = e instanceof NetzFehler ? "Vorschau braucht Netz" : e.message;
+  }
+}
+/** Gibt es die Nummer schon — als Artikel ODER als Einzelstück? (Ein Scan muss eindeutig sein.) */
+function nummerVergeben(nr){ return !!artikel(nr) || (DB.stueck||[]).some(x => x.nummer === nr); }
+
+/** Marken: Vorschläge aus dem Bestand; gleiche Marke in anderer Schreibweise wird vereinheitlicht. */
+function markenListe(){
+  const m = {};
+  (DB.raeder||[]).concat(DB.stueck||[]).forEach(x => { if(x.marke && !m[x.marke.toLowerCase()]) m[x.marke.toLowerCase()] = x.marke; });
+  return Object.values(m).sort((a,b) => a.localeCompare(b, "de"));
+}
+function markenDL(){ return '<datalist id="markenDL">' + markenListe().map(x => '<option value="' + esc(x) + '"></option>').join("") + '</datalist>'; }
+function marke(v){
+  v = (v || "").trim(); if(!v) return null;
+  return markenListe().find(x => x.toLowerCase() === v.toLowerCase()) || v;
+}
+
 function artikelForm(code){
   const a = code ? artikel(code) : { code:"", name:"", einheit:"Stück", preis:0, mindestbestand:0, lieferzeit_tage:0, art:"Stück", aktiv:true };
   const verbrauch = [["","—"]].concat((DB.artikel||[]).filter(x => x.art === "Vorrat").map(x => [x.code, x.name]));
-  modal('<h3>' + (code ? "Artikel bearbeiten" : "Neuer Artikel") + '</h3>' +
-    '<div class="grid2">' + feld("Code", "aCode", a.code, "text", code ? " disabled" : ' placeholder="z. B. L-105"') + auswahl("Art", "aArt", ["Stück","Vorrat","Pauschale"], a.art) + '</div>' +
+  if(code) nrForm = null;
+  const artFeld = '<div class="feld"><span class="lbl">Art</span><select id="aArt" data-c="artGruppe">' +
+    ["Stück","Vorrat","Pauschale"].map(x => '<option' + (a.art === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
+  modal('<h3>' + (code ? "Artikel bearbeiten · " + esc(code) : "Neuer Artikel") + '</h3>' +
+    (code ? artFeld : artFeld + nummernWahl("artikel", 1)) +
     feld("Bezeichnung", "aName", a.name) +
     '<div class="grid2">' + feld("Einheit", "aEinheit", a.einheit) + feld("Preis (€)", "aPreis", a.preis, "number", ' step="0.01" min="0"') + '</div>' +
     '<div class="grid2">' + feld("Mindestbestand", "aMin", a.mindestbestand, "number", ' step="any" min="0"') + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + '</div>' +
     '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
     '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
     feld("Shop-Link", "aLink", a.shop_link) + auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) +
-    '<p class="sub">Code-Schema: A Antrieb · B Bremse · C Cockpit · L Laufrad &amp; Reifen · R Rahmen · W Werkstatt, dazu 1xx Stück, 5xx Vorrat, 9xx Pauschale.</p>' +
+    '<p class="sub">Code-Schema: A Antrieb · B Bremse · C Cockpit · L Laufrad &amp; Reifen · R Rahmen · W Werkstatt, dazu 1xx Stück, 5xx Vorrat, 9xx Pauschale. Einzelstücke 2xx.</p>' +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="artikelSpeichern" data-x="' + esc(code || "") + '">Speichern</button></div>');
 }
 function radForm(id){
-  const r = id ? rad(id) : { id:"", bezeichnung:"", typ:"Bahn", rahmennummer:"", groesse:"", eigentuemer_id:null, aktiv:true, notiz:"" };
+  const r = id ? rad(id) : { id:"", bezeichnung:"", typ:"Bahn", marke:"", rahmennummer:"", groesse:"", eigentuemer_id:null, aktiv:true, notiz:"" };
   const eig = [["","—"]].concat((DB.sportler||[]).map(s => [s.id, s.name]));
-  modal('<h3>' + (id ? "Rad bearbeiten" : "Neues Rad") + '</h3>' +
-    '<div class="grid2">' + feld("Rad-ID", "rId", r.id, "text", id ? " disabled" : ' placeholder="z. B. BR-01"') + auswahl("Typ", "rTyp", ["Bahn","Straße","Zeitfahren","Cross","Sonstiges"], r.typ) + '</div>' +
-    feld("Bezeichnung", "rBez", r.bezeichnung, "text", ' placeholder="z. B. Bahnrad 01"') +
+  if(id) nrForm = null;
+  const typFeld = '<div class="feld"><span class="lbl">Typ</span><select id="rTyp" data-c="nrVorschau">' +
+    ["Bahn","Straße","Zeitfahren","Cross","Sonstiges"].map(x => '<option' + (r.typ === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
+  modal('<h3>' + (id ? "Rad bearbeiten · " + esc(id) : "Neues Rad") + '</h3>' +
+    typFeld + (id ? "" : nummernWahl("rad")) +
+    '<div class="grid2">' + feld("Bezeichnung", "rBez", r.bezeichnung, "text", ' placeholder="z. B. Bahnrad 01"') + feld("Marke", "rMarke", r.marke, "text", ' list="markenDL" placeholder="z. B. Look"') + '</div>' + markenDL() +
     '<div class="grid2">' + feld("Rahmennummer", "rRahmen", r.rahmennummer) + feld("Größe", "rGr", r.groesse) + '</div>' +
     auswahl("Eigentümer (zahlt Material am Rad)", "rEig", eig, r.eigentuemer_id) +
     feld("Notiz", "rNotiz", r.notiz) + auswahl("Status", "rAktiv", [["true","aktiv"],["false","inaktiv"]], String(r.aktiv)) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="radSpeichern" data-x="' + esc(id || "") + '">Speichern</button></div>');
 }
 function stueckForm(nr){
-  const s = nr ? (DB.stueck||[]).find(x => x.nummer === nr) : { nummer:"", typ:"", detail:"", seriennummer:"", kaufdatum:"", wert:"", notiz:"" };
-  modal('<h3>' + (nr ? "Einzelstück bearbeiten" : "Neues Einzelstück") + '</h3>' +
-    '<div class="grid2">' + feld("Nummer", "eNr", s.nummer, "text", nr ? " disabled" : ' placeholder="z. B. L-201"') + feld("Typ", "eTyp", s.typ, "text", ' placeholder="Laufrad Bahn vorne"') + '</div>' +
+  const s = nr ? (DB.stueck||[]).find(x => x.nummer === nr) : { nummer:"", typ:"", marke:"", detail:"", seriennummer:"", kaufdatum:"", wert:"", notiz:"" };
+  if(nr) nrForm = null;
+  modal('<h3>' + (nr ? "Einzelstück bearbeiten · " + esc(nr) : "Neues Einzelstück") + '</h3>' +
+    (nr ? "" : nummernWahl("stueck", 2)) +
+    '<div class="grid2">' + feld("Typ", "eTyp", s.typ, "text", ' placeholder="Laufrad Bahn vorne"') + feld("Marke", "eMarke", s.marke, "text", ' list="markenDL" placeholder="z. B. Mavic"') + '</div>' + markenDL() +
     feld("Detail", "eDet", s.detail) +
     '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + feld("Kaufdatum", "eKauf", s.kaufdatum, "date") + '</div>' +
     '<div class="grid2">' + feld("Wert (€)", "eWert", s.wert, "number", ' step="0.01" min="0"') + feld("Notiz", "eNotiz", s.notiz) + '</div>' +
-    '<p class="sub">Nummernband x-2xx: L-2xx Laufräder, R-2xx Rahmen, C-2xx Vorbauten, W-2xx Werkzeug.</p>' +
+    '<p class="sub">Einzelstücke üblich in Gruppe 2: L-2xx Laufräder, R-2xx Rahmen, C-2xx Vorbauten, W-2xx Werkzeug.</p>' +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
 }
 const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
@@ -1110,6 +1340,13 @@ function scanTreffer(ziel, code){
   }
   const a = artikel(code);
   if(ziel === "stueck"){ view.suche = code; render(); return; }
+  if(ziel === "inventur"){
+    if(!a || a.art === "Pauschale" || !a.aktiv){ piep(false); toast("Kein zählbarer Lagerartikel: " + code, true); return; }
+    let el = document.querySelector('[data-c="invZahl"][data-x="' + code + '"]');
+    if(!el){ invAnsicht = { filter:"alle", buchstabe:"" }; view.suche = ""; render(); el = document.querySelector('[data-c="invZahl"][data-x="' + code + '"]'); }
+    if(el){ el.scrollIntoView({ block:"center" }); el.focus(); try{ el.select(); }catch(e){} }
+    return;
+  }
   if(!a){ piep(false); toast("Unbekannter Code: " + code, true); return; }
   if(ziel === "neuMaterial"){ neuMaterial(code); return; }
   if(ziel === "ticketMaterial"){ reservieren(code); return; }
@@ -1159,18 +1396,23 @@ async function ticketAnlegen(){
   const op = { p_rad:neu.rad, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
     p_soll_fertig:neu.soll_fertig, p_naechstmoeglich:neu.naechstmoeglich, p_anlass:neu.anlass || null,
     p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos, p_bearbeiter:bearbeiter || null, p_client_id:neueId() };
+  if(neu.fotos && neu.fotos.length) op._fotos = neu.fotos;
   const r = rad(neu.rad), name = r ? (r.fahrer || r.bezeichnung) : neu.rad;
   if(offline){
-    inWarteschlange(op);
+    const mitFotos = inWarteschlange(op);
     neu = null; view.tab = "tickets"; render();
-    toast("Offline gespeichert — wird mit Netz angelegt"); return;
+    if(mitFotos) toast("Offline gespeichert — wird mit Netz angelegt");
+    else toast("Offline gespeichert, aber ohne Fotos — der Gerätespeicher ist voll.", true);
+    return;
   }
   // Reißt die Verbindung beim Senden ab, kommt das Ticket in die Warteschlange.
   // Dank Kennung entsteht kein zweites, falls es doch schon angekommen war.
+  let mitFotos = true;
   const erg = await aktion(async () => {
-    try{ return await rpc("ticket_anlegen", op); }
-    catch(e){ if(e instanceof NetzFehler){ inWarteschlange(op); return "wartet"; } throw e; }
-  }, x => x === "wartet" ? "Verbindung weg — Ticket gespeichert, wird nachgesendet" : "Ticket für " + name + " angelegt");
+    try{ return await ticketSenden(op); }
+    catch(e){ if(e instanceof NetzFehler){ mitFotos = inWarteschlange(op); return "wartet"; } throw e; }
+  }, x => x !== "wartet" ? "Ticket für " + name + " angelegt" + (op._fotos ? " · " + op._fotos.length + " Foto" + (op._fotos.length === 1 ? "" : "s") : "")
+        : mitFotos ? "Verbindung weg — Ticket gespeichert, wird nachgesendet" : "Verbindung weg — Ticket wird nachgesendet, Fotos passten nicht in den Gerätespeicher");
   if(erg !== undefined){ neu = null; view.tab = "tickets"; view.ticket = null; render(); }
 }
 function csv(zeilen, spalten){
@@ -1191,11 +1433,11 @@ async function exportiere(was){
   const d = iso(heute());
   try{
     if(was === "bestand") download("bestand_" + d + ".csv", csv(DB.bestand, ["code","name","einheit","art","werkstatt","koffer_bahn","koffer_strasse","gesamt","reserviert","frei","mindestbestand","status","preis"]));
-    if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(DB.stueck, ["nummer","typ","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
+    if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(DB.stueck, ["nummer","typ","marke","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
     if(was === "buchungen"){
       const b = await rest("/buchung?order=zeit");
       b.forEach(x => { x.artikel = (artikel(x.code)||{}).name || ""; x.sportler = x.sportler_id ? sportlerName(x.sportler_id) : ""; x.zeit = new Date(x.zeit).toLocaleString("de-DE"); });
-      download("buchungen_" + d + ".csv", csv(b, ["zeit","art","code","artikel","menge","ort","sportler","ticket_id","einzelpreis","abrechnen","rechnung_id","bearbeiter","notiz"]));
+      download("buchungen_" + d + ".csv", csv(b, ["id","zeit","art","code","artikel","menge","ort","sportler","ticket_id","einzelpreis","abrechnen","rechnung_id","storno_von","bearbeiter","notiz"]));
     }
     if(was === "tickets"){
       const t = await rest("/ticket?order=id");
@@ -1206,15 +1448,143 @@ async function exportiere(was){
 }
 async function rechnungZeigen(id){
   const r = (DB.rechnungen||[]).find(x => x.id === id);
+  if(r.status === "storniert"){
+    modal('<h3>' + esc(r.nummer) + ' <span class="chip grau">storniert</span></h3><p class="sub" style="margin-top:-6px">' + esc(sportlerName(r.sportler_id)) + ' · ' + eur(r.summe) + '</p>' +
+          '<p>Storniert ' + (r.storniert_am ? zeitKurz(r.storniert_am) : '') + (r.storniert_von ? ' von ' + esc(r.storniert_von) : '') + '.<br>Grund: ' + esc(r.storno_grund || "—") + '</p>' +
+          '<p class="sub">Die Posten sind wieder offen und kommen in die nächste Rechnung.</p><button class="btn voll" data-a="modalZu">Schließen</button>');
+    return;
+  }
   try{
     const pos = await rest("/buchung?rechnung_id=eq." + id + "&order=zeit");
     let h = '<h3>' + esc(r.nummer) + '</h3><p class="sub" style="margin-top:-6px">' + esc(sportlerName(r.sportler_id)) + ' · ' + deLang(r.von) + ' – ' + deLang(r.bis) + '</p>';
     h += '<div class="card tabwrap"><table><thead><tr><th>Datum</th><th>Artikel</th><th>Menge</th><th>Betrag</th></tr></thead><tbody>';
     pos.forEach(p => { h += '<tr><td>' + new Date(p.zeit).toLocaleDateString("de-DE") + '</td><td style="text-align:left">' + esc((artikel(p.code)||{}).name || p.code) + '</td><td class="mono">' + zahl(-p.menge) + '</td><td class="mono">' + eur(-p.menge * p.einzelpreis) + '</td></tr>'; });
     h += '</tbody></table><div class="row trenn"><strong>Summe</strong><span class="sp"></span><strong>' + eur(r.summe) + '</strong></div></div>';
-    h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Schließen</button><span class="sp"></span><button class="btn primary" data-a="drucken">Drucken</button></div>';
+    h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Schließen</button>' +
+         (r.status === "offen" ? '<button class="btn small" data-a="rStorno" data-x="' + r.id + '">Stornieren</button>' : '') +
+         '<span class="sp"></span><button class="btn primary" data-a="drucken">Drucken</button></div>';
     modal(h);
   }catch(e){ toast(e.message, true); }
+}
+
+/* ---------------------------------------------------------------
+   Fotos am Ticket. Auf dem Gerät verkleinert (lange Seite 1280 px,
+   JPEG) plus Vorschaubild, gespeichert in der Datenbank. Jedes Foto
+   trägt eine Kennung und kommt auch beim Nachsenden nur einmal an.
+----------------------------------------------------------------*/
+const FOTO_MAX = 1280, FOTO_Q = 0.7, VORSCHAU_MAX = 320, VORSCHAU_Q = 0.6, FOTOS_OFFLINE = 3;
+let fotoCache = {};      // Ticket-ID → [{ id, thumb, aufgenommen, bearbeiter }] | "laedt" | "fehler"
+
+function bildLaden(datei){
+  return new Promise((ok, nein) => {
+    const url = URL.createObjectURL(datei), img = new Image();
+    img.onload  = () => { URL.revokeObjectURL(url); ok(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); nein(new Error("Bild nicht lesbar: " + (datei.name || "Foto"))); };
+    img.src = url;
+  });
+}
+function verkleinern(img, max, q){
+  const f = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(img.naturalWidth * f)); c.height = Math.max(1, Math.round(img.naturalHeight * f));
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", q).split(",")[1];
+}
+async function fotoAufbereiten(datei){
+  const img = await bildLaden(datei);
+  return { client_id:neueId(), thumb:verkleinern(img, VORSCHAU_MAX, VORSCHAU_Q), bild:verkleinern(img, FOTO_MAX, FOTO_Q) };
+}
+function fotoHochladen(ticketId, f, wer){
+  return rpc("foto_hochladen", { p_ticket:ticketId, p_thumb:f.thumb, p_bild:f.bild, p_mime:"image/jpeg", p_bearbeiter:wer || null, p_client_id:f.client_id });
+}
+/** Ticket samt Fotos senden. Kennungen sorgen dafür, dass Wiederholungen nichts doppelt anlegen. */
+async function ticketSenden(op){
+  const daten = Object.assign({}, op); delete daten._fotos;
+  const id = await rpc("ticket_anlegen", daten);
+  for(const f of (op._fotos || [])) await fotoHochladen(id, f, op.p_bearbeiter);
+  return id;
+}
+async function ladeFotos(tid){
+  if(fotoCache[tid] === "laedt") return;
+  fotoCache[tid] = "laedt";
+  try{ fotoCache[tid] = await rest("/foto?ticket_id=eq." + tid + "&select=id,thumb,aufgenommen,bearbeiter&order=id"); }
+  catch(e){ fotoCache[tid] = "fehler"; }
+  if(view.tab === "tickets" && view.ticket === tid) render();
+}
+function fotoKarte(t){
+  const f = fotoCache[t.id];
+  if(f === undefined && !offline) setTimeout(() => ladeFotos(t.id), 0);
+  let h = '<div class="card"><span class="lbl">Fotos</span>';
+  if(offline) h += '<p class="sub" style="margin:0 0 8px">Fotos erst wieder mit Netz.</p>';
+  else if(f === undefined || f === "laedt") h += '<p class="sub" style="margin:0 0 8px">lädt…</p>';
+  else if(f === "fehler") h += '<p class="sub" style="margin:0 0 8px">Fotos konnten nicht geladen werden.</p>';
+  else if(!f.length) h += '<p class="sub" style="margin:0 0 8px">Noch keine Fotos.</p>';
+  else {
+    h += '<div class="fotos">';
+    f.forEach(x => h += '<button class="foto" data-a="fotoZeigen" data-x="' + x.id + '"><img src="data:image/jpeg;base64,' + x.thumb + '" alt="Foto vom ' + esc(zeitKurz(x.aufgenommen)) + '"></button>');
+    h += '</div>';
+  }
+  if(!offline) h += '<label class="btn small" style="margin-top:8px">+ Foto<input type="file" accept="image/*" multiple hidden data-c="fotoDatei" data-x="' + t.id + '"></label>';
+  return h + '</div>';
+}
+async function fotoZeigen(id){
+  const t = ticket(view.ticket);   // nur offene Tickets stehen in DB.tickets — nur dort darf gelöscht werden
+  modal('<div id="fotoGross"><p class="sub">lädt…</p></div><div class="row" style="gap:8px;margin-top:10px"><button class="btn" data-a="modalZu">Schließen</button><span class="sp"></span>' +
+        (t ? '<button class="btn small" data-a="fotoLoeschen" data-x="' + id + '">Foto löschen</button>' : '') + '</div>');
+  try{
+    const r = (await rest("/foto?id=eq." + id + "&select=bild,mime,aufgenommen,bearbeiter"))[0];
+    const el = $("fotoGross"); if(!el || !r) return;
+    el.innerHTML = '<img class="fotogross" src="data:' + esc(r.mime) + ';base64,' + r.bild + '" alt="Foto">' +
+                   '<p class="sub" style="margin:6px 0 0">' + zeitKurz(r.aufgenommen) + (r.bearbeiter ? ' · ' + esc(r.bearbeiter) : '') + '</p>';
+  }catch(e){ modalZu(); toast(e.message, true); }
+}
+
+/* ---------------------------------------------------------------
+   Buchungen ansehen und Fehlbuchungen stornieren. Gelöscht wird nie:
+   Ein Storno ist eine Gegenbuchung mit Grund, die alte Zeile bleibt.
+----------------------------------------------------------------*/
+const BUCHUNGSART = { zugang:"Zugang", entnahme:"Entnahme", umbuchung:"Umbuchung", korrektur:"Korrektur", storno:"Storno" };
+function zeitKurz(z){ return new Date(z).toLocaleString("de-DE",{ day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }); }
+function buchungsZeile(b, storniert){
+  let h = '<div class="eintrag"><div class="txt"><strong>' + (BUCHUNGSART[b.art] || b.art) + ' ' + (num(b.menge) > 0 ? "+" : "") + zahl(b.menge) + '</strong> · ' + esc(b.ort) +
+          (b.sportler_id ? ' · ' + esc(sportlerName(b.sportler_id)) : '') + (b.ticket_id ? ' · ' + tnr(b.ticket_id) : '') +
+          '<br><span class="sub">' + zeitKurz(b.zeit) + (b.bearbeiter ? ' · ' + esc(b.bearbeiter) : '') + (b.notiz ? ' · ' + esc(b.notiz) : '') +
+          (b.rechnung_id ? ' · auf Rechnung' : '') + '</span></div>';
+  if(storniert) h += '<span class="chip grau">storniert</span>';
+  else if(b.art !== "storno" && !b.rechnung_id && !offline) h += '<button class="btn small" data-a="bStorno" data-x="' + b.id + '">stornieren</button>';
+  return h + '</div>';
+}
+async function buchungenArtikel(code){
+  const a = artikel(code);
+  modal('<h3>Buchungen · ' + esc(a ? a.name : code) + '</h3><p class="sub">lädt…</p>');
+  try{
+    const liste = await rest("/buchung?code=eq." + encodeURIComponent(code) + "&order=id.desc&limit=40");
+    const ids = liste.map(b => b.id);
+    const weg = ids.length ? (await rest("/buchung?storno_von=in.(" + ids.join(",") + ")&select=storno_von")).map(x => x.storno_von) : [];
+    let h = '<h3>Buchungen · ' + esc(a ? a.name : code) + '</h3><p class="sub" style="margin-top:-6px">' + esc(code) + ' · die letzten ' + liste.length + ', neueste oben</p>';
+    h += '<div class="card liste">' + (liste.length ? liste.map(b => buchungsZeile(b, weg.indexOf(b.id) >= 0)).join("") : '<div class="sub">Noch keine Buchungen.</div>') + '</div>';
+    h += '<p class="sub">Stornieren legt eine Gegenbuchung an. Umbuchungen und Leistungen mit Verbrauch werden als Ganzes storniert. Was auf einer Rechnung steht, erst über die Rechnung stornieren.</p>';
+    h += '<button class="btn voll" data-a="modalZu">Schließen</button>';
+    modal(h);
+  }catch(e){ modalZu(); toast(e.message, true); }
+}
+function postenZeigen(sid){
+  const liste = (DB.offenePosten||[]).filter(p => p.sportler_id === sid);
+  let h = '<h3>Offene Posten · ' + esc(sportlerName(sid)) + '</h3><div class="card liste">';
+  liste.forEach(p => {
+    h += '<div class="eintrag"><div class="txt"><strong>' + zahl(-p.menge) + ' × ' + esc((artikel(p.code)||{}).name || p.code) + '</strong> · ' + eur(-p.menge * p.einzelpreis) +
+         '<br><span class="sub">' + zeitKurz(p.zeit) + (p.ticket_id ? ' · ' + tnr(p.ticket_id) : '') + (p.bearbeiter ? ' · ' + esc(p.bearbeiter) : '') + (p.notiz ? ' · ' + esc(p.notiz) : '') + '</span></div>' +
+         '<button class="btn small" data-a="bStorno" data-x="' + p.id + '">stornieren</button></div>';
+  });
+  h += '</div><button class="btn voll" data-a="modalZu">Schließen</button>';
+  modal(h);
+}
+function grundAbfragen(titel, text, aktionName, x, knopf){
+  modal('<h3>' + titel + '</h3><p class="sub" style="margin-top:-6px">' + text + '</p>' +
+        feld("Grund", "sGrund", "", "text", ' placeholder="z. B. falscher Sportler, Menge vertippt"') +
+        '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>' +
+        '<button class="btn rot" data-a="' + aktionName + '" data-x="' + esc(x) + '">' + knopf + '</button></div>');
+  setTimeout(() => { const e = $("sGrund"); if(e) e.focus(); }, 50);
 }
 
 /** Alle Klick-Aktionen, verteilt über data-a / data-x. */
@@ -1304,32 +1674,40 @@ const A = {
   stueckNeu: () => stueckForm(null),
   stueckBearbeiten: x => stueckForm(x),
   stueckSpeichern: x => {
-    const d = { typ:wert("eTyp"), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:wert("eKauf") || null, wert:zahlOderNull("eWert"), notiz:wert("eNotiz") || null };
+    const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:wert("eKauf") || null, wert:zahlOderNull("eWert"), notiz:wert("eNotiz") || null };
     if(!d.typ){ toast("Typ fehlt.", true); return; }
-    if(x) aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), d), "Gespeichert");
-    else {
-      const nr = wert("eNr").toUpperCase();
-      if(!nr){ toast("Nummer fehlt.", true); return; }
-      aktion(() => neuIn("stueck", Object.assign({ nummer:nr }, d)), nr + " angelegt");
+    if(x){ aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
+    if(nrForm && nrForm.modus === "auto"){
+      const b = wert("nrBuch").toUpperCase();
+      if(!/^[A-Z]{1,3}$/.test(b)){ toast("Buchstabe fehlt (1–3 Buchstaben).", true); return; }
+      aktion(() => rpc("stueck_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), nr => nr + " angelegt — diese Nummer aufs Etikett");
+      return;
     }
+    const nr = wert("nrEigenWert").toUpperCase();
+    if(!nr){ toast("Nummer fehlt.", true); return; }
+    if(nummerVergeben(nr)){ toast(nr + " ist schon vergeben.", true); return; }
+    aktion(() => neuIn("stueck", Object.assign({ nummer:nr }, d)), nr + " angelegt");
   },
 
   /* Verwaltung */
   sportlerNeu: () => { const n = wert("sName"); if(!n){ toast("Name fehlt.", true); return; } aktion(() => neuIn("sportler", { name:n }), n + " angelegt"); },
   sportlerAbr: x => { const s = DB.sportler.find(y => y.id === Number(x)); aktion(() => aendern("sportler", "id=eq." + x, { abrechnen:!s.abrechnen })); },
   sportlerAktiv: x => { const s = DB.sportler.find(y => y.id === Number(x)); aktion(() => aendern("sportler", "id=eq." + x, { aktiv:!s.aktiv })); },
-  radNeu: () => radForm(null),
+  radNeu: () => { radForm(null); vorschauNummer(); },
   radBearbeiten: x => radForm(x),
   radSpeichern: x => {
-    const d = { bezeichnung:wert("rBez"), typ:wert("rTyp"), rahmennummer:wert("rRahmen") || null, groesse:wert("rGr") || null,
+    const d = { bezeichnung:wert("rBez"), typ:wert("rTyp"), marke:marke(wert("rMarke")), rahmennummer:wert("rRahmen") || null, groesse:wert("rGr") || null,
                 eigentuemer_id: wert("rEig") ? Number(wert("rEig")) : null, notiz:wert("rNotiz") || null, aktiv: wert("rAktiv") === "true" };
     if(!d.bezeichnung){ toast("Bezeichnung fehlt.", true); return; }
-    if(x) aktion(() => aendern("rad", "id=eq." + encodeURIComponent(x), d), "Gespeichert");
-    else {
-      const id = wert("rId").toUpperCase();
-      if(!id){ toast("Rad-ID fehlt.", true); return; }
-      aktion(() => neuIn("rad", Object.assign({ id }, d)), d.bezeichnung + " angelegt");
+    if(x){ aktion(() => aendern("rad", "id=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
+    if(nrForm && nrForm.modus === "auto"){
+      aktion(() => rpc("rad_anlegen", { p_daten:d }), id => d.bezeichnung + " angelegt als " + id);
+      return;
     }
+    const id = wert("nrEigenWert").toUpperCase();
+    if(!id){ toast("Rad-ID fehlt.", true); return; }
+    if(rad(id)){ toast(id + " ist schon vergeben.", true); return; }
+    aktion(() => neuIn("rad", Object.assign({ id }, d)), d.bezeichnung + " angelegt");
   },
   artikelNeu: () => artikelForm(null),
   artikelBearbeiten: x => artikelForm(x),
@@ -1339,12 +1717,17 @@ const A = {
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
                 shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true" };
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
-    if(x) aktion(() => aendern("artikel", "code=eq." + encodeURIComponent(x), d), "Gespeichert");
-    else {
-      const code = wert("aCode").toUpperCase();
-      if(!/^[A-Z]+-[0-9]+$/.test(code)){ toast("Code im Format L-105.", true); return; }
-      aktion(() => neuIn("artikel", Object.assign({ code }, d)), code + " angelegt");
+    if(x){ aktion(() => aendern("artikel", "code=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
+    if(nrForm && nrForm.modus === "auto"){
+      const b = wert("nrBuch").toUpperCase();
+      if(!/^[A-Z]{1,3}$/.test(b)){ toast("Buchstabe fehlt (1–3 Buchstaben).", true); return; }
+      aktion(() => rpc("artikel_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), c => c + " angelegt — diesen Code aufs Etikett");
+      return;
     }
+    const code = wert("nrEigenWert").toUpperCase();
+    if(!/^[A-Z]+-[0-9]+$/.test(code)){ toast("Code im Format B-120.", true); return; }
+    if(nummerVergeben(code)){ toast(code + " ist schon vergeben.", true); return; }
+    aktion(() => neuIn("artikel", Object.assign({ code }, d)), code + " angelegt");
   },
   personNeu: () => { const n = wert("pName"); if(!n){ toast("Name fehlt.", true); return; } aktion(() => neuIn("person", { name:n }), n + " hinzugefügt"); },
   personAktiv: x => { const p = DB.personen.find(y => y.id === Number(x)); aktion(() => aendern("person", "id=eq." + x, { aktiv:!p.aktiv })); },
@@ -1364,6 +1747,68 @@ const A = {
     if(r.status === "bezahlt" && !confirm(r.nummer + " wieder auf „offen“ setzen?")) return;
     aktion(() => aendern("rechnung", "id=eq." + x, { status: r.status === "offen" ? "bezahlt" : "offen" })); },
   export: x => exportiere(x),
+
+  /* Fotos */
+  fotoZeigen: x => fotoZeigen(Number(x)),
+  fotoLoeschen: x => {
+    if(!confirm("Foto löschen?")) return;
+    delete fotoCache[view.ticket];
+    aktion(() => loeschen("foto", "id=eq." + Number(x)), "Foto gelöscht");
+  },
+  nFotoWeg: x => { neu.fotos = neu.fotos.filter(f => f.client_id !== x); render(); },
+
+  /* Storno */
+  buchungenArtikel: x => buchungenArtikel(x),
+  postenZeigen: x => postenZeigen(Number(x)),
+  bStorno: x => grundAbfragen("Buchung stornieren", "Es wird eine Gegenbuchung angelegt; die ursprüngliche Buchung bleibt sichtbar.", "bStornoOk", x, "Stornieren"),
+  bStornoOk: x => {
+    const g = wert("sGrund"); if(!g){ toast("Bitte einen Grund angeben.", true); return; }
+    aktion(() => rpc("buchung_stornieren", { p_buchung:Number(x), p_grund:g, p_bearbeiter:bearbeiter || null }),
+           n => n > 1 ? n + " zusammengehörige Buchungen storniert" : "Buchung storniert");
+  },
+  rStorno: x => {
+    const r = DB.rechnungen.find(y => y.id === Number(x));
+    grundAbfragen("Rechnung " + esc(r.nummer) + " stornieren", "Nummer und Betrag bleiben als „storniert“ stehen. Die Posten werden wieder offen und kommen in die nächste Rechnung.", "rStornoOk", x, "Rechnung stornieren");
+  },
+  rStornoOk: x => {
+    const g = wert("sGrund"); if(!g){ toast("Bitte einen Grund angeben.", true); return; }
+    aktion(() => rpc("rechnung_stornieren", { p_rechnung:Number(x), p_grund:g, p_bearbeiter:bearbeiter || null }), "Rechnung storniert");
+  },
+
+  /* Inventur-Modus */
+  invStart: () => {
+    if(inv){ view.inventur = true; view.suche = ""; render(); window.scrollTo(0,0); return; }
+    modal('<h3>Inventur starten</h3><p class="sub" style="margin-top:-6px">Wo wird gezählt?</p><div style="display:grid;gap:8px">' +
+          ORTE.map(o => '<button class="btn" data-a="invNeu" data-x="' + o + '">' + o + '</button>').join("") +
+          '<button class="btn" data-a="modalZu">Abbrechen</button></div>');
+  },
+  invNeu: x => { inv = { id:neueId(), ort:x, start:new Date().toISOString(), z:{} }; invSpeichern(); invAnsicht = { filter:"alle", buchstabe:"" }; view.inventur = true; view.suche = ""; modalZu(); render(); window.scrollTo(0,0); },
+  invPause: () => { view.inventur = false; view.suche = ""; render(); },
+  invFilter: x => { invAnsicht.filter = x; render(); },
+  invBuchstabe: x => { invAnsicht.buchstabe = x; render(); },
+  invOk: x => { invSetzen(x, String(invSystem(x))); invWeiter(x); },
+  invAbbrechen: () => {
+    const n = Object.keys(inv.z).length;
+    if(n && !confirm("Zählung verwerfen? " + n + " gezählte Artikel gehen verloren, es wird nichts gebucht.")) return;
+    inv = null; invSpeichern(); view.inventur = false; render();
+  },
+  invAbschluss: () => invAbschluss(),
+  invBuchen: () => {
+    const lauf = inv;
+    const zaehlung = Object.keys(lauf.z).map(c => ({ code:c, gezaehlt:num(lauf.z[c].g), basis:num(lauf.z[c].b) }));
+    aktion(() => rpc("inventur_buchen", { p_ort:lauf.ort, p_zaehlung:zaehlung, p_bearbeiter:bearbeiter || null, p_lauf:lauf.id }),
+           n => "Inventur gebucht · " + n + " Korrektur" + (n === 1 ? "" : "en"))
+      .then(r => { if(r !== undefined && inv && inv.id === lauf.id){ inv = null; invSpeichern(); view.inventur = false; render(); } });
+  },
+
+  /* Nummernvergabe */
+  nrModus: (x, el) => {
+    if(!nrForm) return;
+    nrForm.modus = x;
+    el.parentNode.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.x === x)));
+    $("nrAuto").hidden = x !== "auto"; $("nrEigen").hidden = x !== "eigen";
+    if(x === "auto") vorschauNummer(); else { const e = $("nrEigenWert"); if(e) e.focus(); }
+  },
 
   /* Abgelehnte Offline-Tickets */
   fehlerZeigen: () => fehlerZeigen(),
@@ -1408,6 +1853,28 @@ const C = {
     else { const p = neu.pos.find(p => p.code === x); if(p) p.menge = n; }
     render();
   },
+  nrVorschau: () => vorschauNummer(),
+  artGruppe: v => { const g = $("nrGruppe"); if(g && GRUPPE_FUER_ART[v]){ g.value = String(GRUPPE_FUER_ART[v]); vorschauNummer(); } },
+  invZahl: (v, x) => invSetzen(x, v),
+  fotoDatei: (v, x, el) => {
+    const dateien = Array.from(el.files || []); el.value = "";
+    if(!dateien.length) return;
+    const tid = Number(x);
+    aktion(async () => {
+      delete fotoCache[tid];
+      let n = 0;
+      for(const d of dateien){ await fotoHochladen(tid, await fotoAufbereiten(d), bearbeiter); n++; }
+      return n;
+    }, n => n + (n === 1 ? " Foto" : " Fotos") + " gespeichert");
+  },
+  nFoto: async (v, x, el) => {
+    const dateien = Array.from(el.files || []); el.value = "";
+    for(const d of dateien){
+      if(offline && neu.fotos.length >= FOTOS_OFFLINE){ toast("Offline höchstens " + FOTOS_OFFLINE + " Fotos.", true); break; }
+      try{ neu.fotos.push(await fotoAufbereiten(d)); }catch(e){ toast(e.message, true); }
+    }
+    render();
+  },
   invOrt: (v, x) => { const e = $("fMenge"), b = bestand(x); if(e) e.placeholder = "bisher " + zahl(b ? amOrt(b, v) : 0); },
   kofferSoll: (v, x) => {
     const [c, o] = x.split("|"), s = Number(String(v).replace(",", "."));
@@ -1443,6 +1910,16 @@ document.addEventListener("input", ev => {
     return;
   }
   if(c === "nProblem" || c === "nAnlass") C[c](el.value);
+  if(c === "nrVorschau") vorschauNummer();
+});
+/* Inventur: Enter übernimmt die Zahl und springt zur nächsten Zeile. */
+document.addEventListener("keydown", ev => {
+  const el = ev.target;
+  if(ev.key !== "Enter" || !el.dataset || el.dataset.c !== "invZahl") return;
+  ev.preventDefault();
+  const code = el.dataset.x;
+  invSetzen(code, el.value);
+  invWeiter(code);
 });
 /* Auswahlfelder und abgeschlossene Eingaben: sofort übernehmen. */
 document.addEventListener("change", ev => {
@@ -1450,7 +1927,7 @@ document.addEventListener("change", ev => {
   if(!c || c === "suche" || c === "nProblem") return;
   if(c === "nAnlass") return;
   const f = C[c];
-  if(f) f(el.value, el.dataset.x);
+  if(f) f(el.value, el.dataset.x, el);
 });
 
 /* ===============================================================
