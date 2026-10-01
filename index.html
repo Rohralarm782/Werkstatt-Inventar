@@ -119,6 +119,9 @@
   .foto img{width:100%;height:100%;object-fit:cover;display:block}
   .foto .weg{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:13px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:26px;padding:0;cursor:pointer}
   img.fotogross{display:block;max-width:100%;max-height:70vh;margin:0 auto;border-radius:10px}
+  .card.serie .anzahl{font-size:18px;margin-right:2px}
+  .card.serie .chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:0}
+  .serie-teile{margin:-6px 0 12px 14px;padding-left:10px;border-left:3px solid var(--line)}
   .btn.warnwahl{border-color:var(--warn);color:var(--warn)}
   .liste .eintrag input.menge{width:68px;flex:0 0 auto;min-height:38px;padding:4px 6px;text-align:right}
   table{width:100%;border-collapse:collapse}
@@ -185,7 +188,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "5.1.0";
+const APP_VERSION = "5.2.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -1065,25 +1068,102 @@ function kofferView(){
 /* ===============================================================
    Inventar — nummerierte Einzelstücke
    ===============================================================*/
+/* Inventar: Kategorie-Menü oben; gleiche Teile (gleicher Typ, gleiche Marke,
+   gleiches Detail) werden zu einer Serie „4×“ zusammengefasst und lassen
+   sich aufklappen. */
+function stueckKategorie(nr){ const m = /^([A-Z]{1,3})-/.exec(nr || ""); return m ? m[1] : "?"; }
+function kategorieName(k){ const b = BUCHSTABEN.find(x => x[0] === k); return b ? b[1] : "Kategorie " + k; }
+function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).join("|"); }
+/** "L-201–L-204, L-207" — aufeinanderfolgende Nummern zusammengefasst. */
+function nummernText(nummern){
+  const teile = [];
+  nummern.slice().sort().forEach(nr => {
+    const m = /^(.*-)(\d+)$/.exec(nr), letzt = teile[teile.length - 1];
+    if(m && letzt && letzt.p === m[1] && letzt.bis + 1 === Number(m[2]) && String(m[2]).length === letzt.len){ letzt.bis++; return; }
+    teile.push(m ? { p:m[1], von:Number(m[2]), bis:Number(m[2]), len:m[2].length } : { roh:nr });
+  });
+  const z = n => String(n);
+  return teile.map(t => t.roh ? t.roh : t.von === t.bis ? t.p + z(t.von) : t.p + z(t.von) + "–" + t.p + z(t.bis)).join(", ");
+}
+function stueckOrtText(s){ const r = s.rad_id ? rad(s.rad_id) : null; return r ? "an " + (r.fahrer || r.bezeichnung) : s.ort; }
+function zaehle(liste, f){ const c = {}; liste.forEach(x => { const k = f(x); c[k] = (c[k] || 0) + 1; }); return c; }
+
+function stueckKarte(s, gesperrt){
+  const r = s.rad_id ? rad(s.rad_id) : null;
+  let h = '<div class="card"><div class="row wrapr"><span><strong>' + esc(s.nummer) + '</strong> · ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br><span class="sub">' + esc(s.detail || "") + '</span></span><span class="sp"></span>';
+  h += s.zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : s.zustand === "defekt" ? '<span class="chip alarm">defekt</span>' : '<span class="chip ok">frei</span>';
+  h += '</div><p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + '</p>';
+  h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
+  ORTE.concat(["ausgemustert"]).forEach(o => h += '<option value="' + o + '"' + (s.ort === o ? " selected" : "") + '>' + o + '</option>');
+  (DB.raeder||[]).filter(x => x.aktiv).forEach(x => h += '<option value="rad:' + esc(x.id) + '"' + (s.rad_id === x.id ? " selected" : "") + '>an ' + esc(x.fahrer || x.bezeichnung) + '</option>');
+  h += '</select><select data-c="stueckZustand" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
+  ["frei","zu prüfen","defekt"].forEach(z => h += '<option' + (s.zustand === z ? " selected" : "") + '>' + z + '</option>');
+  h += '</select></div><button class="btn small" style="margin-top:8px" data-a="stueckBearbeiten" data-x="' + esc(s.nummer) + '"' + gesperrt + '>Details bearbeiten</button></div>';
+  return h;
+}
+function serienKarte(gruppe, offen){
+  const s0 = gruppe[0], key = serienSchluessel(s0);
+  const zust = zaehle(gruppe, s => s.zustand || "frei"), orte = zaehle(gruppe, stueckOrtText);
+  let chips = "";
+  ["defekt","zu prüfen"].forEach(z => { if(zust[z]) chips += '<span class="chip alarm">' + zust[z] + ' ' + z + '</span>'; });
+  if(zust["frei"]) chips += '<span class="chip ok">' + (zust["frei"] === gruppe.length ? "frei" : zust["frei"] + " frei") + '</span>';
+  const ortText = Object.keys(orte).length === 1 ? "alle " + Object.keys(orte)[0] : Object.keys(orte).map(o => orte[o] + "× " + o).join(" · ");
+  let h = '<div class="card serie"><div class="row wrapr"><span><strong class="anzahl">' + gruppe.length + '×</strong> ' + esc(s0.typ) + (s0.marke ? ' · ' + esc(s0.marke) : '') +
+          (s0.detail ? '<br><span class="sub">' + esc(s0.detail) + '</span>' : '') + '</span><span class="sp"></span><span class="chips">' + chips + '</span></div>';
+  h += '<p class="sub" style="margin:8px 0"><span class="mono">' + esc(nummernText(gruppe.map(s => s.nummer))) + '</span> · ' + esc(ortText) + '</p>';
+  h += '<div class="row" style="gap:8px"><button class="btn small" data-a="serieAuf" data-x="' + esc(key) + '">' + (offen ? "zuklappen ▴" : "einzeln anzeigen ▾") + '</button><span class="sp"></span>' +
+       '<button class="btn small" data-a="serieLoeschen" data-x="' + esc(key) + '"' + (offline ? " disabled" : "") + '>Serie löschen</button></div></div>';
+  return h;
+}
+
+/** Einzelstücke endgültig löschen — gedacht für Fehleingaben. Ausgemusterte Teile besser auf „ausgemustert“ setzen. */
+function stueckeLoeschen(nummern){
+  if(!nummern.length) return;
+  const text = nummern.length === 1 ? nummern[0] : nummern.length + " Einzelstücke (" + nummernText(nummern) + ")";
+  if(!confirm(text + " endgültig löschen?\n\nNur für Fehleingaben. Teile, die es gab und die weg sind, besser auf Ort „ausgemustert“ setzen — dann bleibt nachvollziehbar, was mit ihnen war.")) return;
+  aktion(async () => {
+    const weg = await rest("/stueck?nummer=in.(" + nummern.map(encodeURIComponent).join(",") + ")", { method:"DELETE", headers:{ Prefer:"return=representation" } });
+    if(!weg || !weg.length) throw new Error("Nichts gelöscht.");
+    return weg.length;
+  }, n => (n === 1 ? text : n + " Einzelstücke") + " gelöscht");
+}
+
 function inventarView(){
   const gesperrt = offline ? " disabled" : "";
+  if(!view.serieOffen) view.serieOffen = {};
   let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="scan" data-x="stueck">Nummer scannen</button>' +
           '<button class="btn" data-a="stueckNeu"' + gesperrt + '>Neues Einzelstück</button></div>';
+
+  const alle = DB.stueck || [];
+  const kats = zaehle(alle, s => stueckKategorie(s.nummer));
+  const kListe = Object.keys(kats).sort();
+  if(view.invKat && !kats[view.invKat]) view.invKat = "";
+  if(kListe.length > 1){
+    h += '<div class="row wrapr" style="gap:6px;margin-bottom:10px"><button class="btn small' + (!view.invKat ? " primary" : "") + '" data-a="invKat" data-x="">Alle · ' + alle.length + '</button>';
+    kListe.forEach(k => h += '<button class="btn small' + (view.invKat === k ? " primary" : "") + '" data-a="invKat" data-x="' + esc(k) + '">' + esc(kategorieName(k)) + ' · ' + kats[k] + '</button>');
+    h += '</div>';
+  }
   h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer" value="' + esc(view.suche) + '"></div>';
+
   const q = view.suche.toLowerCase();
-  const liste = (DB.stueck||[]).filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0);
-  if(!liste.length) return h + '<div class="leer">' + ((DB.stueck||[]).length ? "Nichts gefunden." : "Noch keine Einzelstücke erfasst.") + '</div>';
-  liste.forEach(s => {
-    const r = s.rad_id ? rad(s.rad_id) : null;
-    h += '<div class="card"><div class="row wrapr"><span><strong>' + esc(s.nummer) + '</strong> · ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br><span class="sub">' + esc(s.detail || "") + '</span></span><span class="sp"></span>';
-    h += s.zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : s.zustand === "defekt" ? '<span class="chip alarm">defekt</span>' : '<span class="chip ok">frei</span>';
-    h += '</div><p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + '</p>';
-    h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
-    ORTE.concat(["ausgemustert"]).forEach(o => h += '<option value="' + o + '"' + (s.ort === o ? " selected" : "") + '>' + o + '</option>');
-    (DB.raeder||[]).filter(x => x.aktiv).forEach(x => h += '<option value="rad:' + esc(x.id) + '"' + (s.rad_id === x.id ? " selected" : "") + '>an ' + esc(x.fahrer || x.bezeichnung) + '</option>');
-    h += '</select><select data-c="stueckZustand" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
-    ["frei","zu prüfen","defekt"].forEach(z => h += '<option' + (s.zustand === z ? " selected" : "") + '>' + z + '</option>');
-    h += '</select></div><button class="btn small" style="margin-top:8px" data-a="stueckBearbeiten" data-x="' + esc(s.nummer) + '"' + gesperrt + '>Details bearbeiten</button></div>';
+  const liste = alle.filter(s => (!view.invKat || stueckKategorie(s.nummer) === view.invKat) &&
+    (!q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0));
+  if(!liste.length) return h + '<div class="leer">' + (alle.length ? "Nichts gefunden." : "Noch keine Einzelstücke erfasst.") + '</div>';
+
+  // Gruppieren, Reihenfolge nach der kleinsten Nummer
+  const gruppen = {}, reihe = [];
+  liste.slice().sort((a, b) => a.nummer.localeCompare(b.nummer, "de", { numeric:true })).forEach(s => {
+    const k = serienSchluessel(s);
+    if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); }
+    gruppen[k].push(s);
+  });
+  reihe.forEach(k => {
+    const g = gruppen[k];
+    if(g.length === 1){ h += stueckKarte(g[0], gesperrt); return; }
+    // Aufgeklappt, wenn gewünscht oder wenn die Suche eine Nummer der Serie trifft (z. B. nach dem Scannen)
+    const offen = !!view.serieOffen[k] || (q && g.some(s => s.nummer.toLowerCase().indexOf(q) >= 0));
+    h += serienKarte(g, offen);
+    if(offen) h += '<div class="serie-teile">' + g.map(s => stueckKarte(s, gesperrt)).join("") + '</div>';
   });
   return h;
 }
@@ -1324,7 +1404,9 @@ function stueckForm(nr){
               '<p class="sub" style="margin:6px 0 0">Mehr als 1, z. B. 4 Laufräder vorne: legt alle mit fortlaufenden Nummern an.</p></div>') +
     '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + feld("Kaufdatum", "eKauf", s.kaufdatum, "date") + '</div>' +
     feld("Notiz", "eNotiz", s.notiz) +
-    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
+    (nr ? '<button class="btn small" data-a="stueckLoeschen" data-x="' + esc(nr) + '">Löschen</button>' : '') +
+    '<span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
 }
 const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
 const zahlOderNull = id => { const v = wert(id); return v === "" ? null : Number(v.replace(",", ".")); };
@@ -1785,6 +1867,13 @@ const A = {
     aktion(() => loeschen("foto", "id=eq." + Number(x)), "Foto gelöscht");
   },
   nFotoWeg: x => { neu.fotos = neu.fotos.filter(f => f.client_id !== x); render(); },
+
+  /* Inventar: Kategorie und Serien */
+  invKat: x => { view.invKat = x; render(); },
+  serieAuf: x => { if(!view.serieOffen) view.serieOffen = {}; view.serieOffen[x] = !view.serieOffen[x]; render(); },
+
+  stueckLoeschen: x => stueckeLoeschen([x]),
+  serieLoeschen: x => stueckeLoeschen((DB.stueck||[]).filter(s => serienSchluessel(s) === x).map(s => s.nummer)),
 
   /* Storno */
   buchungenArtikel: x => buchungenArtikel(x),

@@ -1,10 +1,10 @@
 # Version
 
-**5.1.0** — 01.10.2026
+**5.2.0** — 01.10.2026
 
-Einzelstücke als Serie anlegen (z. B. 4 gleiche Laufräder auf einmal, mit
-fortlaufenden Nummern); Feld „Wert“ aus dem Einzelstück-Formular entfernt.
-Kleine Datenbankergänzung — Migration nötig.
+Inventar übersichtlicher: Kategorie-Menü oben, gleiche Teile als Serie
+„4×“ zusammengefasst und aufklappbar. Einzelstücke und ganze Serien lassen
+sich löschen (für Fehleingaben). Kleine Rechteänderung — Migration nötig.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 5.2.0 | 01.10.2026 | Inventar: Kategorie-Menü, Serien „4×“, Löschen |
 | 5.1.0 | 01.10.2026 | Einzelstücke als Serie anlegen, Feld „Wert“ entfernt |
 | 5.0.1 | 01.10.2026 | Nummernvergabe über Kategorie-Auswahl |
 | 5.0.0 | 01.10.2026 | Inventur-Modus, automatische Nummern, Marke, Storno, Fotos am Ticket |

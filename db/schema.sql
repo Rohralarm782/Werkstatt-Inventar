@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 5.1.0 — für eine NEUE, leere Datenbank.
+--  Stand 5.2.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 5.0.x aus nur db/migration_5.1.0.sql.)
+--   von 5.1.0 aus nur db/migration_5.2.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -854,8 +854,9 @@ grant execute on all functions in schema public to authenticated;
 -- ---------------------------------------------------------------------
 --  Zugriff ohne Anmeldung
 --  Die App holt sich einen anonymen Schlüssel von Neon Auth. Damit darf sie
---  lesen, anlegen und ändern — aber nichts löschen (außer Renntermine und
---  Packlisten-Zeilen). Ins Buchungsjournal kommen von außen nur Zugänge;
+--  lesen, anlegen und ändern — aber nichts löschen (außer Renntermine,
+--  Packlisten-Zeilen, Fotos offener Tickets und Einzelstücke).
+--  Ins Buchungsjournal kommen von außen nur Zugänge;
 --  alle anderen Buchungen laufen über die Funktionen oben.
 -- ---------------------------------------------------------------------
 do $$
@@ -919,7 +920,7 @@ grant update (soll_fertig, naechstmoeglich, anlass, aufwand, fahrbereit, arbeits
               kostentraeger_id, status, uebernommen_von) on ticket to anonymous;
 grant update (menge, status) on ticket_position to anonymous;
 grant update (status) on rechnung to anonymous;
-grant delete on termin, koffer_soll, foto to anonymous;
+grant delete on termin, koffer_soll, foto, stueck to anonymous;
 grant usage, select on all sequences in schema public to anonymous;
 
 revoke execute on all functions in schema public from public, anonymous;
