@@ -110,15 +110,21 @@
   .liste .eintrag:first-child{border-top:none}
   .liste .eintrag .txt{flex:1 1 140px;min-width:0}
   .liste .eintrag.inv{padding:8px 6px;margin:0 -6px;border-radius:8px}
-  .liste .eintrag.inv.ok .diff{color:var(--ok)}
   .liste .eintrag.inv.abw{background:#FBEEDC}
-  .liste .eintrag.inv.abw .diff{color:var(--warn)}
+  .liste .eintrag.inv .stellen{flex:1 1 100%;display:grid;gap:6px}
+  .liste .eintrag.inv .stelle{display:flex;align-items:center;gap:8px}
+  .liste .eintrag.inv .stelle .wo{flex:1 1 auto;min-width:0;font-size:14px}
+  .liste .eintrag.inv .stelle.ok .diff{color:var(--ok)}
+  .liste .eintrag.inv .stelle.abw .diff{color:var(--warn)}
   .liste .eintrag.inv .diff{min-width:40px;text-align:right;font-weight:700;flex:0 0 auto}
   .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
   .foto{position:relative;display:block;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;aspect-ratio:1/1;background:#EFEDE9;cursor:pointer}
   .foto img{width:100%;height:100%;object-fit:cover;display:block}
   .foto .weg{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:13px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:26px;padding:0;cursor:pointer}
   img.fotogross{display:block;max-width:100%;max-height:70vh;margin:0 auto;border-radius:10px}
+  h2.sec.kat{margin:18px 0 8px}
+  h2.sec.kat:first-of-type{margin-top:4px}
+  h2.sec.kat .sub{font-family:inherit;letter-spacing:0;text-transform:none;font-weight:400}
   .card.serie .anzahl{font-size:18px;margin-right:2px}
   .card.serie .chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:0}
   .serie-teile{margin:-6px 0 12px 14px;padding-left:10px;border-left:3px solid var(--line)}
@@ -188,7 +194,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "5.2.0";
+const APP_VERSION = "5.3.1";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -813,7 +819,7 @@ function lagerView(){
   let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px">';
   h += '<button class="btn primary" data-a="scan" data-x="lager"' + gesperrt + '>Artikel scannen</button>';
   h += '<button class="btn" data-a="artikelNeu"' + gesperrt + '>Neuer Artikel</button>';
-  h += '<button class="btn' + (inv ? " warnwahl" : "") + '" data-a="invStart">' + (inv ? "Inventur fortsetzen · " + esc(inv.ort) : "Inventur") + '</button></div>';
+  h += '<button class="btn' + (inv ? " warnwahl" : "") + '" data-a="invStart">' + (inv ? "Inventur fortsetzen · " + esc(invTitel()) : "Inventur") + '</button></div>';
   h += '<div class="seg" style="margin-bottom:10px">';
   const knapp = (DB.bestand||[]).filter(b => b.aktiv && (b.status === "nachbestellen" || b.status === "leer"));
   h += segBtn("lagerFilter", "alle", "Alle", view.lagerFilter);
@@ -902,43 +908,80 @@ function ortSelect(id, wert, dataC, dataX){
    gebucht wird nur gezählt − b, damit Buchungen während der Inventur
    erhalten bleiben.
    ===============================================================*/
-function invLaden(){ try{ return JSON.parse(localStorage.getItem("wInventur") || "null"); }catch(e){ return null; } }
+function invLaden(){
+  let i = null;
+  try{ i = JSON.parse(localStorage.getItem("wInventur") || "null"); }catch(e){ return null; }
+  if(!i) return null;
+  // Entwurf aus 5.0–5.2 (Schlüssel nur Code, ein Ort) auf das neue Format bringen
+  if(!i.ids){
+    const z = {};
+    Object.keys(i.z || {}).forEach(k => z[k.indexOf("|") >= 0 ? k : k + "|" + i.ort] = i.z[k]);
+    i.z = z; i.ids = {}; i.ids[i.ort] = i.id;
+  }
+  return i;
+}
 function invSpeichern(){
   try{ if(inv) localStorage.setItem("wInventur", JSON.stringify(inv)); else localStorage.removeItem("wInventur"); }
   catch(e){ toast("Zählung konnte auf dem Gerät nicht gesichert werden.", true); }
 }
-let inv = invLaden();                       // { id, ort, start, z:{ code:{ g, b } } }
+// { ort:"Werkstatt"|"Koffer Bahn"|"Koffer Straße"|"alle", start, ids:{ Ort:uuid }, z:{ "Code|Ort":{ g, b } } }
+let inv = invLaden();
 let invAnsicht = { filter:"alle", buchstabe:"" };
 
+const INV_ALLE = "alle";
+function invTitel(){ return inv.ort === INV_ALLE ? "alle Orte" : inv.ort; }
 function invArtikel(){ return (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale"); }
-function invSystem(code){ const b = bestand(code); return b ? amOrt(b, inv.ort) : 0; }
-function invZuletzt(code){ const z = (DB.zaehlung||[]).find(x => x.code === code && x.ort === inv.ort); return z ? z.gezaehlt_am : null; }
-function invStatus(code){ const z = inv.z[code]; return !z ? "offen" : num(z.g) !== num(z.b) ? "abw" : "ok"; }
+/** Wo wird dieser Artikel gezählt? Bei „alle“: Werkstatt immer, ein Koffer nur, wenn er dort ein Soll hat,
+    dort etwas liegt oder dort schon gezählt wurde. */
+function invOrteFuer(b){
+  if(inv.ort !== INV_ALLE) return [inv.ort];
+  return ORTE.filter(o => o === "Werkstatt" || num(amOrt(b, o)) !== 0 || inv.z[b.code + "|" + o] ||
+                          (DB.koffer||[]).some(k => k.code === b.code && k.ort === o && num(k.soll) > 0));
+}
+function invSchluessel(code, ort){ return code + "|" + ort; }
+function invTeile(key){ const i = key.lastIndexOf("|"); return { code:key.slice(0, i), ort:key.slice(i + 1) }; }
+function invSystem(key){ const t = invTeile(key), b = bestand(t.code); return b ? amOrt(b, t.ort) : 0; }
+function invZuletzt(code, ort){ const z = (DB.zaehlung||[]).find(x => x.code === code && x.ort === ort); return z ? z.gezaehlt_am : null; }
+function invStelleStatus(key){ const z = inv.z[key]; return !z ? "offen" : num(z.g) !== num(z.b) ? "abw" : "ok"; }
+/** Status eines Artikels über alle seine Zählstellen: abw vor offen vor ok. */
+function invStatus(b){
+  const st = invOrteFuer(b).map(o => invStelleStatus(invSchluessel(b.code, o)));
+  return st.indexOf("abw") >= 0 ? "abw" : st.indexOf("offen") >= 0 ? "offen" : "ok";
+}
 function invBuchstabe(code){ const m = /^([A-Z]+)-/.exec(code); return m ? m[1] : "?"; }
 function invFortschritt(){
-  const codes = Object.keys(inv.z), alle = invArtikel().length;
-  const abw = codes.filter(c => invStatus(c) === "abw").length;
-  return codes.length + " von " + alle + " gezählt" + (abw ? " · " + abw + " Abweichung" + (abw === 1 ? "" : "en") : "");
+  let stellen = 0, gezaehlt = 0, abw = 0;
+  invArtikel().forEach(b => invOrteFuer(b).forEach(o => {
+    const k = invSchluessel(b.code, o); stellen++;
+    if(inv.z[k]){ gezaehlt++; if(invStelleStatus(k) === "abw") abw++; }
+  }));
+  return gezaehlt + " von " + stellen + " gezählt" + (abw ? " · " + abw + " Abweichung" + (abw === 1 ? "" : "en") : "");
 }
-function invZeile(b){
-  const z = inv.z[b.code], sys = amOrt(b, inv.ort), zl = invZuletzt(b.code);
+function invStelle(b, ort, mitOrt){
+  const key = invSchluessel(b.code, ort), z = inv.z[key], sys = amOrt(b, ort), zl = invZuletzt(b.code, ort);
   let diff = "";
   if(z){ const d = num(z.g) - num(z.b); diff = d === 0 ? "✓" : (d > 0 ? "+" : "") + zahl(d); }
-  return '<div class="eintrag inv ' + invStatus(b.code) + '" id="inv-' + esc(b.code) + '">' +
-    '<div class="txt"><strong>' + esc(b.name) + '</strong><br><span class="sub">' + esc(b.code) + ' · System ' + zahl(sys) + ' ' + esc(b.einheit) +
-    (zl ? ' · zuletzt ' + deLang(zl) : ' · noch nie gezählt') + '</span></div>' +
+  return '<div class="stelle ' + invStelleStatus(key) + '"><span class="wo">' + (mitOrt ? '<strong>' + esc(ort) + '</strong> · ' : '') +
+    'System ' + zahl(sys) + '<br><span class="sub">' + (zl ? 'zuletzt ' + deLang(zl) : 'noch nie gezählt') + '</span></span>' +
     '<span class="diff mono">' + diff + '</span>' +
-    '<input type="number" class="menge" min="0" step="any" inputmode="decimal" enterkeyhint="next" data-c="invZahl" data-x="' + esc(b.code) + '" value="' + (z ? num(z.g) : "") + '" placeholder="Zahl" aria-label="Gezählt: ' + esc(b.name) + '">' +
-    '<button class="btn small" data-a="invOk" data-x="' + esc(b.code) + '" title="Stimmt mit System überein">✓</button></div>';
+    '<input type="number" class="menge" min="0" step="any" inputmode="decimal" enterkeyhint="next" data-c="invZahl" data-x="' + esc(key) + '" value="' + (z ? num(z.g) : "") + '" placeholder="Zahl" aria-label="Gezählt: ' + esc(b.name) + ', ' + esc(ort) + '">' +
+    '<button class="btn small" data-a="invOk" data-x="' + esc(key) + '" title="Stimmt mit System überein">✓</button></div>';
+}
+function invZeile(b){
+  const orte = invOrteFuer(b), mitOrt = inv.ort === INV_ALLE;
+  return '<div class="eintrag inv ' + invStatus(b) + '" id="inv-' + esc(b.code) + '">' +
+    '<div class="txt"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + ' · in ' + esc(b.einheit) + '</span></div>' +
+    '<div class="stellen">' + orte.map(o => invStelle(b, o, mitOrt)).join("") + '</div></div>';
 }
 function inventurView(){
   let liste = invArtikel();
   const buchstaben = Array.from(new Set(liste.map(b => invBuchstabe(b.code)))).sort();
   let h = '<div class="card"><div class="row wrapr" style="gap:8px"><button class="btn small" data-a="invPause">← Lager</button>' +
-          '<span class="big" style="font-size:22px">Inventur · ' + esc(inv.ort) + '</span><span class="sp"></span>' +
+          '<span class="big" style="font-size:22px">Inventur · ' + esc(invTitel()) + '</span><span class="sp"></span>' +
           '<button class="btn small primary" data-a="scan" data-x="inventur">Scannen</button></div>';
   h += '<p class="sub" style="margin:8px 0 0">Begonnen ' + new Date(inv.start).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) +
        ' · <strong id="invStand">' + invFortschritt() + '</strong></p>';
+  if(inv.ort === INV_ALLE) h += '<p class="sub" style="margin:4px 0 0">Koffer erscheinen bei einem Artikel nur, wenn er dort ein Soll hat oder dort etwas liegt.</p>';
   h += '<div class="row" style="gap:8px;margin-top:10px"><button class="btn small" data-a="invAbbrechen">Verwerfen</button><span class="sp"></span>' +
        '<button class="btn primary" data-a="invAbschluss">Übernehmen …</button></div></div>';
 
@@ -952,27 +995,27 @@ function inventurView(){
   h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
 
   if(invAnsicht.buchstabe) liste = liste.filter(b => invBuchstabe(b.code) === invAnsicht.buchstabe);
-  if(invAnsicht.filter === "offen") liste = liste.filter(b => invStatus(b.code) === "offen");
-  if(invAnsicht.filter === "abw")   liste = liste.filter(b => invStatus(b.code) === "abw");
+  if(invAnsicht.filter === "offen") liste = liste.filter(b => invStatus(b) === "offen");
+  if(invAnsicht.filter === "abw")   liste = liste.filter(b => invStatus(b) === "abw");
   const q = view.suche.toLowerCase();
   if(q) liste = liste.filter(b => (b.name + " " + b.code).toLowerCase().indexOf(q) >= 0);
   if(!liste.length) return h + '<div class="leer">Nichts in dieser Auswahl.</div>';
   h += '<div class="card liste">' + liste.map(invZeile).join("") + '</div>';
-  h += '<p class="sub">Zahl eintragen und Enter — weiter zur nächsten Zeile. ✓ = stimmt mit dem System. Leeres Feld = nicht gezählt. ' +
+  h += '<p class="sub">Zahl eintragen und Enter — weiter zum nächsten Feld. ✓ = stimmt mit dem System. Leeres Feld = nicht gezählt. ' +
        'Gebucht wird erst mit „Übernehmen“; bis dahin bleibt die Zählung auf diesem Gerät.</p>';
   return h;
 }
-function invSetzen(code, wertText){
+function invSetzen(key, wertText){
   const n = wertText === "" || wertText == null ? null : Number(String(wertText).replace(",", "."));
-  if(n === null) delete inv.z[code];
+  if(n === null) delete inv.z[key];
   else if(isNaN(n) || n < 0){ toast("Ungültige Zahl.", true); }
   else {
-    const alt = inv.z[code];
+    const alt = inv.z[key];
     // gleiche Zahl nochmal bestätigt: Bezugspunkt bleibt der vom ersten Zählen
-    if(!alt || num(alt.g) !== n) inv.z[code] = { g:n, b:invSystem(code) };
+    if(!alt || num(alt.g) !== n) inv.z[key] = { g:n, b:invSystem(key) };
   }
   invSpeichern();
-  const b = bestand(code), el = document.getElementById("inv-" + code);
+  const code = invTeile(key).code, b = bestand(code), el = document.getElementById("inv-" + code);
   if(el && b){
     // Das Feld, das gerade den Fokus hat, verliert ihn beim Ersetzen — dessen
     // "change" darf dann nicht ein zweites Mal hier landen.
@@ -984,31 +1027,33 @@ function invSetzen(code, wertText){
   }
   const st = $("invStand"); if(st) st.textContent = invFortschritt();
 }
-function invWeiter(code){
+function invWeiter(key){
   const felder = Array.from(document.querySelectorAll('[data-c="invZahl"]'));
-  const i = felder.findIndex(e => e.dataset.x === code), n = felder[i + 1];
+  const i = felder.findIndex(e => e.dataset.x === key), n = felder[i + 1];
   if(n){ n.focus(); try{ n.select(); }catch(e){} n.scrollIntoView({ block:"center", behavior:"smooth" }); }
   else { const e = document.activeElement; if(e && e.blur) e.blur(); }
 }
 function invAbschluss(){
-  const codes = Object.keys(inv.z);
-  if(!codes.length){ toast("Noch nichts gezählt.", true); return; }
-  const abw = codes.filter(c => invStatus(c) === "abw");
-  const bewegt = codes.filter(c => num(invSystem(c)) !== num(inv.z[c].b));
-  const offen = invArtikel().length - codes.length;
-  let h = '<h3>Inventur übernehmen · ' + esc(inv.ort) + '</h3>';
-  h += '<p class="sub" style="margin-top:-6px">' + codes.length + ' gezählt, davon ' + (codes.length - abw.length) + ' ohne Abweichung' +
-       (offen ? ' · ' + offen + ' nicht gezählt — bleiben unverändert' : '') + '.</p>';
+  const keys = Object.keys(inv.z);
+  if(!keys.length){ toast("Noch nichts gezählt.", true); return; }
+  const abw = keys.filter(k => invStelleStatus(k) === "abw");
+  const bewegt = keys.filter(k => num(invSystem(k)) !== num(inv.z[k].b));
+  let stellen = 0; invArtikel().forEach(b => stellen += invOrteFuer(b).length);
+  const offen = stellen - keys.length, mitOrt = inv.ort === INV_ALLE;
+  let h = '<h3>Inventur übernehmen · ' + esc(invTitel()) + '</h3>';
+  h += '<p class="sub" style="margin-top:-6px">' + keys.length + ' gezählt, davon ' + (keys.length - abw.length) + ' ohne Abweichung' +
+       (offen > 0 ? ' · ' + offen + ' nicht gezählt — bleiben unverändert' : '') + '.</p>';
   if(abw.length){
-    h += '<div class="card tabwrap"><table><thead><tr><th>Artikel</th><th>System</th><th>gezählt</th><th>Korrektur</th></tr></thead><tbody>';
-    abw.forEach(c => {
-      const z = inv.z[c], a = artikel(c), d = num(z.g) - num(z.b);
-      h += '<tr><td style="text-align:left">' + esc(a ? a.name : c) + '<br><span class="sub">' + esc(c) + '</span></td><td class="mono">' + zahl(z.b) + '</td><td class="mono">' + zahl(z.g) + '</td>' +
+    h += '<div class="card tabwrap"><table><thead><tr><th>Artikel</th>' + (mitOrt ? '<th>Ort</th>' : '') + '<th>System</th><th>gezählt</th><th>Korrektur</th></tr></thead><tbody>';
+    abw.sort().forEach(k => {
+      const t = invTeile(k), z = inv.z[k], a = artikel(t.code), d = num(z.g) - num(z.b);
+      h += '<tr><td style="text-align:left">' + esc(a ? a.name : t.code) + '<br><span class="sub">' + esc(t.code) + '</span></td>' + (mitOrt ? '<td style="text-align:left">' + esc(t.ort) + '</td>' : '') +
+           '<td class="mono">' + zahl(z.b) + '</td><td class="mono">' + zahl(z.g) + '</td>' +
            '<td class="mono" style="color:' + (d < 0 ? "var(--sprint)" : "var(--ok)") + '"><strong>' + (d > 0 ? "+" : "") + zahl(d) + '</strong></td></tr>';
     });
     h += '</tbody></table></div>';
   } else h += '<p>Keine Abweichungen — es wird nur festgehalten, dass gezählt wurde.</p>';
-  if(bewegt.length) h += '<p class="sub">Bei ' + bewegt.length + ' Artikel' + (bewegt.length === 1 ? '' : 'n') + ' wurde seit dem Zählen gebucht. Diese Buchungen bleiben erhalten; korrigiert wird nur die Abweichung zum Zeitpunkt des Zählens.</p>';
+  if(bewegt.length) h += '<p class="sub">Bei ' + bewegt.length + ' Position' + (bewegt.length === 1 ? '' : 'en') + ' wurde seit dem Zählen gebucht. Diese Buchungen bleiben erhalten; korrigiert wird nur die Abweichung zum Zeitpunkt des Zählens.</p>';
   h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Zurück</button><span class="sp"></span>' +
        '<button class="btn primary" data-a="invBuchen">' + (abw.length ? abw.length + " Korrektur" + (abw.length === 1 ? "" : "en") + " buchen" : "Zählung abschließen") + '</button></div>';
   modal(h);
@@ -1157,8 +1202,15 @@ function inventarView(){
     if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); }
     gruppen[k].push(s);
   });
+  // Nach Kategorie gegliedert: Überschrift je Kategorie, darin Serien und Einzelteile nach Nummer
+  let katVorher = null;
   reihe.forEach(k => {
-    const g = gruppen[k];
+    const g = gruppen[k], kat = stueckKategorie(g[0].nummer);
+    if(kat !== katVorher){
+      const n = liste.filter(s => stueckKategorie(s.nummer) === kat).length;
+      h += '<h2 class="sec kat">' + esc(kategorieName(kat)) + ' <span class="sub">· ' + n + (n === 1 ? ' Teil' : ' Teile') + '</span></h2>';
+      katVorher = kat;
+    }
     if(g.length === 1){ h += stueckKarte(g[0], gesperrt); return; }
     // Aufgeklappt, wenn gewünscht oder wenn die Suche eine Nummer der Serie trifft (z. B. nach dem Scannen)
     const offen = !!view.serieOffen[k] || (q && g.some(s => s.nummer.toLowerCase().indexOf(q) >= 0));
@@ -1447,8 +1499,8 @@ function scanTreffer(ziel, code){
   if(ziel === "stueck"){ view.suche = code; render(); return; }
   if(ziel === "inventur"){
     if(!a || a.art === "Pauschale" || !a.aktiv){ piep(false); toast("Kein zählbarer Lagerartikel: " + code, true); return; }
-    let el = document.querySelector('[data-c="invZahl"][data-x="' + code + '"]');
-    if(!el){ invAnsicht = { filter:"alle", buchstabe:"" }; view.suche = ""; render(); el = document.querySelector('[data-c="invZahl"][data-x="' + code + '"]'); }
+    let el = document.querySelector('[data-c="invZahl"][data-x^="' + code + '|"]');
+    if(!el){ invAnsicht = { filter:"alle", buchstabe:"" }; view.suche = ""; render(); el = document.querySelector('[data-c="invZahl"][data-x^="' + code + '|"]'); }
     if(el){ el.scrollIntoView({ block:"center" }); el.focus(); try{ el.select(); }catch(e){} }
     return;
   }
@@ -1897,10 +1949,11 @@ const A = {
   invStart: () => {
     if(inv){ view.inventur = true; view.suche = ""; render(); window.scrollTo(0,0); return; }
     modal('<h3>Inventur starten</h3><p class="sub" style="margin-top:-6px">Wo wird gezählt?</p><div style="display:grid;gap:8px">' +
+          '<button class="btn primary" data-a="invNeu" data-x="' + INV_ALLE + '">Alles auf einmal</button>' +
           ORTE.map(o => '<button class="btn" data-a="invNeu" data-x="' + o + '">' + o + '</button>').join("") +
           '<button class="btn" data-a="modalZu">Abbrechen</button></div>');
   },
-  invNeu: x => { inv = { id:neueId(), ort:x, start:new Date().toISOString(), z:{} }; invSpeichern(); invAnsicht = { filter:"alle", buchstabe:"" }; view.inventur = true; view.suche = ""; modalZu(); render(); window.scrollTo(0,0); },
+  invNeu: x => { inv = { ort:x, start:new Date().toISOString(), ids:{}, z:{} }; (x === INV_ALLE ? ORTE : [x]).forEach(o => inv.ids[o] = neueId()); invSpeichern(); invAnsicht = { filter:"alle", buchstabe:"" }; view.inventur = true; view.suche = ""; modalZu(); render(); window.scrollTo(0,0); },
   invPause: () => { view.inventur = false; view.suche = ""; render(); },
   invFilter: x => { invAnsicht.filter = x; render(); },
   invBuchstabe: x => { invAnsicht.buchstabe = x; render(); },
@@ -1913,10 +1966,19 @@ const A = {
   invAbschluss: () => invAbschluss(),
   invBuchen: () => {
     const lauf = inv;
-    const zaehlung = Object.keys(lauf.z).map(c => ({ code:c, gezaehlt:num(lauf.z[c].g), basis:num(lauf.z[c].b) }));
-    aktion(() => rpc("inventur_buchen", { p_ort:lauf.ort, p_zaehlung:zaehlung, p_bearbeiter:bearbeiter || null, p_lauf:lauf.id }),
-           n => "Inventur gebucht · " + n + " Korrektur" + (n === 1 ? "" : "en"))
-      .then(r => { if(r !== undefined && inv && inv.id === lauf.id){ inv = null; invSpeichern(); view.inventur = false; render(); } });
+    // Je Ort eine Buchung mit eigener Kennung — wird nach einem Abbruch neu gesendet,
+    // bucht die Datenbank bereits erledigte Orte nicht noch einmal.
+    const jeOrt = {};
+    Object.keys(lauf.z).forEach(k => { const t = invTeile(k); (jeOrt[t.ort] = jeOrt[t.ort] || []).push({ code:t.code, gezaehlt:num(lauf.z[k].g), basis:num(lauf.z[k].b) }); });
+    aktion(async () => {
+      let summe = 0;
+      for(const o of Object.keys(jeOrt)){
+        if(!lauf.ids[o]) lauf.ids[o] = neueId();
+        summe += await rpc("inventur_buchen", { p_ort:o, p_zaehlung:jeOrt[o], p_bearbeiter:bearbeiter || null, p_lauf:lauf.ids[o] });
+      }
+      return summe;
+    }, n => "Inventur gebucht · " + n + " Korrektur" + (n === 1 ? "" : "en"))
+      .then(r => { if(r !== undefined && inv === lauf){ inv = null; invSpeichern(); view.inventur = false; render(); } });
   },
 
   /* Nummernvergabe */

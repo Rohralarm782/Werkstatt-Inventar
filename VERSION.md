@@ -1,10 +1,9 @@
 # Version
 
-**5.2.0** — 01.10.2026
+**5.3.1** — 01.10.2026
 
-Inventar übersichtlicher: Kategorie-Menü oben, gleiche Teile als Serie
-„4×“ zusammengefasst und aufklappbar. Einzelstücke und ganze Serien lassen
-sich löschen (für Fehleingaben). Kleine Rechteänderung — Migration nötig.
+Inventar nach Kategorie gegliedert (Überschrift je Kategorie mit Anzahl).
+Enthält auch 5.3.0: Inventur „Alles auf einmal“ über Werkstatt und Koffer.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +12,8 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 5.3.1 | 01.10.2026 | Inventar nach Kategorie gegliedert |
+| 5.3.0 | 01.10.2026 | Inventur über alle Orte in einem Durchgang |
 | 5.2.0 | 01.10.2026 | Inventar: Kategorie-Menü, Serien „4×“, Löschen |
 | 5.1.0 | 01.10.2026 | Einzelstücke als Serie anlegen, Feld „Wert“ entfernt |
 | 5.0.1 | 01.10.2026 | Nummernvergabe über Kategorie-Auswahl |
