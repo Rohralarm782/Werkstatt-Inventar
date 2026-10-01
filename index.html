@@ -134,7 +134,10 @@
   .wahl-kopf{position:sticky;top:0;background:#F3F1EE;padding:6px 10px;font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);z-index:1}
   .wahl-zeile{display:block;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--line);padding:10px 12px;font-size:15px;cursor:pointer;color:var(--ink)}
   .wahl-zeile:first-of-type{border-top:none}
-  .wahl-zeile.serie{cursor:default}
+  .wahl-zeile.serie{cursor:default;padding-left:22px}
+  .wahl-zeile.kat{font-weight:600;color:var(--ink-2)}
+  .wahl-kopf.klapp{display:block;width:100%;text-align:left;border:none;border-top:1px solid var(--line);cursor:pointer}
+  .wahl-tipp{margin:0;padding:8px 10px;border-top:1px solid var(--line)}
   .wahl-zeile .nummern{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .wahl-gewaehlt{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
   .wahl-gewaehlt .txt{flex:1;min-width:0}
@@ -204,7 +207,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "6.2.0";
+const APP_VERSION = "6.2.1";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -1707,26 +1710,50 @@ function wahlListe(){
     raeder.forEach(r => h += '<button class="wahl-zeile" data-a="nWahlRad" data-x="' + esc(r.id) + '"><strong>' + esc(r.fahrer || r.bezeichnung) + '</strong>' +
                              (r.fahrer ? ' <span class="sub">' + esc(r.bezeichnung) + '</span>' : '') + '</button>');
   }
-  // Einzelstücke, nach Serie gebündelt
-  const teile = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert" &&
-    passt([s.nummer, s.typ, s.marke, s.detail, s.rad_id ? ((rad(s.rad_id)||{}).fahrer || "") : ""].join(" ")))
-    .sort((a,b) => a.nummer.localeCompare(b.nummer, "de", { numeric:true }));
-  if(teile.length){
-    h += '<div class="wahl-kopf">Einzelstücke</div>';
-    const gruppen = {}, reihe = [];
-    teile.forEach(s => { const k = serienSchluessel(s); if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); } gruppen[k].push(s); });
-    reihe.forEach(k => {
-      const g = gruppen[k], s0 = g[0];
-      h += '<div class="wahl-zeile serie"><span class="txt">' + (g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '') + esc(s0.typ) + (s0.marke ? ' · ' + esc(s0.marke) : '') + '</span><span class="nummern">';
-      g.forEach(s => {
-        const r = s.rad_id ? rad(s.rad_id) : null, merk = s.zustand !== "frei" ? " !" : "";
-        h += '<button class="btn small' + (s.zustand !== "frei" ? " warnwahl" : "") + '" data-a="nWahlStueck" data-x="' + esc(s.nummer) + '" title="' +
-             esc(s.zustand + (r ? " · an " + (r.fahrer || r.bezeichnung) : " · " + s.ort)) + '">' + esc(s.nummer) + merk + (r ? ' <span class="sub">· ' + esc(r.fahrer || r.bezeichnung) + '</span>' : '') + '</button>';
-      });
-      h += '</span></div>';
-    });
+  const aktiv = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert").sort((a,b) => a.nummer.localeCompare(b.nummer, "de", { numeric:true }));
+
+  if(q){
+    // Suche: alle passenden Einzelstücke, auch die an einem Rad
+    const treffer = aktiv.filter(s => passt([s.nummer, s.typ, s.marke, s.detail, s.rad_id ? ((rad(s.rad_id)||{}).fahrer || "") : ""].join(" ")));
+    if(treffer.length) h += '<div class="wahl-kopf">Einzelstücke</div>' + wahlSerien(treffer);
+    return h || '<p class="sub" style="margin:8px 10px">Nichts gefunden.</p>';
   }
-  return h || '<p class="sub" style="margin:8px 0 0">Nichts gefunden.</p>';
+
+  // Ohne Suche: Teile an einem Rad erreicht man über das Rad. Lose Teile
+  // stehen zugeklappt nach Kategorie, damit die Liste kurz bleibt.
+  const lose = aktiv.filter(s => !s.rad_id);
+  if(lose.length){
+    h += '<button class="wahl-kopf klapp" data-a="nLoseAuf">' + (neu.loseOffen ? "▾" : "▸") + ' Einzelstücke ohne Rad · ' + lose.length + '</button>';
+    if(neu.loseOffen){
+      const kats = {};
+      lose.forEach(s => (kats[stueckKategorie(s.nummer)] = kats[stueckKategorie(s.nummer)] || []).push(s));
+      Object.keys(kats).sort().forEach(k => {
+        const offen = !!(neu.katOffen || {})[k];
+        h += '<button class="wahl-zeile kat" data-a="nKatAuf" data-x="' + esc(k) + '">' + (offen ? "▾" : "▸") + ' ' + esc(kategorieName(k)) + ' <span class="sub">· ' + kats[k].length + '</span></button>';
+        if(offen) h += wahlSerien(kats[k]);
+      });
+    }
+  }
+  h += '<p class="sub wahl-tipp">Teile an einem Rad: erst das Rad wählen. Nummer tippen oder scannen findet jedes Teil.</p>';
+  return h;
+}
+/** Einzelstücke nach Serie gebündelt: eine Zeile je Serie, Nummern als Knöpfe. */
+function wahlSerien(teile){
+  const gruppen = {}, reihe = [];
+  teile.forEach(s => { const k = serienSchluessel(s); if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); } gruppen[k].push(s); });
+  let h = "";
+  reihe.forEach(k => {
+    const g = gruppen[k], s0 = g[0];
+    h += '<div class="wahl-zeile serie"><span class="txt">' + (g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '') + esc(s0.typ) + (s0.marke ? ' · ' + esc(s0.marke) : '') + '</span><span class="nummern">';
+    g.forEach(s => {
+      const r = s.rad_id ? rad(s.rad_id) : null;
+      h += '<button class="btn small' + (s.zustand !== "frei" ? " warnwahl" : "") + '" data-a="nWahlStueck" data-x="' + esc(s.nummer) + '" title="' +
+           esc(s.zustand + (r ? " · an " + (r.fahrer || r.bezeichnung) : " · " + s.ort)) + '">' + esc(s.nummer) + (s.zustand !== "frei" ? " !" : "") +
+           (r ? ' <span class="sub">· ' + esc(r.fahrer || r.bezeichnung) + '</span>' : '') + '</button>';
+    });
+    h += '</span></div>';
+  });
+  return h;
 }
 
 /** Einzelstück im neuen Ticket wählen; steckt es an einem Rad, wird das Rad mit übernommen. */
@@ -2111,6 +2138,8 @@ const A = {
   nWahlRad: x => { neu.rad = x; neu.stueck = ""; neu.wahlSuche = ""; render(); },
   nWahlStueck: x => { neu.rad = ""; neu.wahlSuche = ""; neuStueckWaehlen(x); },
   nWahlReset: () => { neu.rad = ""; neu.stueck = ""; render(); setTimeout(() => { const e = document.querySelector('[data-c="nWahlSuche"]'); if(e) e.focus(); }, 0); },
+  nLoseAuf: () => { neu.loseOffen = !neu.loseOffen; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); },
+  nKatAuf: x => { neu.katOffen = neu.katOffen || {}; neu.katOffen[x] = !neu.katOffen[x]; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); },
   nTeil: x => { neu.stueck = neu.stueck === x ? "" : x; render(); },
 
   /* Fotos */

@@ -1,10 +1,9 @@
 # Version
 
-**6.2.0** — 01.10.2026
+**6.2.1** — 01.10.2026
 
-Neues Ticket: Rad und Einzelstück in einer gemeinsamen Liste mit Suche,
-Serien kompakt als eine Zeile. Enthält auch 5.3.2 bis 6.1.0 — zwei
-Migrationen nötig (6.0.0, dann 6.1.0).
+Auswahl „Rad oder Einzelstück“ kompakter: ohne Suche nur Räder, lose
+Einzelstücke zugeklappt nach Kategorie; Teile am Rad über das Rad.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +12,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 6.2.1 | 01.10.2026 | Auswahlliste kompakter |
 | 6.2.0 | 01.10.2026 | Gemeinsame Auswahlliste Rad/Einzelstück |
 | 6.1.0 | 01.10.2026 | Neues Ticket mit Einzelstück, setzt „zu prüfen“ |
 | 6.0.0 | 01.10.2026 | Tickets für Einzelstücke, Rad-Marke repariert |
