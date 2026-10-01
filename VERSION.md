@@ -1,11 +1,9 @@
 # Version
 
-**5.0.0** — 01.10.2026
+**5.0.1** — 01.10.2026
 
-Inventur-Modus fürs Lager (schnell durchzählen, alles in einem Schritt
-buchen), automatische Nummern für Artikel, Einzelstücke und Räder, Marke
-an Rädern und Einzelstücken, Storno von Fehlbuchungen und Rechnungen,
-Fotos am Ticket. Datenbankänderung — Migration nötig.
+Nummernvergabe einfacher: statt Buchstabe und Zifferngruppe wird nur noch
+die Kategorie gewählt (z. B. „Bremse · B-1xx“), die Ziffer folgt aus der Art.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -14,6 +12,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 5.0.1 | 01.10.2026 | Nummernvergabe über Kategorie-Auswahl |
 | 5.0.0 | 01.10.2026 | Inventur-Modus, automatische Nummern, Marke, Storno, Fotos am Ticket |
 | 4.0.2 | 01.10.2026 | Fehlerbehebungen, Offline-Tickets ohne Doppel, engere Zugriffsrechte |
 | 4.0.1 | 01.10.2026 | Menü in der Kopfleiste, Unteroptionen klar abgesetzt, „Neu“ unter Tickets |

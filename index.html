@@ -185,7 +185,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "5.0.0";
+const APP_VERSION = "5.0.1";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -1192,22 +1192,34 @@ function auswahl(label, id, optionen, wert){
   return h + '</select></div>';
 }
 /* ---------------------------------------------------------------
-   Automatische Nummern: Buchstabe + Gruppe → die Datenbank vergibt beim
-   Speichern die nächste freie Nummer (höchste + 1). Die Vorschau zeigt,
-   was es voraussichtlich wird.
+   Automatische Nummern: Kategorie wählen (= Buchstabe), die Zifferngruppe
+   folgt aus der Art (Stück 1xx, Vorrat 5xx, Pauschale 9xx, Einzelstück 2xx).
+   Die Datenbank vergibt beim Speichern die nächste freie Nummer
+   (höchste + 1). Die Vorschau zeigt, was es voraussichtlich wird.
 ----------------------------------------------------------------*/
-const BUCHSTABEN = [["A","Antrieb"],["B","Bremse"],["C","Cockpit"],["L","Laufrad & Reifen"],["R","Rahmen"],["W","Werkstatt"]];
+const BUCHSTABEN = [["A","Antrieb"],["B","Bremse"],["C","Cockpit & Vorbau"],["L","Laufrad & Reifen"],["R","Rahmen"],["W","Werkstatt & Werkzeug"]];
 const GRUPPE_FUER_ART = { "Stück":1, "Vorrat":5, "Pauschale":9 };
 let nrForm = null;      // { typ:"artikel"|"stueck"|"rad", modus:"auto"|"eigen" }
 let nrLauf = 0;
 
-function buchstabenListe(){
+/** Kategorien: die festen plus alle Buchstaben, die in Codes schon vorkommen. */
+function kategorien(){
   const da = {};
   BUCHSTABEN.forEach(b => da[b[0]] = b[1]);
   (DB.artikel||[]).map(a => a.code).concat((DB.stueck||[]).map(x => x.nummer)).forEach(c => {
     const m = /^([A-Z]{1,3})-/.exec(c || ""); if(m && !da[m[1]]) da[m[1]] = "";
   });
-  return '<datalist id="buchstabenDL">' + Object.keys(da).sort().map(k => '<option value="' + k + '">' + esc(da[k]) + '</option>').join("") + '</datalist>';
+  return Object.keys(da).sort().map(k => [k, da[k]]);
+}
+function kategorieOptionen(gruppe){
+  let h = '<option value="">— bitte wählen —</option>';
+  kategorien().forEach(([k, name]) => h += '<option value="' + k + '">' + esc(name || "Kategorie " + k) + ' · ' + k + '-' + gruppe + 'xx</option>');
+  return h + '<option value="_neu">＋ neue Kategorie …</option>';
+}
+/** Gewählter Buchstabe — aus der Liste oder bei „neue Kategorie“ aus dem Eingabefeld. */
+function nrBuchstabe(){
+  const k = wert("nrKat");
+  return (k === "_neu" ? wert("nrBuch") : k).toUpperCase();
 }
 /** Nummernfeld für neue Artikel/Einzelstücke/Räder: automatisch (Standard) oder eigene Nummer. */
 function nummernWahl(typ, gruppe){
@@ -1216,12 +1228,12 @@ function nummernWahl(typ, gruppe){
   h += '<div class="seg" style="margin-bottom:8px">' + segBtn("nrModus", "auto", "automatisch", "auto") + segBtn("nrModus", "eigen", "eigene Nummer", "auto") + '</div>';
   h += '<div id="nrAuto">';
   if(typ !== "rad"){
-    h += '<div class="grid2"><div><span class="lbl">Buchstabe</span><input type="text" id="nrBuch" list="buchstabenDL" maxlength="3" autocapitalize="characters" placeholder="z. B. B" data-c="nrVorschau"></div>';
-    h += '<div><span class="lbl">Gruppe</span><select id="nrGruppe" data-c="nrVorschau">';
-    for(let g = 1; g <= 9; g++) h += '<option value="' + g + '"' + (g === gruppe ? " selected" : "") + '>' + g + 'xx</option>';
-    h += '</select></div></div>' + buchstabenListe();
+    h += '<span class="lbl">Kategorie</span><select id="nrKat" data-c="nrKat">' + kategorieOptionen(gruppe) + '</select>';
+    h += '<input type="hidden" id="nrGruppe" value="' + gruppe + '">';
+    h += '<div id="nrNeu" hidden style="margin-top:8px"><span class="lbl">Buchstabe der neuen Kategorie</span>' +
+         '<input type="text" id="nrBuch" maxlength="3" autocapitalize="characters" placeholder="1–3 Buchstaben, z. B. S" data-c="nrVorschau"></div>';
   }
-  h += '<p class="sub" style="margin:6px 0 0" id="nrVorschau">' + (typ === "rad" ? "" : "Buchstabe eingeben …") + '</p></div>';
+  h += '<p class="sub" style="margin:6px 0 0" id="nrVorschau">' + (typ === "rad" ? "" : "Kategorie wählen …") + '</p></div>';
   h += '<div id="nrEigen" hidden><input type="text" id="nrEigenWert" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : "z. B. B-120") + '"></div>';
   return h + '</div>';
 }
@@ -1231,8 +1243,8 @@ async function vorschauNummer(){
   let fn, args;
   if(nrForm.typ === "rad"){ fn = "naechste_rad_id"; args = { p_typ:wert("rTyp") || "Bahn" }; }
   else {
-    const b = wert("nrBuch").toUpperCase();
-    if(!b){ el.textContent = "Buchstabe eingeben …"; el.style.color = ""; return; }
+    const b = nrBuchstabe();
+    if(!b){ el.textContent = wert("nrKat") === "_neu" ? "Buchstabe eingeben …" : "Kategorie wählen …"; el.style.color = ""; return; }
     fn = "naechster_code"; args = { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")) };
   }
   el.textContent = "…";
@@ -1274,7 +1286,7 @@ function artikelForm(code){
     '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
     '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
     feld("Shop-Link", "aLink", a.shop_link) + auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) +
-    '<p class="sub">Code-Schema: A Antrieb · B Bremse · C Cockpit · L Laufrad &amp; Reifen · R Rahmen · W Werkstatt, dazu 1xx Stück, 5xx Vorrat, 9xx Pauschale. Einzelstücke 2xx.</p>' +
+    (code ? '' : '<p class="sub">Die Ziffer richtet sich nach der Art: Stück 1xx, Vorrat 5xx, Pauschale 9xx.</p>') +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="artikelSpeichern" data-x="' + esc(code || "") + '">Speichern</button></div>');
 }
 function radForm(id){
@@ -1300,7 +1312,7 @@ function stueckForm(nr){
     feld("Detail", "eDet", s.detail) +
     '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + feld("Kaufdatum", "eKauf", s.kaufdatum, "date") + '</div>' +
     '<div class="grid2">' + feld("Wert (€)", "eWert", s.wert, "number", ' step="0.01" min="0"') + feld("Notiz", "eNotiz", s.notiz) + '</div>' +
-    '<p class="sub">Einzelstücke üblich in Gruppe 2: L-2xx Laufräder, R-2xx Rahmen, C-2xx Vorbauten, W-2xx Werkzeug.</p>' +
+    (nr ? '' : '<p class="sub">Einzelstücke bekommen Nummern im Bereich 2xx, z. B. L-2xx für Laufräder.</p>') +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
 }
 const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
@@ -1678,8 +1690,8 @@ const A = {
     if(!d.typ){ toast("Typ fehlt.", true); return; }
     if(x){ aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
     if(nrForm && nrForm.modus === "auto"){
-      const b = wert("nrBuch").toUpperCase();
-      if(!/^[A-Z]{1,3}$/.test(b)){ toast("Buchstabe fehlt (1–3 Buchstaben).", true); return; }
+      const b = nrBuchstabe();
+      if(!/^[A-Z]{1,3}$/.test(b)){ toast(b ? "Neue Kategorie: 1–3 Buchstaben A–Z." : "Bitte eine Kategorie wählen.", true); return; }
       aktion(() => rpc("stueck_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), nr => nr + " angelegt — diese Nummer aufs Etikett");
       return;
     }
@@ -1719,8 +1731,8 @@ const A = {
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
     if(x){ aktion(() => aendern("artikel", "code=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
     if(nrForm && nrForm.modus === "auto"){
-      const b = wert("nrBuch").toUpperCase();
-      if(!/^[A-Z]{1,3}$/.test(b)){ toast("Buchstabe fehlt (1–3 Buchstaben).", true); return; }
+      const b = nrBuchstabe();
+      if(!/^[A-Z]{1,3}$/.test(b)){ toast(b ? "Neue Kategorie: 1–3 Buchstaben A–Z." : "Bitte eine Kategorie wählen.", true); return; }
       aktion(() => rpc("artikel_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), c => c + " angelegt — diesen Code aufs Etikett");
       return;
     }
@@ -1854,7 +1866,18 @@ const C = {
     render();
   },
   nrVorschau: () => vorschauNummer(),
-  artGruppe: v => { const g = $("nrGruppe"); if(g && GRUPPE_FUER_ART[v]){ g.value = String(GRUPPE_FUER_ART[v]); vorschauNummer(); } },
+  artGruppe: v => {
+    const g = $("nrGruppe"), k = $("nrKat");
+    if(!g || !GRUPPE_FUER_ART[v]) return;
+    g.value = String(GRUPPE_FUER_ART[v]);
+    if(k){ const alt = k.value; k.innerHTML = kategorieOptionen(GRUPPE_FUER_ART[v]); k.value = alt; }
+    vorschauNummer();
+  },
+  nrKat: v => {
+    const box = $("nrNeu"); if(box) box.hidden = v !== "_neu";
+    if(v === "_neu"){ const e = $("nrBuch"); if(e) e.focus(); }
+    vorschauNummer();
+  },
   invZahl: (v, x) => invSetzen(x, v),
   fotoDatei: (v, x, el) => {
     const dateien = Array.from(el.files || []); el.value = "";
