@@ -19,6 +19,7 @@
     --sprint:#C8102E; --steher:#1B4CA1; --ok:#1F7A4C; --warn:#B45309; --radius:14px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
   html,body{margin:0;padding:0}
   body{background:var(--paper);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;
     font-size:16px;line-height:1.45;padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))}
@@ -30,6 +31,7 @@
   .brand .stand{font-size:12px;color:#9AA3AD;letter-spacing:.06em;text-transform:uppercase}
   .brand .sp{flex:1}
   .brand button{background:none;border:1px solid #3a4048;color:#C9D0D8;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+  .brand #wer{color:#fff;border-color:#5a616b;font-size:13px;font-weight:600}
 
   .banner{padding:12px 14px;border-radius:var(--radius);margin:12px 0 0;font-size:14px;font-weight:500}
   .banner.rot{background:var(--sprint);color:#fff}
@@ -125,7 +127,7 @@
     <h1>Werkstatt RSZ MV</h1>
     <span class="stand" id="stand"></span>
     <span class="sp"></span>
-    <button id="abmelden" hidden>Abmelden</button>
+    <button id="wer" hidden title="Name wechseln"></button>
   </div>
 </header>
 
@@ -152,9 +154,10 @@
    Datenquelle: Neon (Postgres) über Data API, Login über Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "3.0.0";
+const APP_VERSION = "4.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
+
 
 /* ---------------------------------------------------------------
    Zustand
@@ -164,8 +167,8 @@ let stand = null;          // Zeitpunkt des letzten erfolgreichen Ladens
 let offline = false;       // true = Anzeige zeigt einen alten Stand
 let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", lagerFilter:"alle", verw:"sportler" };
 let neu = null;            // Entwurf neues Ticket
-let session = localStorage.getItem("wSession") || null;
-let jwt = null, jwtExp = 0, ich = null;
+let jwt = null, jwtExp = 0;
+let bearbeiter = localStorage.getItem("wBearbeiter") || "";   // wer arbeitet gerade an diesem Gerät
 
 const $ = id => document.getElementById(id);
 const app = $("app");
@@ -205,16 +208,16 @@ function piep(ok){
 }
 
 /* ---------------------------------------------------------------
-   Anmeldung (Neon Auth, Bearer — ohne Cookie, läuft auch auf iPhones)
+   Zugang ohne Anmeldung: Die App holt sich bei Neon Auth einen anonymen
+   Schlüssel (gilt eine Stunde) und erneuert ihn selbst.
 ----------------------------------------------------------------*/
-class AuthFehler extends Error {}
 class NetzFehler extends Error {}
 
 function jwtInhalt(t){
   try{
     let b = t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");
     while(b.length % 4) b += "=";
-    return JSON.parse(decodeURIComponent(escape(atob(b))));
+    return JSON.parse(atob(b));
   }catch(e){ return {}; }
 }
 async function netz(url, opt){
@@ -223,46 +226,13 @@ async function netz(url, opt){
 }
 async function holeJwt(zwingend){
   if(!zwingend && jwt && Date.now()/1000 < jwtExp - 60) return jwt;
-  if(!session) throw new AuthFehler("Nicht angemeldet");
-  const r = await netz(AUTH_URL + "/token", { headers:{ Authorization:"Bearer " + session } });
-  if(r.status === 401 || r.status === 403){ abmeldenLokal(); throw new AuthFehler("Sitzung abgelaufen"); }
-  if(!r.ok) throw new Error("Anmeldedienst: HTTP " + r.status);
+  const r = await netz(AUTH_URL + "/token/anonymous");
+  if(!r.ok) throw new Error("Datenbank-Zugang nicht erreichbar (HTTP " + r.status + ")");
   const d = await r.json();
-  if(!d.token){ abmeldenLokal(); throw new AuthFehler("Sitzung abgelaufen"); }
+  if(!d.token) throw new Error("Datenbank-Zugang: kein Schlüssel erhalten");
   jwt = d.token;
-  const p = jwtInhalt(jwt);
-  jwtExp = p.exp || 0;
-  ich = { id:p.sub, email:p.email || "" };
+  jwtExp = jwtInhalt(jwt).exp || 0;
   return jwt;
-}
-async function authPost(pfad, body){
-  const r = await netz(AUTH_URL + pfad, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) });
-  let d = {};
-  try{ d = await r.json(); }catch(e){}
-  if(!r.ok) throw new Error(d.message || d.error || ("HTTP " + r.status));
-  return d;
-}
-async function anmelden(email, passwort){
-  const d = await authPost("/sign-in/email", { email, password:passwort });
-  if(!d.token) throw new Error("Anmeldung fehlgeschlagen");
-  session = d.token; localStorage.setItem("wSession", session);
-  if(d.user && d.user.name) localStorage.setItem("wName", d.user.name);
-}
-async function registrieren(name, email, passwort){
-  const d = await authPost("/sign-up/email", { name, email, password:passwort });
-  localStorage.setItem("wName", name);
-  if(d.token){ session = d.token; localStorage.setItem("wSession", session); }
-  else await anmelden(email, passwort);
-}
-function abmeldenLokal(){
-  session = null; jwt = null; jwtExp = 0; ich = null; DB = null;
-  localStorage.removeItem("wSession");
-  localStorage.removeItem("wSnap");
-}
-async function abmelden(){
-  try{ if(session) await fetch(AUTH_URL + "/sign-out", { method:"POST", headers:{ Authorization:"Bearer " + session } }); }catch(e){}
-  abmeldenLokal();
-  zeigeLogin();
 }
 
 /* ---------------------------------------------------------------
@@ -303,12 +273,12 @@ async function ladeAlles(){
     rest("/ticket_position?status=eq.reserviert&order=id"),
     rest("/v_koffer?order=ort,code"),
     rest("/termin?datum=gte." + heute + "&order=datum"),
-    rest("/trainer?order=name"),
+    rest("/person?order=name"),
     rest("/rechnung?order=id.desc&limit=100"),
     rest("/buchung?abrechnen=is.true&rechnung_id=is.null&art=eq.entnahme&select=sportler_id,menge,einzelpreis,zeit")
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, trainer, rechnungen, offenePosten] = await Promise.all(q);
-  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, trainer, rechnungen, offenePosten };
+  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten] = await Promise.all(q);
+  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB })); }catch(e){}
@@ -326,7 +296,6 @@ async function frischLaden(){
     render();
     sendeWarteschlange();
   }catch(e){
-    if(e instanceof AuthFehler){ zeigeLogin(); return; }
     if(e instanceof NetzFehler){ offlineAnzeigen(); return; }
     toast(e.message, true);
   }finally{ sperren(false); zeigeStand(); }
@@ -344,7 +313,6 @@ async function aktion(fn, meldung){
     if(meldung) toast(typeof meldung === "function" ? meldung(r) : meldung);
     return r;
   }catch(e){
-    if(e instanceof AuthFehler){ zeigeLogin(); return; }
     if(e instanceof NetzFehler){ offlineAnzeigen(); toast("Keine Verbindung — nichts gespeichert.", true); return; }
     toast(e.message, true);
     try{ await ladeAlles(); render(); }catch(x){}
@@ -386,12 +354,12 @@ async function sendeWarteschlange(){
     await ladeAlles(); render();
   }
 }
-window.addEventListener("online", () => { if(session) frischLaden(); });
+window.addEventListener("online", () => frischLaden());
 window.addEventListener("offline", () => { if(DB){ offline = true; render(); zeigeStand(); } });
 
 /* Beim Zurückkehren zur App frisch laden, wenn der Stand älter als eine Minute ist. */
 document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState !== "visible" || !session || !DB) return;
+  if(document.visibilityState !== "visible" || !DB) return;
   if(!stand || Date.now() - stand.getTime() > 60000) frischLaden();
 });
 
@@ -480,7 +448,8 @@ function kofferWarnungen(){
 function render(){
   if(!DB) return;
   $("tabs").hidden = false;
-  $("abmelden").hidden = false;
+  $("wer").hidden = false;
+  $("wer").textContent = (bearbeiter || "Name wählen") + " ▾";
   $("ver").textContent = APP_VERSION;
   document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === view.tab)));
   renderBanner();
@@ -593,7 +562,8 @@ function detailView(id){
   h += '<span class="sub">' + esc(radName(t.rad_id)) + ' · ' + tnr(t.id) + '</span><span class="sp"></span>';
   h += (t.fahrbereit ? '<span class="chip ok">fahrbereit</span>' : '<span class="chip alarm">Rad steht</span>') + '</div>';
   h += '<p style="margin:10px 0 0">' + esc(t.problem) + '</p>';
-  h += '<p class="sub" style="margin:6px 0 0">Angelegt ' + deLang(t.angelegt) + (t.anlass ? ' · ' + esc(t.anlass) : '') + '</p></div>';
+  h += '<p class="sub" style="margin:6px 0 0">Angelegt ' + deLang(t.angelegt) + (t.angelegt_von ? ' von ' + esc(t.angelegt_von) : '') +
+       (t.uebernommen_von ? ' · übernommen von ' + esc(t.uebernommen_von) : '') + (t.anlass ? ' · ' + esc(t.anlass) : '') + '</p></div>';
 
   h += '<div class="card"><span class="lbl">Priorität</span>';
   if(t.naechstmoeglich){
@@ -878,8 +848,7 @@ function inventarView(){
    ===============================================================*/
 function verwaltungView(){
   let h = '<div class="seg" style="margin-bottom:12px">';
-  const offen = (DB.trainer||[]).filter(t => !t.aktiv).length;
-  [["sportler","Sportler"],["raeder","Räder"],["artikel","Artikel"],["trainer","Trainer" + (offen ? " · " + offen : "")],["rechnungen","Rechnungen"],["export","Export"]]
+  [["sportler","Sportler"],["raeder","Räder"],["artikel","Artikel"],["personen","Personen"],["rechnungen","Rechnungen"],["export","Export"]]
     .forEach(x => h += segBtn("verw", x[0], x[1], view.verw));
   h += '</div>';
   if(offline) return h + '<div class="leer">Offline — Verwaltung erst mit Netz.</div>';
@@ -887,7 +856,7 @@ function verwaltungView(){
   if(v === "sportler")   return h + sportlerVerw();
   if(v === "raeder")     return h + raederVerw();
   if(v === "artikel")    return h + artikelVerw();
-  if(v === "trainer")    return h + trainerVerw();
+  if(v === "personen")   return h + personenVerw();
   if(v === "rechnungen") return h + rechnungenVerw();
   return h + exportVerw();
 }
@@ -926,16 +895,15 @@ function artikelVerw(){
   });
   return h + '</div>';
 }
-function trainerVerw(){
-  let h = '<div class="card liste">';
-  (DB.trainer||[]).forEach(t => {
-    const selbst = ich && t.user_id === ich.id;
-    h += '<div class="eintrag"><div class="txt"><strong>' + esc(t.name) + '</strong>' + (selbst ? ' <span class="sub">(du)</span>' : '') +
-         '<br><span class="sub">' + (t.aktiv ? "freigeschaltet" : "wartet auf Freischaltung seit " + deLang(t.angefragt)) + '</span></div>';
-    if(!selbst) h += '<button class="btn small' + (t.aktiv ? "" : " primary") + '" data-a="trainerAktiv" data-x="' + esc(t.user_id) + '">' + (t.aktiv ? "sperren" : "freischalten") + '</button>';
-    h += '</div>';
+function personenVerw(){
+  let h = '<div class="card"><span class="lbl">Namen für „wer hat was gemacht“</span>';
+  h += '<div class="row" style="gap:8px;margin-bottom:6px"><input type="text" id="pName" placeholder="Name"><button class="btn primary" data-a="personNeu">Hinzufügen</button></div><div class="liste">';
+  (DB.personen||[]).forEach(p => {
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(p.name) + '</strong>' + (p.aktiv ? "" : ' <span class="chip grau">ausgeblendet</span>') +
+         (p.name === bearbeiter ? ' <span class="sub">(dieses Gerät)</span>' : '') + '</div>' +
+         '<button class="btn small" data-a="personAktiv" data-x="' + p.id + '">' + (p.aktiv ? "ausblenden" : "einblenden") + '</button></div>';
   });
-  return h + '</div><p class="sub">Neue Trainer registrieren sich selbst in der App und erscheinen dann hier zur Freischaltung.</p>';
+  return h + '</div></div><p class="sub">Welcher Name bucht, wählt jedes Gerät oben rechts selbst.</p>';
 }
 function rechnungenVerw(){
   const summen = {};
@@ -1072,7 +1040,7 @@ async function ticketAnlegen(){
   if(!neu.problem.trim()){ toast("Bitte kurz beschreiben, was ist.", true); return; }
   const op = { p_rad:neu.rad, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
     p_soll_fertig:neu.soll_fertig, p_naechstmoeglich:neu.naechstmoeglich, p_anlass:neu.anlass || null,
-    p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos };
+    p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos, p_bearbeiter:bearbeiter || null };
   const r = rad(neu.rad), name = r ? (r.fahrer || r.bezeichnung) : neu.rad;
   if(offline){
     const q = warteschlange(); q.push(op); speichereWarteschlange(q);
@@ -1104,12 +1072,12 @@ async function exportiere(was){
     if(was === "buchungen"){
       const b = await rest("/buchung?order=zeit");
       b.forEach(x => { x.artikel = (artikel(x.code)||{}).name || ""; x.sportler = x.sportler_id ? sportlerName(x.sportler_id) : ""; x.zeit = new Date(x.zeit).toLocaleString("de-DE"); });
-      download("buchungen_" + d + ".csv", csv(b, ["zeit","art","code","artikel","menge","ort","sportler","ticket_id","einzelpreis","abrechnen","rechnung_id","notiz"]));
+      download("buchungen_" + d + ".csv", csv(b, ["zeit","art","code","artikel","menge","ort","sportler","ticket_id","einzelpreis","abrechnen","rechnung_id","bearbeiter","notiz"]));
     }
     if(was === "tickets"){
       const t = await rest("/ticket?order=id");
       t.forEach(x => { x.nr = tnr(x.id); x.fahrer = x.fahrer_id ? sportlerName(x.fahrer_id) : ""; x.kostentraeger = x.kostentraeger_id ? sportlerName(x.kostentraeger_id) : ""; });
-      download("tickets_" + d + ".csv", csv(t, ["nr","angelegt","rad_id","fahrer","problem","fahrbereit","aufwand","soll_fertig","naechstmoeglich","anlass","kostentraeger","arbeitsort","status","erledigt_am"]));
+      download("tickets_" + d + ".csv", csv(t, ["nr","angelegt","rad_id","fahrer","problem","fahrbereit","aufwand","soll_fertig","naechstmoeglich","anlass","kostentraeger","arbeitsort","status","angelegt_von","uebernommen_von","erledigt_von","erledigt_am"]));
     }
   }catch(e){ toast(e.message, true); }
 }
@@ -1155,11 +1123,11 @@ const A = {
     aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), { zustand: s.zustand === "zu prüfen" ? "frei" : "zu prüfen" }));
   },
   posWeg: x => aktion(() => aendern("ticket_position", "id=eq." + x, { status:"storniert" }), "Reservierung freigegeben"),
-  annehmen: () => tAendern({ status:"angenommen" }, "Übernommen"),
+  annehmen: () => tAendern({ status:"angenommen", uebernommen_von:bearbeiter || null }, "Übernommen"),
   erledigt: () => {
     const t = ticket(view.ticket);
     if(beschaffung(t) > 0 && !confirm("Es fehlt noch Material. Trotzdem abschließen?")) return;
-    aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id }), s => { view.ticket = null; return "Erledigt · " + eur(s) + " gebucht"; })
+    aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id, p_bearbeiter:bearbeiter || null }), s => { view.ticket = null; return "Erledigt · " + eur(s) + " gebucht"; })
       .then(() => { if(!ticket(t.id)){ view.ticket = null; render(); } });
   },
   stornieren: () => {
@@ -1176,24 +1144,24 @@ const A = {
   zugangBuchen: x => {
     const m = zahlOderNull("fMenge");
     if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
-    aktion(() => neuIn("buchung", { art:"zugang", code:x, menge:m, ort:wert("fOrt"), notiz:wert("fNotiz") || null }), "Zugang gebucht");
+    aktion(() => neuIn("buchung", { art:"zugang", code:x, menge:m, ort:wert("fOrt"), notiz:wert("fNotiz") || null, bearbeiter:bearbeiter || null }), "Zugang gebucht");
   },
   ausgabeBuchen: x => {
     const m = zahlOderNull("fMenge"), s = wert("fSportler");
     if(!s){ toast("Bitte Sportler wählen.", true); return; }
     if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
-    aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:m, p_ort:wert("fOrt"), p_sportler:Number(s), p_notiz:wert("fNotiz") || null }),
+    aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:m, p_ort:wert("fOrt"), p_sportler:Number(s), p_notiz:wert("fNotiz") || null, p_bearbeiter:bearbeiter || null }),
            b => "Gebucht · " + eur(b));
   },
   inventurBuchen: x => {
     const m = zahlOderNull("fMenge");
     if(m === null || m < 0){ toast("Gezählte Menge fehlt.", true); return; }
-    aktion(() => rpc("inventur", { p_code:x, p_ort:wert("fOrt"), p_gezaehlt:m }), d => d == 0 ? "Stimmt bereits" : "Korrigiert um " + (d > 0 ? "+" : "") + zahl(d));
+    aktion(() => rpc("inventur", { p_code:x, p_ort:wert("fOrt"), p_gezaehlt:m, p_bearbeiter:bearbeiter || null }), d => d == 0 ? "Stimmt bereits" : "Korrigiert um " + (d > 0 ? "+" : "") + zahl(d));
   },
 
   /* Koffer */
-  kofferRein: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o })); },
-  kofferRaus: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt" })); },
+  kofferRein: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null })); },
+  kofferRaus: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt", p_bearbeiter:bearbeiter || null })); },
   terminNeu: () => {
     if(!wert("tDatum") || !wert("tName")){ toast("Datum und Name fehlen.", true); return; }
     aktion(() => neuIn("termin", { datum:wert("tDatum"), name:wert("tName"), koffer:wert("tKoffer") || null }), "Termin eingetragen");
@@ -1246,7 +1214,14 @@ const A = {
       aktion(() => neuIn("artikel", Object.assign({ code }, d)), code + " angelegt");
     }
   },
-  trainerAktiv: x => { const t = DB.trainer.find(y => y.user_id === x); aktion(() => aendern("trainer", "user_id=eq." + encodeURIComponent(x), { aktiv:!t.aktiv }), t.aktiv ? "Gesperrt" : t.name + " freigeschaltet"); },
+  personNeu: () => { const n = wert("pName"); if(!n){ toast("Name fehlt.", true); return; } aktion(() => neuIn("person", { name:n }), n + " hinzugefügt"); },
+  personAktiv: x => { const p = DB.personen.find(y => y.id === Number(x)); aktion(() => aendern("person", "id=eq." + x, { aktiv:!p.aktiv })); },
+  werWaehlen: x => { bearbeiter = x; localStorage.setItem("wBearbeiter", x); modalZu(); render(); toast("Du arbeitest als " + x); },
+  werNeu: () => {
+    const n = wert("wNeu");
+    if(!n){ toast("Name fehlt.", true); return; }
+    aktion(() => neuIn("person", { name:n })).then(() => { if((DB.personen||[]).some(p => p.name === n)) A.werWaehlen(n); });
+  },
   rechnungErstellen: x => {
     if(!confirm("Rechnung für " + sportlerName(Number(x)) + " über alle offenen Posten erstellen?")) return;
     aktion(() => rpc("rechnung_erstellen", { p_sportler:Number(x), p_von:"2000-01-01", p_bis:iso(HEUTE) }), "Rechnung erstellt");
@@ -1287,7 +1262,7 @@ const C = {
 document.addEventListener("click", ev => {
   const tab = ev.target.closest(".tab");
   if(tab){ A.tab(tab.dataset.tab); return; }
-  if(ev.target.id === "abmelden"){ abmelden(); return; }
+  if(ev.target.id === "wer"){ werAuswahl(); return; }
   const el = ev.target.closest("[data-a]");
   if(!el || el.disabled) return;
   const f = A[el.dataset.a];
@@ -1314,71 +1289,30 @@ document.addEventListener("change", ev => {
 });
 
 /* ===============================================================
-   Login, Freischaltung, Start
+   Namenswahl und Start
    ===============================================================*/
-function zeigeLogin(fehler, registrierung){
-  $("tabs").hidden = true; $("abmelden").hidden = true; $("banner").innerHTML = ""; $("stand").textContent = "";
-  modalZu();
-  let h = '<div class="card" style="max-width:420px;margin:30px auto">';
-  h += '<h2 class="sec" style="margin-top:0">' + (registrierung ? "Zugang anlegen" : "Anmelden") + '</h2>';
-  if(fehler) h += '<div class="fehlerbox" style="margin-top:0">' + esc(fehler) + '</div>';
-  if(registrierung) h += '<div class="feld"><span class="lbl">Dein Name</span><input type="text" id="lName" autocomplete="name"></div>';
-  h += '<div class="feld"><span class="lbl">E-Mail</span><input type="email" id="lMail" autocomplete="username"></div>';
-  h += '<div class="feld"><span class="lbl">Passwort</span><input type="password" id="lPw" autocomplete="' + (registrierung ? "new-password" : "current-password") + '"' + (registrierung ? ' minlength="8"' : '') + '></div>';
-  h += '<button class="btn primary voll" id="lLos">' + (registrierung ? "Zugang anlegen" : "Anmelden") + '</button>';
-  h += '<p class="sub" style="text-align:center;margin:14px 0 0"><button class="btn small" id="lWechsel">' + (registrierung ? "Ich habe schon einen Zugang" : "Neu hier? Zugang anlegen") + '</button></p>';
-  h += '</div>';
-  app.innerHTML = h;
-  $("lWechsel").onclick = () => zeigeLogin(null, !registrierung);
-  const los = async () => {
-    const mail = wert("lMail"), pw = $("lPw").value;
-    if(!mail || !pw){ zeigeLogin("E-Mail und Passwort eingeben.", registrierung); return; }
-    $("lLos").disabled = true;
-    try{
-      if(registrierung){
-        const name = wert("lName");
-        if(!name){ zeigeLogin("Bitte deinen Namen eintragen.", true); return; }
-        if(pw.length < 8){ zeigeLogin("Passwort mindestens 8 Zeichen.", true); return; }
-        await registrieren(name, mail, pw);
-      } else await anmelden(mail, pw);
-      start();
-    }catch(e){ zeigeLogin(e instanceof NetzFehler ? "Keine Verbindung." : e.message, registrierung); }
-  };
-  $("lLos").onclick = los;
-  $("lPw").onkeydown = e => { if(e.key === "Enter") los(); };
-}
-
-function zeigeWarten(name){
-  $("tabs").hidden = true; $("abmelden").hidden = false; $("stand").textContent = "";
-  app.innerHTML = '<div class="card" style="max-width:420px;margin:30px auto"><h2 class="sec" style="margin-top:0">Fast geschafft</h2>' +
-    '<p>Hallo ' + esc(name) + ', dein Zugang ist angelegt. Ein Trainer muss dich unter <strong>Verwaltung → Trainer</strong> einmal freischalten.</p>' +
-    '<button class="btn primary voll" id="wNochmal">Nochmal prüfen</button></div>';
-  $("wNochmal").onclick = () => start();
-}
-
-/** Ist der angemeldete Nutzer freigeschalteter Trainer? Legt beim ersten Mal die Anfrage an. */
-async function trainerStatus(){
-  const t = await rest("/trainer?user_id=eq." + encodeURIComponent(ich.id));
-  if(t.length && t[0].aktiv) return { aktiv:true, name:t[0].name };
-  const name = (t.length && t[0].name) || localStorage.getItem("wName") || (ich.email || "").split("@")[0] || "Trainer";
-  const aktiv = await rpc("zugang_anfragen", { p_name:name });
-  return { aktiv: aktiv === true, name };
+function werAuswahl(){
+  const aktive = (DB.personen||[]).filter(p => p.aktiv);
+  let h = '<h3>Wer bist du?</h3><p class="sub" style="margin-top:-6px">Wird bei jeder Buchung und jedem Ticket vermerkt. Das Gerät merkt sich die Auswahl.</p>';
+  h += '<div style="display:grid;gap:8px">';
+  aktive.forEach(p => h += '<button class="btn' + (p.name === bearbeiter ? " primary" : "") + '" data-a="werWaehlen" data-x="' + esc(p.name) + '">' + esc(p.name) + '</button>');
+  h += '</div><div class="trenn"><span class="lbl">' + (aktive.length ? "Nicht dabei?" : "Noch keine Namen — trag dich ein") + '</span>' +
+       '<div class="row" style="gap:8px"><input type="text" id="wNeu" placeholder="Dein Name"><button class="btn" data-a="werNeu">Eintragen</button></div></div>';
+  if(bearbeiter) h += '<button class="btn voll" style="margin-top:12px" data-a="modalZu">Abbrechen</button>';
+  modal(h);
 }
 
 async function start(){
   $("ver").textContent = APP_VERSION;
-  if(!session){ zeigeLogin(); return; }
   app.innerHTML = '<div class="leer">Lädt…</div>';
   $("stand").textContent = "lädt…";
   try{
     await holeJwt(true);
-    const st = await trainerStatus();
-    if(!st.aktiv){ zeigeWarten(st.name); return; }
     await ladeAlles();
     render();
+    if(!bearbeiter || !(DB.personen||[]).some(p => p.aktiv && p.name === bearbeiter)) werAuswahl();
     sendeWarteschlange();
   }catch(e){
-    if(e instanceof AuthFehler){ zeigeLogin(); return; }
     if(e instanceof NetzFehler){ offlineAnzeigen(); zeigeStand(); return; }
     app.innerHTML = '<div class="fehlerbox">' + esc(e.message) + '</div>';
   }
