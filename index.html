@@ -185,7 +185,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "5.0.1";
+const APP_VERSION = "5.1.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -1237,6 +1237,14 @@ function nummernWahl(typ, gruppe){
   h += '<div id="nrEigen" hidden><input type="text" id="nrEigenWert" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : "z. B. B-120") + '"></div>';
   return h + '</div>';
 }
+/** Anzahl im Einzelstück-Formular (1, wenn es das Feld nicht gibt). Bei mehreren Stück gilt die Seriennummer nicht. */
+function serienAnzahl(){
+  const e = $("eAnzahl"); if(!e) return 1;
+  const n = Math.floor(Number(e.value));
+  const ser = $("eSer");
+  if(ser){ ser.disabled = n > 1; ser.placeholder = n > 1 ? "später je Stück eintragen" : ""; if(n > 1) ser.value = ""; }
+  return n >= 1 ? n : 1;
+}
 async function vorschauNummer(){
   const el = $("nrVorschau"); if(!el || !nrForm || nrForm.modus !== "auto") return;
   const lauf = ++nrLauf;
@@ -1251,7 +1259,9 @@ async function vorschauNummer(){
   try{
     const nr = await rpc(fn, args);
     if(lauf !== nrLauf) return;
-    el.style.color = ""; el.innerHTML = 'wird voraussichtlich <strong class="mono">' + esc(nr) + '</strong> — endgültig beim Speichern';
+    const n = serienAnzahl(), m = /^(.*-)(\d+)$/.exec(nr);
+    const text = n > 1 && m ? esc(nr) + '</strong> bis <strong class="mono">' + esc(m[1] + (Number(m[2]) + n - 1)) : esc(nr);
+    el.style.color = ""; el.innerHTML = 'wird voraussichtlich <strong class="mono">' + text + '</strong> — endgültig beim Speichern';
   }catch(e){
     if(lauf !== nrLauf) return;
     el.style.color = "var(--sprint)"; el.textContent = e instanceof NetzFehler ? "Vorschau braucht Netz" : e.message;
@@ -1310,9 +1320,10 @@ function stueckForm(nr){
     (nr ? "" : nummernWahl("stueck", 2)) +
     '<div class="grid2">' + feld("Typ", "eTyp", s.typ, "text", ' placeholder="Laufrad Bahn vorne"') + feld("Marke", "eMarke", s.marke, "text", ' list="markenDL" placeholder="z. B. Mavic"') + '</div>' + markenDL() +
     feld("Detail", "eDet", s.detail) +
+    (nr ? '' : '<div class="feld"><span class="lbl">Anzahl gleicher Teile</span><input type="number" id="eAnzahl" value="1" min="1" max="50" step="1" inputmode="numeric" data-c="nrVorschau" style="max-width:120px">' +
+              '<p class="sub" style="margin:6px 0 0">Mehr als 1, z. B. 4 Laufräder vorne: legt alle mit fortlaufenden Nummern an.</p></div>') +
     '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + feld("Kaufdatum", "eKauf", s.kaufdatum, "date") + '</div>' +
-    '<div class="grid2">' + feld("Wert (€)", "eWert", s.wert, "number", ' step="0.01" min="0"') + feld("Notiz", "eNotiz", s.notiz) + '</div>' +
-    (nr ? '' : '<p class="sub">Einzelstücke bekommen Nummern im Bereich 2xx, z. B. L-2xx für Laufräder.</p>') +
+    feld("Notiz", "eNotiz", s.notiz) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
 }
 const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
@@ -1686,15 +1697,21 @@ const A = {
   stueckNeu: () => stueckForm(null),
   stueckBearbeiten: x => stueckForm(x),
   stueckSpeichern: x => {
-    const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:wert("eKauf") || null, wert:zahlOderNull("eWert"), notiz:wert("eNotiz") || null };
+    const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:wert("eKauf") || null, notiz:wert("eNotiz") || null };
     if(!d.typ){ toast("Typ fehlt.", true); return; }
     if(x){ aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
     if(nrForm && nrForm.modus === "auto"){
       const b = nrBuchstabe();
       if(!/^[A-Z]{1,3}$/.test(b)){ toast(b ? "Neue Kategorie: 1–3 Buchstaben A–Z." : "Bitte eine Kategorie wählen.", true); return; }
-      aktion(() => rpc("stueck_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), nr => nr + " angelegt — diese Nummer aufs Etikett");
+      const n = Number(wert("eAnzahl") || 1);
+      if(!Number.isInteger(n) || n < 1 || n > 50){ toast("Anzahl: 1 bis 50.", true); return; }
+      if(n === 1){ aktion(() => rpc("stueck_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), nr => nr + " angelegt — diese Nummer aufs Etikett"); return; }
+      d.seriennummer = null;
+      aktion(() => rpc("stueck_serie_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d, p_anzahl:n }),
+             l => l.length + " Stück angelegt: " + l[0] + " bis " + l[l.length - 1] + " — diese Nummern auf die Etiketten");
       return;
     }
+    if(Number(wert("eAnzahl") || 1) > 1){ toast("Mehrere Stück auf einmal nur mit automatischer Nummer.", true); return; }
     const nr = wert("nrEigenWert").toUpperCase();
     if(!nr){ toast("Nummer fehlt.", true); return; }
     if(nummerVergeben(nr)){ toast(nr + " ist schon vergeben.", true); return; }

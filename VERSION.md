@@ -1,9 +1,10 @@
 # Version
 
-**5.0.1** — 01.10.2026
+**5.1.0** — 01.10.2026
 
-Nummernvergabe einfacher: statt Buchstabe und Zifferngruppe wird nur noch
-die Kategorie gewählt (z. B. „Bremse · B-1xx“), die Ziffer folgt aus der Art.
+Einzelstücke als Serie anlegen (z. B. 4 gleiche Laufräder auf einmal, mit
+fortlaufenden Nummern); Feld „Wert“ aus dem Einzelstück-Formular entfernt.
+Kleine Datenbankergänzung — Migration nötig.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -12,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 5.1.0 | 01.10.2026 | Einzelstücke als Serie anlegen, Feld „Wert“ entfernt |
 | 5.0.1 | 01.10.2026 | Nummernvergabe über Kategorie-Auswahl |
 | 5.0.0 | 01.10.2026 | Inventur-Modus, automatische Nummern, Marke, Storno, Fotos am Ticket |
 | 4.0.2 | 01.10.2026 | Fehlerbehebungen, Offline-Tickets ohne Doppel, engere Zugriffsrechte |

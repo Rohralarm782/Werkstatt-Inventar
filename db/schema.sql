@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 5.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 5.1.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 4.0.2 aus nur db/migration_5.0.0.sql.)
+--   von 5.0.x aus nur db/migration_5.1.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -752,6 +752,26 @@ begin
   return v_nr;
 end $$;
 
+-- ---------------------------------------------------------------------
+--  Serie von Einzelstücken anlegen: mehrere gleiche Teile in einem
+--  Schritt, mit aufeinanderfolgenden Nummern. Alles oder nichts.
+-- ---------------------------------------------------------------------
+create function stueck_serie_anlegen(p_buchstabe text, p_gruppe integer, p_daten jsonb, p_anzahl integer)
+returns text[]
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_nummern text[] := '{}';
+begin
+  if p_anzahl is null or p_anzahl < 1 or p_anzahl > 50 then
+    raise exception 'Anzahl: 1 bis 50';
+  end if;
+  perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
+  for i in 1 .. p_anzahl loop
+    v_nummern := v_nummern || stueck_anlegen(p_buchstabe, p_gruppe, p_daten);
+  end loop;
+  return v_nummern;
+end $$;
+
 create function rad_anlegen(p_daten jsonb)
 returns text
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -920,6 +940,7 @@ grant execute on function
   naechste_rad_id(text),
   artikel_anlegen(text, integer, jsonb),
   stueck_anlegen(text, integer, jsonb),
+  stueck_serie_anlegen(text, integer, jsonb, integer),
   rad_anlegen(jsonb),
   foto_hochladen(bigint, text, text, text, text, uuid)
 to anonymous;
