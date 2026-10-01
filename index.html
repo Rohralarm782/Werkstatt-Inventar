@@ -109,6 +109,7 @@
   .liste .eintrag{display:flex;align-items:center;gap:8px 10px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
   .liste .eintrag:first-child{border-top:none}
   .liste .eintrag .txt{flex:1 1 140px;min-width:0}
+  .liste .eintrag input.menge{width:68px;flex:0 0 auto;min-height:38px;padding:4px 6px;text-align:right}
   table{width:100%;border-collapse:collapse}
   th{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);text-align:right;padding:6px 5px;border-bottom:1px solid var(--line)}
   th:first-child,td:first-child{text-align:left}
@@ -170,10 +171,10 @@
 <script>
 /* ===============================================================
    Werkstatt RSZ MV — Tickets, Lager, Koffer, Inventar, Verwaltung
-   Datenquelle: Neon (Postgres) über Data API, Login über Neon Auth.
+   Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "4.0.1";
+const APP_VERSION = "4.0.2";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -195,12 +196,13 @@ const app = $("app");
 /* ---------------------------------------------------------------
    Kleinkram
 ----------------------------------------------------------------*/
-const HEUTE = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
-function plusTage(n){ const d = new Date(HEUTE.getTime()); d.setDate(d.getDate()+n); return d; }
+/** Heute, 0 Uhr — bei jedem Aufruf neu, damit eine über Nacht offene App nicht mit gestern rechnet. */
+function heute(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+function plusTage(n){ const d = heute(); d.setDate(d.getDate()+n); return d; }
 function iso(d){ const m=d.getMonth()+1, t=d.getDate(); return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(t<10?"0":"")+t; }
 function de(s){ if(!s) return ""; const p=String(s).slice(0,10).split("-"); return p.length===3 ? p[2]+"."+p[1]+"." : String(s); }
 function deLang(s){ if(!s) return ""; const p=String(s).slice(0,10).split("-"); return p[2]+"."+p[1]+"."+p[0]; }
-function tageBis(s){ if(!s) return null; const d=new Date(String(s).slice(0,10)+"T00:00:00"); return isNaN(d)?null:Math.round((d-HEUTE)/86400000); }
+function tageBis(s){ if(!s) return null; const d=new Date(String(s).slice(0,10)+"T00:00:00"); return isNaN(d)?null:Math.round((d-heute())/86400000); }
 function uhr(d){ return d ? d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : ""; }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function num(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
@@ -209,7 +211,7 @@ function eur(v){ return num(v).toLocaleString("de-DE",{minimumFractionDigits:2,m
 function tnr(id){ return "T-" + String(id).padStart(4,"0"); }
 
 /** Kommender Freitag — heute, wenn heute Freitag ist; am Wochenende der Freitag danach. */
-function naechsterFreitag(){ const tag = HEUTE.getDay(); return plusTage(tag <= 5 ? 5 - tag : 6); }
+function naechsterFreitag(){ const tag = heute().getDay(); return plusTage(tag <= 5 ? 5 - tag : 6); }
 
 let toastTimer = null;
 function toast(msg, fehler){
@@ -281,7 +283,7 @@ const aendern = (tab, filter, felder) => rest("/" + tab + "?" + filter, { method
 const loeschen = (tab, filter) => rest("/" + tab + "?" + filter, { method:"DELETE", headers:{ Prefer:"return=minimal" } });
 
 async function ladeAlles(){
-  const heute = iso(HEUTE);
+  const tag = iso(heute());
   const q = [
     rest("/v_bestand?order=code"),
     rest("/artikel?order=code"),
@@ -291,7 +293,7 @@ async function ladeAlles(){
     rest("/ticket?status=in.(offen,angenommen)&order=id"),
     rest("/ticket_position?status=eq.reserviert&order=id"),
     rest("/v_koffer?order=ort,code"),
-    rest("/termin?datum=gte." + heute + "&order=datum"),
+    rest("/termin?datum=gte." + tag + "&order=datum"),
     rest("/person?order=name"),
     rest("/rechnung?order=id.desc&limit=100"),
     rest("/buchung?abrechnen=is.true&rechnung_id=is.null&art=eq.entnahme&select=sportler_id,menge,einzelpreis,zeit")
@@ -324,15 +326,27 @@ async function frischLaden(){
 async function aktion(fn, meldung){
   if(offline){ toast("Offline — Änderungen sind erst mit Netz möglich.", true); return; }
   sperren(true);
+  let r, geschrieben = false;
   try{
-    const r = await fn();
+    r = await fn();
+    geschrieben = true;
     modalZu();
     await ladeAlles();
     render();
     if(meldung) toast(typeof meldung === "function" ? meldung(r) : meldung);
     return r;
   }catch(e){
-    if(e instanceof NetzFehler){ offlineAnzeigen(); toast("Keine Verbindung — nichts gespeichert.", true); return; }
+    if(e instanceof NetzFehler){
+      offlineAnzeigen();
+      if(geschrieben){
+        // Gespeichert ist es, nur das Neuladen ging nicht mehr.
+        modalZu();
+        toast((meldung ? (typeof meldung === "function" ? meldung(r) : meldung) : "Gespeichert") + " — Anzeige ohne Netz nicht aktualisiert.");
+        return r;
+      }
+      toast("Keine Verbindung — wahrscheinlich nicht gespeichert. Mit Netz prüfen, bevor du es nochmal buchst.", true);
+      return;
+    }
     toast(e.message, true);
     try{ await ladeAlles(); render(); }catch(x){}
   }finally{ sperren(false); zeigeStand(); }
@@ -348,6 +362,23 @@ function zeigeStand(){
 ----------------------------------------------------------------*/
 function warteschlange(){ try{ return JSON.parse(localStorage.getItem("wQueue") || "[]"); }catch(e){ return []; } }
 function speichereWarteschlange(q){ localStorage.setItem("wQueue", JSON.stringify(q)); }
+/** Tickets, die beim Nachsenden abgelehnt wurden — bleiben auf dem Gerät, bis sie gesendet oder verworfen sind. */
+function fehlerListe(){ try{ return JSON.parse(localStorage.getItem("wQueueFehler") || "[]"); }catch(e){ return []; } }
+function speichereFehler(f){ localStorage.setItem("wQueueFehler", JSON.stringify(f)); }
+
+/** Eindeutige Kennung je Ticket — die Datenbank legt jede Kennung nur einmal an. */
+function neueId(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+  return h.slice(0,8) + "-" + h.slice(8,12) + "-" + h.slice(12,16) + "-" + h.slice(16,20) + "-" + h.slice(20);
+}
+function inWarteschlange(op){
+  const q = warteschlange();
+  if(!q.some(x => x.p_client_id === op.p_client_id)) q.push(op);
+  speichereWarteschlange(q);
+}
 
 function offlineAnzeigen(){
   let snap = null;
@@ -359,19 +390,49 @@ function offlineAnzeigen(){
   DB = snap.DB; stand = new Date(snap.stand); offline = true;
   render();
 }
+let sendetGerade = false;
+/** Wartende Tickets nacheinander senden. Läuft nie doppelt; jedes Ticket trägt seine Kennung,
+    sodass auch ein Nachsenden nach verlorener Antwort kein zweites Ticket erzeugt. */
 async function sendeWarteschlange(){
-  const q = warteschlange();
-  if(!q.length || offline) return;
-  const rest_ = [];
-  for(const op of q){
-    try{ await rpc("ticket_anlegen", op); }
-    catch(e){ if(e instanceof NetzFehler){ rest_.push(op); } else { toast("Ticket konnte nicht nachgesendet werden: " + e.message, true); } }
-  }
-  speichereWarteschlange(rest_);
-  if(rest_.length < q.length){
-    toast((q.length - rest_.length) + " Ticket(s) nachgesendet");
-    await ladeAlles(); render();
-  }
+  if(sendetGerade || offline || !warteschlange().length) return;
+  sendetGerade = true;
+  let gesendet = 0, abgelehnt = 0;
+  try{
+    for(;;){
+      const q = warteschlange();
+      if(!q.length) break;
+      const op = q[0];
+      if(!op.p_client_id){ op.p_client_id = neueId(); speichereWarteschlange(q); }   // aus 4.0.1 übrig
+      try{
+        await rpc("ticket_anlegen", op);
+        gesendet++;
+      }catch(e){
+        if(e instanceof NetzFehler) break;            // bleibt stehen, später mit derselben Kennung
+        const f = fehlerListe();
+        f.push({ op, fehler:e.message, zeit:new Date().toISOString() });
+        speichereFehler(f);
+        abgelehnt++;
+      }
+      speichereWarteschlange(warteschlange().filter(x => x.p_client_id !== op.p_client_id));
+    }
+  }finally{ sendetGerade = false; }
+  if(abgelehnt) toast(abgelehnt + " Ticket(s) wurden abgelehnt — siehe roter Balken.", true);
+  else if(gesendet) toast(gesendet + " Ticket(s) nachgesendet");
+  if(gesendet || abgelehnt){ try{ await ladeAlles(); }catch(e){} render(); zeigeStand(); }
+}
+function fehlerZeigen(){
+  const f = fehlerListe();
+  if(!f.length){ modalZu(); return; }
+  let h = '<h3>Nicht angelegte Tickets</h3><p class="sub" style="margin-top:-6px">Diese Tickets wurden offline erfasst, beim Nachsenden aber abgelehnt. Sie liegen nur auf diesem Gerät.</p><div class="liste">';
+  f.forEach(x => {
+    const r = rad(x.op.p_rad);
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(r ? (r.fahrer || r.bezeichnung) : x.op.p_rad) + '</strong> · ' + esc(x.op.p_problem) +
+         '<br><span class="sub" style="color:var(--sprint)">' + esc(x.fehler) + '</span></div>' +
+         '<div class="knoepfe"><button class="btn small" data-a="fehlerNochmal" data-x="' + esc(x.op.p_client_id) + '">nochmal senden</button>' +
+         '<button class="btn small" data-a="fehlerVerwerfen" data-x="' + esc(x.op.p_client_id) + '">verwerfen</button></div></div>';
+  });
+  h += '</div><button class="btn voll" style="margin-top:12px" data-a="modalZu">Schließen</button>';
+  modal(h);
 }
 window.addEventListener("online", () => frischLaden());
 window.addEventListener("offline", () => { if(DB){ offline = true; render(); zeigeStand(); } });
@@ -405,8 +466,12 @@ function wer(t){
 function radName(id){ const r = rad(id); return r ? r.bezeichnung : id; }
 function amOrt(b, ort){ return ort === "Werkstatt" ? num(b.werkstatt) : ort === "Koffer Bahn" ? num(b.koffer_bahn) : num(b.koffer_strasse); }
 
-/** Was ist für dieses Ticket am Arbeitsort greifbar? Eigene Reservierungen zählen als greifbar. */
+function istLeistung(code){ const a = artikel(code); return !!a && a.art === "Pauschale"; }
+
+/** Was ist für dieses Ticket am Arbeitsort greifbar? Eigene Reservierungen zählen als greifbar.
+    Leistungen (Pauschalen) haben keinen Bestand und sind immer greifbar. */
 function greifbar(code, ort, tid){
+  if(istLeistung(code)) return Infinity;
   const b = bestand(code);
   if(!b) return 0;
   if(ort !== "Werkstatt") return amOrt(b, ort);
@@ -414,15 +479,15 @@ function greifbar(code, ort, tid){
   if(tid) positionen(tid).forEach(p => { if(p.code === code) f += num(p.menge); });
   return f;
 }
+/** Codes, von denen für dieses Ticket am Arbeitsort nicht genug da ist — unabhängig von der Lieferzeit. */
+function fehlend(t){
+  const bedarf = {};
+  positionen(t.id).forEach(p => { bedarf[p.code] = (bedarf[p.code] || 0) + num(p.menge); });
+  return Object.keys(bedarf).filter(c => bedarf[c] > greifbar(c, t.arbeitsort, t.id));
+}
+/** Längste Lieferzeit der fehlenden Teile (0, wenn nichts fehlt oder keine Lieferzeit eingetragen ist). */
 function beschaffung(t){
-  let max = 0;
-  positionen(t.id).forEach(p => {
-    if(num(p.menge) > greifbar(p.code, t.arbeitsort, t.id)){
-      const a = artikel(p.code);
-      max = Math.max(max, a ? num(a.lieferzeit_tage) : 0);
-    }
-  });
-  return max;
+  return fehlend(t).reduce((max, c) => Math.max(max, num((artikel(c) || {}).lieferzeit_tage)), 0);
 }
 function puffer(t){
   if(t.naechstmoeglich) return null;
@@ -454,7 +519,7 @@ function kofferWarnungen(){
   const out = [];
   (DB.termine||[]).forEach(t => {
     const tage = tageBis(t.datum);
-    if(tage === null || tage > 10 || !t.koffer) return;
+    if(tage === null || tage < 0 || tage > 10 || !t.koffer) return;
     const fehlt = (DB.koffer||[]).filter(k => k.ort === t.koffer && num(k.fehlt) > 0);
     if(fehlt.length) out.push({ termin:t, tage, fehlt });
   });
@@ -490,6 +555,11 @@ function renderBanner(){
     h += '<div class="banner rot">Offline — Stand von ' + (stand ? stand.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "?") +
          '. Die Anzeige kann veraltet sein. Neue Tickets werden gespeichert und nachgesendet' + (q ? ' (' + q + ' wartend)' : '') + '.</div>';
   }
+  const abgelehnt = fehlerListe().length;
+  if(abgelehnt){
+    h += '<div class="banner rot">' + abgelehnt + ' offline erfasste(s) Ticket(s) konnten nicht angelegt werden. ' +
+         '<button class="btn small" data-a="fehlerZeigen" style="margin-left:6px">ansehen</button></div>';
+  }
   kofferWarnungen().forEach(w => {
     h += '<div class="banner gelb"><strong>' + esc(w.termin.name) + '</strong> ' +
          (w.tage === 0 ? 'heute' : w.tage === 1 ? 'morgen' : 'in ' + w.tage + ' Tagen') +
@@ -507,14 +577,14 @@ function boardView(){
   const q = view.suche.toLowerCase();
   if(q) liste = liste.filter(t => (wer(t) + " " + radName(t.rad_id) + " " + t.problem).toLowerCase().indexOf(q) >= 0);
   if(view.filter === "steht") liste = liste.filter(t => !t.fahrbereit);
-  if(view.filter === "material") liste = liste.filter(t => beschaffung(t) > 0);
+  if(view.filter === "material") liste = liste.filter(t => fehlend(t).length > 0);
   const alle = offeneTickets();
 
   let h = '<button class="btn primary voll" data-a="tab" data-x="neu" style="margin-bottom:12px">+ Neues Ticket</button>';
   h += '<div class="seg" style="margin-bottom:10px">';
   h += segBtn("filter", "offen",    "Offen · " + alle.length, view.filter);
   h += segBtn("filter", "steht",    "Steht · " + alle.filter(t => !t.fahrbereit).length, view.filter);
-  h += segBtn("filter", "material", "Material · " + alle.filter(t => beschaffung(t) > 0).length, view.filter);
+  h += segBtn("filter", "material", "Material · " + alle.filter(t => fehlend(t).length > 0).length, view.filter);
   h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad, Problem" value="' + esc(view.suche) + '"></div>';
 
   const steht = sortiert(liste.filter(t => !t.fahrbereit));
@@ -531,13 +601,13 @@ function segBtn(aktion, wert, label, aktuell, extraKlasse){
          (extraKlasse ? ' class="' + extraKlasse + '"' : '') + '>' + esc(label) + '</button>';
 }
 function ticketKarte(t, steht){
-  const p = pufferText(t), pos = positionen(t.id), b = beschaffung(t), pr = pruefOffen(t).length;
+  const p = pufferText(t), pos = positionen(t.id), f = fehlend(t), b = beschaffung(t), pr = pruefOffen(t).length;
   let h = '<button class="ticket' + (steht ? " steht" : "") + '" data-a="oeffnen" data-x="' + t.id + '">';
   h += '<span class="kopf"><span class="big">' + esc(wer(t)) + '</span><span class="sub">' + esc(radName(t.rad_id)) + '</span>';
   h += '<span class="puffer mono" style="color:' + p.farbe + '">' + p.txt + '</span></span>';
   h += '<p class="prob">' + esc(t.problem) + '</p><span class="chips">';
   h += !pos.length ? '<span class="chip grau">kein Material</span>'
-     : b > 0 ? '<span class="chip warn">Bestellen · ' + b + ' T</span>'
+     : f.length ? '<span class="chip warn">' + (b > 0 ? 'Bestellen · ' + b + ' T' : 'Fehlt · ' + f.length) + '</span>'
      : '<span class="chip ok">Reserviert · ' + pos.length + '</span>';
   h += '<span class="chip grau">' + esc(t.aufwand) + '</span>';
   h += '<span class="chip grau">' + (t.naechstmoeglich ? "nächstmöglich" : t.soll_fertig ? de(t.soll_fertig) + (t.anlass ? " · " + esc(t.anlass) : "") : "kein Termin") + '</span>';
@@ -627,15 +697,17 @@ function detailView(id){
   }
   h += '</div>';
 
-  const pos = positionen(t.id);
+  const pos = positionen(t.id), fehltCodes = fehlend(t);
   h += '<div class="card"><span class="lbl">Material · gebucht wird aus ' + esc(t.arbeitsort) + '</span>';
   if(!pos.length) h += '<p class="sub" style="margin:0 0 8px">Noch nichts reserviert.</p>';
   else {
     h += '<div class="liste">';
     pos.forEach(pp => {
-      const a = artikel(pp.code), fehlt = num(pp.menge) > greifbar(pp.code, t.arbeitsort, t.id);
-      h += '<div class="eintrag"><div class="txt">' + zahl(pp.menge) + ' × ' + esc(a ? a.name : pp.code) + '<br><span class="sub">' + esc(pp.code) +
-           (fehlt ? ' · <span style="color:var(--warn)">fehlt, Lieferzeit ' + (a ? a.lieferzeit_tage : 0) + ' T</span>' : ' · vorhanden') + '</span></div>';
+      const a = artikel(pp.code), fehlt = fehltCodes.indexOf(pp.code) >= 0, lz = a ? num(a.lieferzeit_tage) : 0;
+      const info = istLeistung(pp.code) ? ' · Leistung'
+                 : fehlt ? ' · <span style="color:var(--warn)">fehlt' + (lz ? ', Lieferzeit ' + lz + ' T' : '') + '</span>' : ' · vorhanden';
+      h += '<div class="eintrag"><input type="number" class="menge" min="0" step="any" inputmode="decimal" value="' + num(pp.menge) + '" data-c="posMenge" data-x="' + pp.id + '" title="Menge — 0 gibt frei"' + gesperrt + '>' +
+           '<div class="txt">' + esc(a ? a.name : pp.code) + '<br><span class="sub">' + esc(pp.code) + info + '</span></div>';
       h += '<button class="btn small" data-a="posWeg" data-x="' + pp.id + '"' + gesperrt + '>freigeben</button></div>';
     });
     h += '</div>';
@@ -691,7 +763,8 @@ function neuView(){
     h += '<div class="liste" style="margin-top:6px">';
     neu.pos.forEach(p => {
       const a = artikel(p.code);
-      h += '<div class="eintrag"><div class="txt">' + zahl(p.menge) + ' × ' + esc(a ? a.name : p.code) + '</div><button class="btn small" data-a="nMatWeg" data-x="' + esc(p.code) + '">entfernen</button></div>';
+      h += '<div class="eintrag"><input type="number" class="menge" min="0" step="any" inputmode="decimal" value="' + num(p.menge) + '" data-c="nMenge" data-x="' + esc(p.code) + '" title="Menge">' +
+           '<div class="txt">' + esc(a ? a.name : p.code) + '</div><button class="btn small" data-a="nMatWeg" data-x="' + esc(p.code) + '">entfernen</button></div>';
     });
     h += '</div>';
   }
@@ -778,12 +851,12 @@ function formAusgabe(code){
 function formInventur(code){
   const a = artikel(code), b = bestand(code);
   modal('<h3>Inventur · ' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">Gezählten Bestand eintragen — die Differenz wird als Korrektur gebucht.</p>' +
-    '<div class="grid2"><div class="feld"><span class="lbl">Ort</span>' + ortSelect("fOrt","Werkstatt") + '</div>' +
+    '<div class="grid2"><div class="feld"><span class="lbl">Ort</span>' + ortSelect("fOrt","Werkstatt","invOrt",code) + '</div>' +
     '<div class="feld"><span class="lbl">Gezählt (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" min="0" step="any" inputmode="decimal" placeholder="bisher ' + zahl(b ? b.werkstatt : 0) + '"></div></div>' +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="inventurBuchen" data-x="' + esc(code) + '">Übernehmen</button></div>');
 }
-function ortSelect(id, wert){
-  let h = '<select id="' + id + '">';
+function ortSelect(id, wert, dataC, dataX){
+  let h = '<select id="' + id + '"' + (dataC ? ' data-c="' + dataC + '" data-x="' + esc(dataX || "") + '"' : '') + '>';
   ORTE.forEach(o => h += '<option' + (o === wert ? " selected" : "") + '>' + o + '</option>');
   return h + '</select>';
 }
@@ -902,7 +975,7 @@ function raederVerw(){
     h += '<div class="eintrag" style="flex-wrap:wrap"><div class="txt"><strong>' + esc(r.bezeichnung) + '</strong> <span class="sub">' + esc(r.id) + ' · ' + esc(r.typ) +
          (r.eigentuemer_id ? ' · gehört ' + esc(sportlerName(r.eigentuemer_id)) : '') + '</span>' + (r.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
     h += '<select data-c="radFahrer" data-x="' + esc(r.id) + '" style="max-width:190px"><option value="">— kein Fahrer —</option>';
-    (DB.sportler||[]).filter(s => s.aktiv).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + '</option>');
+    (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
     h += '</select><button class="btn small" data-a="radBearbeiten" data-x="' + esc(r.id) + '">bearbeiten</button></div>';
   });
   return h + '</div><p class="sub">Ein Fahrerwechsel schließt die alte Zuordnung und öffnet eine neue — der Verlauf bleibt erhalten.</p>';
@@ -1018,8 +1091,10 @@ async function scanStart(ziel){
         '<button class="btn voll" data-a="modalZu">Abbrechen</button>');
   try{
     leser = new ZXing.BrowserMultiFormatReader();
+    let fertig = false;
     await leser.decodeFromVideoDevice(null, "cam", erg => {
-      if(!erg) return;
+      if(!erg || fertig) return;
+      fertig = true;
       const code = erg.getText().trim();
       modalZu(); piep(true);
       scanTreffer(ziel, code);
@@ -1044,14 +1119,35 @@ function scanTreffer(ziel, code){
 /* ---------------------------------------------------------------
    Aktionen
 ----------------------------------------------------------------*/
+/** Vor dem Buchen: reicht der Bestand am Ort? Sonst nachfragen. true = weitermachen. */
+function genugDa(code, ort, menge){
+  if(istLeistung(code)) return true;
+  const b = bestand(code); if(!b) return true;
+  const physisch = amOrt(b, ort);
+  const frei = ort === "Werkstatt" ? num(b.frei) : physisch;
+  if(menge <= frei) return true;
+  const folge = menge > physisch ? "Der Bestand wird dann negativ." : "Damit fehlen sie später bei den Tickets, für die sie reserviert sind.";
+  return confirm("In " + ort + " sind nur " + zahl(Math.max(frei, 0)) + " " + b.einheit + " frei" +
+                 (ort === "Werkstatt" && num(b.reserviert) ? " (" + zahl(b.reserviert) + " reserviert)" : "") +
+                 ". Trotzdem " + zahl(menge) + " buchen? " + folge);
+}
 function neuMaterial(code){
-  if(neu.pos.some(p => p.code === code)){ toast("Steht schon auf der Liste."); return; }
+  const da = neu.pos.find(p => p.code === code);
+  if(da){ da.menge = num(da.menge) + 1; render(); toast((artikel(code)||{}).name + " — jetzt " + zahl(da.menge) + "×"); return; }
   neu.pos.push({ code, menge:1 }); render();
 }
 function reservieren(code){
   const t = ticket(view.ticket); if(!t) return;
-  aktion(() => neuIn("ticket_position", { ticket_id:t.id, code, menge:1 }),
-         () => (artikel(code)||{}).name + (greifbar(code, t.arbeitsort, t.id) < 0 ? " — muss bestellt werden" : " reserviert"));
+  const da = positionen(t.id).find(p => p.code === code);
+  const name = (artikel(code)||{}).name || code;
+  aktion(() => da ? aendern("ticket_position", "id=eq." + da.id, { menge:num(da.menge) + 1 })
+                  : neuIn("ticket_position", { ticket_id:t.id, code, menge:1 }),
+         () => {
+           const tt = ticket(t.id);
+           const menge = tt ? positionen(tt.id).filter(p => p.code === code).reduce((s, p) => s + num(p.menge), 0) : 1;
+           return name + (menge > 1 ? " — jetzt " + zahl(menge) + "×" : "") +
+                  (tt && fehlend(tt).indexOf(code) >= 0 ? " — fehlt, muss besorgt werden" : " reserviert");
+         });
 }
 function tAendern(felder, meldung){
   const t = ticket(view.ticket); if(!t) return;
@@ -1062,14 +1158,19 @@ async function ticketAnlegen(){
   if(!neu.problem.trim()){ toast("Bitte kurz beschreiben, was ist.", true); return; }
   const op = { p_rad:neu.rad, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
     p_soll_fertig:neu.soll_fertig, p_naechstmoeglich:neu.naechstmoeglich, p_anlass:neu.anlass || null,
-    p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos, p_bearbeiter:bearbeiter || null };
+    p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos, p_bearbeiter:bearbeiter || null, p_client_id:neueId() };
   const r = rad(neu.rad), name = r ? (r.fahrer || r.bezeichnung) : neu.rad;
   if(offline){
-    const q = warteschlange(); q.push(op); speichereWarteschlange(q);
+    inWarteschlange(op);
     neu = null; view.tab = "tickets"; render();
     toast("Offline gespeichert — wird mit Netz angelegt"); return;
   }
-  const erg = await aktion(() => rpc("ticket_anlegen", op), "Ticket für " + name + " angelegt");
+  // Reißt die Verbindung beim Senden ab, kommt das Ticket in die Warteschlange.
+  // Dank Kennung entsteht kein zweites, falls es doch schon angekommen war.
+  const erg = await aktion(async () => {
+    try{ return await rpc("ticket_anlegen", op); }
+    catch(e){ if(e instanceof NetzFehler){ inWarteschlange(op); return "wartet"; } throw e; }
+  }, x => x === "wartet" ? "Verbindung weg — Ticket gespeichert, wird nachgesendet" : "Ticket für " + name + " angelegt");
   if(erg !== undefined){ neu = null; view.tab = "tickets"; view.ticket = null; render(); }
 }
 function csv(zeilen, spalten){
@@ -1087,7 +1188,7 @@ function download(name, inhalt){
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
 }
 async function exportiere(was){
-  const d = iso(HEUTE);
+  const d = iso(heute());
   try{
     if(was === "bestand") download("bestand_" + d + ".csv", csv(DB.bestand, ["code","name","einheit","art","werkstatt","koffer_bahn","koffer_strasse","gesamt","reserviert","frei","mindestbestand","status","preis"]));
     if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(DB.stueck, ["nummer","typ","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
@@ -1099,7 +1200,7 @@ async function exportiere(was){
     if(was === "tickets"){
       const t = await rest("/ticket?order=id");
       t.forEach(x => { x.nr = tnr(x.id); x.fahrer = x.fahrer_id ? sportlerName(x.fahrer_id) : ""; x.kostentraeger = x.kostentraeger_id ? sportlerName(x.kostentraeger_id) : ""; });
-      download("tickets_" + d + ".csv", csv(t, ["nr","angelegt","rad_id","fahrer","problem","fahrbereit","aufwand","soll_fertig","naechstmoeglich","anlass","kostentraeger","arbeitsort","status","angelegt_von","uebernommen_von","erledigt_von","erledigt_am"]));
+      download("tickets_" + d + ".csv", csv(t, ["nr","angelegt","rad_id","fahrer","problem","fahrbereit","aufwand","soll_fertig","naechstmoeglich","anlass","kostentraeger","arbeitsort","status","angelegt_von","uebernommen_von","erledigt_von","erledigt_am","storniert_von","storniert_am"]));
     }
   }catch(e){ toast(e.message, true); }
 }
@@ -1145,17 +1246,25 @@ const A = {
     aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), { zustand: s.zustand === "zu prüfen" ? "frei" : "zu prüfen" }));
   },
   posWeg: x => aktion(() => aendern("ticket_position", "id=eq." + x, { status:"storniert" }), "Reservierung freigegeben"),
-  annehmen: () => tAendern({ status:"angenommen", uebernommen_von:bearbeiter || null }, "Übernommen"),
+  annehmen: () => {
+    const t = ticket(view.ticket); if(!t) return;
+    let h = '<h3>Übernehmen</h3><p class="sub" style="margin-top:-6px">Wie groß ist der Arbeitsaufwand?</p><div style="display:grid;gap:8px">';
+    ["klein","mittel","groß"].forEach(k => h += '<button class="btn' + (t.aufwand === k ? " primary" : "") + '" data-a="annehmenMit" data-x="' + k + '">' + k + ' · ' + AUFWAND[k] + ' T</button>');
+    h += '<button class="btn" data-a="modalZu">Abbrechen</button></div>';
+    modal(h);
+  },
+  annehmenMit: x => tAendern({ status:"angenommen", uebernommen_von:bearbeiter || null, aufwand:x }, "Übernommen"),
   erledigt: () => {
     const t = ticket(view.ticket);
-    if(beschaffung(t) > 0 && !confirm("Es fehlt noch Material. Trotzdem abschließen?")) return;
+    const f = fehlend(t);
+    if(f.length && !confirm("Es fehlt noch Material (" + f.map(c => (artikel(c)||{}).name || c).join(", ") + "). Trotzdem abschließen? Der Bestand wird dann negativ.")) return;
     aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id, p_bearbeiter:bearbeiter || null }), s => { view.ticket = null; return "Erledigt · " + eur(s) + " gebucht"; })
       .then(() => { if(!ticket(t.id)){ view.ticket = null; render(); } });
   },
   stornieren: () => {
     if(!confirm("Ticket stornieren? Reservierungen werden freigegeben.")) return;
     const id = view.ticket;
-    aktion(() => aendern("ticket", "id=eq." + id, { status:"storniert" }), "Storniert").then(() => { view.ticket = null; render(); });
+    aktion(() => rpc("ticket_stornieren", { p_ticket:id, p_bearbeiter:bearbeiter || null }), "Storniert").then(() => { view.ticket = null; render(); });
   },
 
   /* Lager */
@@ -1172,6 +1281,7 @@ const A = {
     const m = zahlOderNull("fMenge"), s = wert("fSportler");
     if(!s){ toast("Bitte Sportler wählen.", true); return; }
     if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
+    if(!genugDa(x, wert("fOrt"), m)) return;
     aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:m, p_ort:wert("fOrt"), p_sportler:Number(s), p_notiz:wert("fNotiz") || null, p_bearbeiter:bearbeiter || null }),
            b => "Gebucht · " + eur(b));
   },
@@ -1182,8 +1292,8 @@ const A = {
   },
 
   /* Koffer */
-  kofferRein: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null })); },
-  kofferRaus: x => { const [c, o] = x.split("|"); aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt", p_bearbeiter:bearbeiter || null })); },
+  kofferRein: x => { const [c, o] = x.split("|"); if(!genugDa(c, "Werkstatt", 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null })); },
+  kofferRaus: x => { const [c, o] = x.split("|"); if(!genugDa(c, o, 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt", p_bearbeiter:bearbeiter || null })); },
   terminNeu: () => {
     if(!wert("tDatum") || !wert("tName")){ toast("Datum und Name fehlen.", true); return; }
     aktion(() => neuIn("termin", { datum:wert("tDatum"), name:wert("tName"), koffer:wert("tKoffer") || null }), "Termin eingetragen");
@@ -1246,11 +1356,30 @@ const A = {
   },
   rechnungErstellen: x => {
     if(!confirm("Rechnung für " + sportlerName(Number(x)) + " über alle offenen Posten erstellen?")) return;
-    aktion(() => rpc("rechnung_erstellen", { p_sportler:Number(x), p_von:"2000-01-01", p_bis:iso(HEUTE) }), "Rechnung erstellt");
+    aktion(() => rpc("rechnung_erstellen", { p_sportler:Number(x) }), "Rechnung erstellt");   // Zeitraum: alles bis heute (Datenbankzeit)
   },
   rechnungZeigen: x => rechnungZeigen(Number(x)),
-  rechnungStatus: x => { const r = DB.rechnungen.find(y => y.id === Number(x)); aktion(() => aendern("rechnung", "id=eq." + x, { status: r.status === "offen" ? "bezahlt" : "offen" })); },
-  export: x => exportiere(x)
+  rechnungStatus: x => {
+    const r = DB.rechnungen.find(y => y.id === Number(x));
+    if(r.status === "bezahlt" && !confirm(r.nummer + " wieder auf „offen“ setzen?")) return;
+    aktion(() => aendern("rechnung", "id=eq." + x, { status: r.status === "offen" ? "bezahlt" : "offen" })); },
+  export: x => exportiere(x),
+
+  /* Abgelehnte Offline-Tickets */
+  fehlerZeigen: () => fehlerZeigen(),
+  fehlerNochmal: x => {
+    const f = fehlerListe(), e = f.find(y => y.op.p_client_id === x);
+    if(!e) return;
+    speichereFehler(f.filter(y => y !== e));
+    inWarteschlange(e.op);
+    modalZu(); render();
+    sendeWarteschlange();
+  },
+  fehlerVerwerfen: x => {
+    if(!confirm("Ticket endgültig verwerfen? Es ist nur auf diesem Gerät gespeichert.")) return;
+    speichereFehler(fehlerListe().filter(y => y.op.p_client_id !== x));
+    fehlerZeigen(); render();
+  }
 };
 
 /** Änderungen an Feldern, verteilt über data-c. */
@@ -1266,6 +1395,20 @@ const C = {
   tOrt: v => tAendern({ arbeitsort:v }),
   tKosten: v => tAendern({ kostentraeger_id: v ? Number(v) : null }),
   tMatWahl: v => { if(v) reservieren(v); },
+  posMenge: (v, x) => {
+    const n = Number(String(v).replace(",", "."));
+    if(v === "" || isNaN(n) || n < 0){ render(); return; }
+    aktion(() => aendern("ticket_position", "id=eq." + x, n === 0 ? { status:"storniert" } : { menge:n }),
+           n === 0 ? "Reservierung freigegeben" : "Menge geändert");
+  },
+  nMenge: (v, x) => {
+    const n = Number(String(v).replace(",", "."));
+    if(v === "" || isNaN(n) || n < 0){ render(); return; }
+    if(n === 0) neu.pos = neu.pos.filter(p => p.code !== x);
+    else { const p = neu.pos.find(p => p.code === x); if(p) p.menge = n; }
+    render();
+  },
+  invOrt: (v, x) => { const e = $("fMenge"), b = bestand(x); if(e) e.placeholder = "bisher " + zahl(b ? amOrt(b, v) : 0); },
   kofferSoll: (v, x) => {
     const [c, o] = x.split("|"), s = Number(String(v).replace(",", "."));
     if(isNaN(s) || s < 0) return;
