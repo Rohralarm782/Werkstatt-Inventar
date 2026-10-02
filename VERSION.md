@@ -1,10 +1,10 @@
 # Version
 
-**8.0.0** — 02.10.2026
+**8.1.0** — 02.10.2026
 
-Bestellliste, QR-Code am Rad (öffnet direkt ein neues Ticket), Etiketten
-aus der App drucken, ausgemusterte Einzelstücke ausgeblendet, neue
-Aufwand-Stufen (45 min / 1:30 h). Datenstruktur geändert — Migration nötig.
+Etiketten: Etiketten-Art wählbar (auch rund, eigene Maße mit Testseite)
+und Sammel-Druck über eine Druckliste bzw. Auswahl aller Räder,
+Einzelstücke und Lager-Artikel.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 8.1.0 | 02.10.2026 | Etiketten-Arten (auch rund), Druckliste/Sammel-Druck |
 | 8.0.0 | 02.10.2026 | Bestellliste, QR am Rad, Etiketten, Ausgemusterte ausblenden |
 | 7.0.0 | 02.10.2026 | Arbeitszeit-Schätzung, Vormerken ohne Vorrat |
 | 6.2.1 | 01.10.2026 | Auswahlliste kompakter |

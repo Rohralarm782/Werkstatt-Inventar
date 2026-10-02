@@ -147,16 +147,18 @@
     body.drucken{background:#fff !important}
     body.drucken #druck{display:block}
   }
-  #druck .bogen{width:210mm;height:296mm;display:grid;grid-template-columns:repeat(3,70mm);grid-template-rows:repeat(8,37mm);break-after:page;page-break-after:always;overflow:hidden}
-  #druck .rolle .etikett{width:62mm;height:29mm;break-after:page;page-break-after:always}
-  #druck .etikett{box-sizing:border-box;display:flex;align-items:center;gap:2.5mm;padding:3mm;overflow:hidden;color:#000;font-family:Arial,Helvetica,sans-serif}
-  #druck .bogen .qr{width:30mm;height:30mm;flex:0 0 30mm}
-  #druck .rolle .qr{width:23mm;height:23mm;flex:0 0 23mm}
+  #druck .seite{position:relative;overflow:hidden;break-after:page;page-break-after:always}
+  #druck .etikett{position:absolute;box-sizing:border-box;overflow:hidden;color:#000;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center}
+  #druck .etikett.quer{flex-direction:row}
+  #druck .etikett.hoch{flex-direction:column;justify-content:center;text-align:center}
+  #druck .etikett.rund{border-radius:50%}
+  #druck .etikett.umriss{outline:0.2mm dashed #888;outline-offset:-0.1mm}
+  #druck .etikett .qr{flex:0 0 auto}
   #druck .qr svg{display:block;width:100%;height:100%}
   #druck .etikett .txt{min-width:0}
-  #druck .etikett .t{font-size:15pt;font-weight:700;line-height:1.05;letter-spacing:.02em}
-  #druck .etikett .z{font-size:8pt;line-height:1.2;margin-top:1.2mm}
-  #druck .etikett .f{font-size:6.5pt;margin-top:1.2mm}
+  #druck .etikett .t{font-weight:700;line-height:1.05;letter-spacing:.02em;white-space:nowrap}
+  #druck .etikett .z{line-height:1.2}
+  #druck .etikett .nr{font-size:4mm;color:#888}
   a.btn{text-decoration:none;display:inline-flex;align-items:center;color:var(--ink)}
   .btn.warnwahl{border-color:var(--warn);color:var(--warn)}
   .liste .eintrag input.menge{width:68px;flex:0 0 auto;min-height:38px;padding:4px 6px;text-align:right}
@@ -224,7 +226,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "8.0.0";
+const APP_VERSION = "8.1.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -1059,32 +1061,74 @@ function bestellText(lief){
 }
 
 /* ===============================================================
-   Etiketten drucken — QR-Code (mit dem eingebauten ZXing erzeugt),
-   Nummer groß, Beschreibung klein. Zwei Formate: A4-Bogen 3 × 8
-   (70 × 37 mm) oder Etikettendrucker 62 × 29 mm.
+   Etiketten — Vorlagen (rechteckig/rund, A4-Bogen oder Einzeletikett),
+   eigene Vorlagen nach den Maßen auf der Packung, Testseite mit Umrissen,
+   und eine Druckliste zum Sammeln, damit Bögen voll werden.
+   QR-Codes erzeugt das eingebaute ZXing — nichts wird nachgeladen.
    ===============================================================*/
-const ETIKETT_FORMATE = { a4:"A4-Bogen 3 × 8 (70 × 37 mm)", rolle:"Etikettendrucker 62 × 29 mm" };
-let etikettAuftrag = null;
+// Maße in mm. seite: "A4" (Bogen, Raster sp × ze) oder "einzeln" (ein Etikett je Seite, z. B. Etikettendrucker)
+const ETIKETT_VORLAGEN = [
+  { id:"a4_70x37",  name:"A4 · 3 × 8 · 70 × 37 mm",            form:"rechteck", seite:"A4", b:70,   h:37,   sp:3, ze:8, ro:0,     li:0,    ah:0,   av:0 },
+  { id:"a4_63x38",  name:"A4 · 3 × 7 · 63,5 × 38,1 mm",        form:"rechteck", seite:"A4", b:63.5, h:38.1, sp:3, ze:7, ro:15.15, li:7.25, ah:2.5, av:0 },
+  { id:"rolle_62x29", name:"Etikettendrucker · 62 × 29 mm",     form:"rechteck", seite:"einzeln", b:62, h:29 }
+];
+function eigeneVorlagen(){ try{ return JSON.parse(localStorage.getItem("wEtikettVorlagen") || "[]"); }catch(e){ return []; } }
+function eigeneSpeichern(l){ localStorage.setItem("wEtikettVorlagen", JSON.stringify(l)); }
+function alleVorlagen(){ return ETIKETT_VORLAGEN.concat(eigeneVorlagen()); }
+function vorlage(id){ return alleVorlagen().find(v => v.id === id) || ETIKETT_VORLAGEN[0]; }
+function vorlageText(v){
+  return v.name + (v.eigen ? " (eigene)" : "");
+}
+function felderJeSeite(v){ return v.seite === "A4" ? v.sp * v.ze : 1; }
+
+let etikettAuftrag = null, etikettQuelle = null;
 function appUrl(){ return location.origin + location.pathname; }
 function radQrText(id){ return appUrl() + "?rad=" + encodeURIComponent(id); }
-function etikettStueck(s){ return { qr:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : "") }; }
-function etikettArtikel(a){ return { qr:a.code, titel:a.code, zeile:a.name }; }
-function etikettRad(r){ return { qr:radQrText(r.id), titel:r.id, zeile:r.bezeichnung, fuss:"Problem? Scannen → Ticket" }; }
+function etikettStueck(s){ return { typ:"stueck", id:s.nummer, qr:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : "") }; }
+function etikettArtikel(a){ return { typ:"artikel", id:a.code, qr:a.code, titel:a.code, zeile:a.name }; }
+function etikettRad(r){ return { typ:"rad", id:r.id, qr:radQrText(r.id), titel:r.id, zeile:r.bezeichnung, fuss:"Problem? Scannen → Ticket" }; }
+/** Eintrag der Druckliste → Etikett mit aktuellen Daten (oder null, wenn es das nicht mehr gibt). */
+function etikettAus(e){
+  if(e.typ === "stueck"){ const s = stueckNr(e.id); return s ? etikettStueck(s) : null; }
+  if(e.typ === "artikel"){ const a = artikel(e.id); return a ? etikettArtikel(a) : null; }
+  if(e.typ === "rad"){ const r = rad(e.id); return r ? etikettRad(r) : null; }
+  return null;
+}
 
-function etikettDialog(items, titel, mitKopien){
+/* ---- Druckliste: sammeln, später zusammen drucken (liegt auf dem Gerät) ---- */
+function druckliste(){ try{ return JSON.parse(localStorage.getItem("wDruckliste") || "[]"); }catch(e){ return []; } }
+function drucklisteSpeichern(l){ localStorage.setItem("wDruckliste", JSON.stringify(l)); }
+function drucklisteAnzahl(){ return druckliste().reduce((m, e) => m + (e.n || 1), 0); }
+function aufDruckliste(items, n){
+  const l = druckliste();
+  items.forEach(it => {
+    const da = l.find(e => e.typ === it.typ && e.id === it.id);
+    if(da) da.n = Math.max(da.n || 1, n || 1); else l.push({ typ:it.typ, id:it.id, n:n || 1 });
+  });
+  drucklisteSpeichern(l);
+  return l;
+}
+
+function etikettDialog(items, titel, mitKopien, quelle){
   if(!items.length) return;
-  etikettAuftrag = items;
-  const fmt = localStorage.getItem("wEtikettFormat") || "a4";
+  etikettAuftrag = items; etikettQuelle = quelle || null;
+  const vid = localStorage.getItem("wEtikettVorlage") || ETIKETT_VORLAGEN[0].id, v = vorlage(vid);
   let h = '<h3>' + esc(titel || "Etiketten drucken") + '</h3><p class="sub" style="margin-top:-6px">' + items.length + ' Etikett' + (items.length === 1 ? '' : 'en') + ': ' +
           esc(items.slice(0, 6).map(x => x.titel).join(", ") + (items.length > 6 ? " …" : "")) + '</p>';
-  h += '<div class="feld"><span class="lbl">Format</span><select id="etFormat" data-c="etFormat">' +
-       Object.keys(ETIKETT_FORMATE).map(k => '<option value="' + k + '"' + (k === fmt ? " selected" : "") + '>' + ETIKETT_FORMATE[k] + '</option>').join("") + '</select></div>';
-  h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (fmt === "a4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld (1–24)</span><input type="number" id="etStart" value="1" min="1" max="24" inputmode="numeric"></div>';
+  h += '<div class="feld"><span class="lbl">Etiketten-Art</span><div class="row" style="gap:8px"><select id="etVorlage" data-c="etVorlage" style="flex:1">' +
+       alleVorlagen().map(x => '<option value="' + esc(x.id) + '"' + (x.id === v.id ? " selected" : "") + '>' + esc(vorlageText(x)) + '</option>').join("") +
+       '</select><button class="btn small" data-a="vorlagenVerwalten">eigene …</button></div></div>';
+  h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (v.seite === "A4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld</span>' +
+       '<input type="number" id="etStart" value="1" min="1" max="' + felderJeSeite(v) + '" inputmode="numeric"></div>';
   h += mitKopien ? feld("Anzahl je Etikett", "etKopien", 1, "number", ' min="1" max="50" inputmode="numeric"') : '';
-  h += '</div><p class="sub">Beim angefangenen A4-Bogen das erste freie Feld angeben — gezählt wird zeilenweise von links oben.</p>';
-  h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="etDrucken">Drucken</button></div>';
+  h += '</div><p class="sub">Bei einem angefangenen Bogen das erste freie Feld angeben — gezählt wird zeilenweise von links oben.</p>';
+  if(quelle === "druckliste") h += '<label class="row" style="gap:8px;margin-bottom:10px"><input type="checkbox" id="etLeeren" checked> Druckliste danach leeren</label>';
+  h += '<div class="row wrapr" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>';
+  if(quelle !== "druckliste") h += '<button class="btn" data-a="etSammeln">auf Druckliste</button>';
+  h += '<button class="btn primary" data-a="etDrucken">Drucken</button></div>';
   modal(h);
 }
+
 function qrSvg(text, cache){
   if(cache[text]) return cache[text];
   const hints = new Map(); hints.set(ZXing.EncodeHintType.MARGIN, 0);
@@ -1092,25 +1136,92 @@ function qrSvg(text, cache){
   svg.setAttribute("viewBox", "0 0 200 200"); svg.setAttribute("width", "100%"); svg.setAttribute("height", "100%");
   return (cache[text] = svg.outerHTML);
 }
-function etikettenDrucken(items, format, start, kopien){
+/** Inhalt eines Etiketts passend zur Größe: quer (QR links, Text rechts) oder hoch/rund (QR oben, Nummer darunter). */
+function etikettInhalt(it, v, cache){
+  const b = Number(v.b), h = Number(v.h), rund = v.form === "rund";
+  const mm = x => x.toFixed(2) + "mm";
+  if(!rund && b / h >= 1.4){
+    const pad = Math.min(3, h * 0.08), q = h - 2 * pad;
+    const t = Math.min(5.5, h * 0.15, (b - q - 3 * pad) / 4.2), z = Math.max(2.2, Math.min(3, h * 0.08));
+    return { cls:"quer", stil:"padding:" + mm(pad) + ";gap:" + mm(pad),
+      html:'<div class="qr" style="width:' + mm(q) + ';height:' + mm(q) + '">' + qrSvg(it.qr, cache) + '</div><div class="txt"><div class="t" style="font-size:' + mm(t) + '">' + esc(it.titel) + '</div>' +
+           '<div class="z" style="font-size:' + mm(z) + ';margin-top:' + mm(z * 0.4) + '">' + esc(it.zeile || "") + '</div>' +
+           (it.fuss ? '<div class="z" style="font-size:' + mm(z * 0.8) + ';margin-top:' + mm(z * 0.4) + '">' + esc(it.fuss) + '</div>' : '') + '</div>' };
+  }
+  // hoch oder rund: QR oben, Nummer darunter; bei rund kleiner, damit alles im Kreis liegt
+  const d = Math.min(b, h), q = rund ? d * 0.5 : Math.min(b * 0.75, h * 0.62), t = Math.min(5, d * 0.12), z = Math.max(1.8, d * 0.06);
+  return { cls:"hoch" + (rund ? " rund" : ""), stil:"padding:" + mm(d * 0.06),
+    html:'<div class="qr" style="width:' + mm(q) + ';height:' + mm(q) + '">' + qrSvg(it.qr, cache) + '</div>' +
+         '<div class="t" style="font-size:' + mm(t) + ';margin-top:' + mm(d * 0.03) + '">' + esc(it.titel) + '</div>' +
+         (it.zeile && !rund ? '<div class="z" style="font-size:' + mm(z) + '">' + esc(it.zeile) + '</div>' : '') +
+         (it.zeile && rund && d >= 35 ? '<div class="z" style="font-size:' + mm(z) + ';max-width:' + mm(d * 0.7) + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(it.zeile) + '</div>' : '') };
+}
+/** Druckt items auf Vorlage v; start = erstes freies Feld (Bogen); test = nur Umrisse mit Feldnummern. */
+function etikettenDrucken(items, v, start, kopien, test){
   const liste = [];
   items.forEach(it => { for(let i = 0; i < kopien; i++) liste.push(it); });
-  const cache = {};
-  const eins = it => '<div class="etikett"><div class="qr">' + qrSvg(it.qr, cache) + '</div><div class="txt"><div class="t">' + esc(it.titel) + '</div>' +
-                     '<div class="z">' + esc(it.zeile || "") + '</div>' + (it.fuss ? '<div class="f">' + esc(it.fuss) + '</div>' : '') + '</div></div>';
+  const cache = {}, mm = x => Number(x).toFixed(2) + "mm";
+  const b = Number(v.b), h = Number(v.h);
   let html = "";
-  if(format === "a4"){
-    const felder = Array(Math.max(0, start - 1)).fill('<div class="etikett frei"></div>').concat(liste.map(eins));
-    for(let i = 0; i < felder.length; i += 24) html += '<div class="bogen">' + felder.slice(i, i + 24).join("") + '</div>';
-  } else html = '<div class="rolle">' + liste.map(eins).join("") + '</div>';
+  if(v.seite === "A4"){
+    const jeSeite = v.sp * v.ze;
+    const felder = test ? Array.from({ length:jeSeite }, (_, i) => i + 1) : Array(Math.max(0, start - 1)).fill(null).concat(liste);
+    for(let i = 0; i < felder.length; i += jeSeite){
+      html += '<div class="seite" style="width:210mm;height:296mm">';
+      felder.slice(i, i + jeSeite).forEach((it, k) => {
+        if(it === null) return;
+        const sp = k % v.sp, ze = Math.floor(k / v.sp);
+        const pos = "left:" + mm(Number(v.li) + sp * (b + Number(v.ah))) + ";top:" + mm(Number(v.ro) + ze * (h + Number(v.av))) + ";width:" + mm(b) + ";height:" + mm(h) + ";";
+        if(test){ html += '<div class="etikett umriss hoch' + (v.form === "rund" ? " rund" : "") + '" style="' + pos + '"><span class="nr">' + it + '</span></div>'; return; }
+        const c = etikettInhalt(it, v, cache);
+        html += '<div class="etikett ' + c.cls + '" style="' + pos + c.stil + '">' + c.html + '</div>';
+      });
+      html += '</div>';
+    }
+  } else {
+    (test ? [{ qr:"TEST", titel:"TEST", zeile:"Testetikett" }] : liste).forEach(it => {
+      const c = etikettInhalt(it, v, cache);
+      html += '<div class="seite" style="width:' + mm(b) + ';height:' + mm(h) + '"><div class="etikett ' + c.cls + (test ? " umriss" : "") + '" style="left:0;top:0;width:' + mm(b) + ';height:' + mm(h) + ';' + c.stil + '">' + c.html + '</div></div>';
+    });
+  }
   let d = $("druck"); if(!d){ d = document.createElement("div"); d.id = "druck"; document.body.appendChild(d); }
   d.innerHTML = html;
   let st = $("druckSeite"); if(!st){ st = document.createElement("style"); st.id = "druckSeite"; document.head.appendChild(st); }
-  st.textContent = format === "a4" ? "@page{size:A4;margin:0}" : "@page{size:62mm 29mm;margin:0}";
+  st.textContent = v.seite === "A4" ? "@page{size:A4;margin:0}" : "@page{size:" + mm(b) + " " + mm(h) + ";margin:0}";
   document.body.classList.add("drucken");
   const fertig = () => { document.body.classList.remove("drucken"); window.removeEventListener("afterprint", fertig); };
   window.addEventListener("afterprint", fertig);
   setTimeout(() => { window.print(); setTimeout(fertig, 1500); }, 50);
+}
+
+/* ---- Eigene Vorlagen: Maße von der Packung ---- */
+function vorlagenVerwalten(){
+  const l = eigeneVorlagen();
+  let h = '<h3>Eigene Etiketten-Arten</h3><p class="sub" style="margin-top:-6px">Maße stehen auf der Packung bzw. dem Bogen. Mit „Testseite“ auf normales Papier drucken und gegen den Bogen halten.</p>';
+  h += '<div class="card liste">' + (l.length ? l.map(v => '<div class="eintrag"><div class="txt"><strong>' + esc(v.name) + '</strong><br><span class="sub">' +
+        (v.form === "rund" ? "rund Ø " + v.b : v.b + " × " + v.h) + ' mm · ' + (v.seite === "A4" ? "A4 " + v.sp + " × " + v.ze : "einzeln") + '</span></div>' +
+        '<div class="knoepfe"><button class="btn small" data-a="vorlageTest" data-x="' + esc(v.id) + '">Testseite</button><button class="btn small" data-a="vorlageForm" data-x="' + esc(v.id) + '">bearbeiten</button></div></div>').join("")
+        : '<div class="sub">Noch keine eigene Art angelegt.</div>') + '</div>';
+  h += '<div class="row wrapr" style="gap:8px"><button class="btn" data-a="etZurueck">Zurück</button><span class="sp"></span><button class="btn primary" data-a="vorlageForm" data-x="">Neue Etiketten-Art</button></div>';
+  modal(h);
+}
+function vorlageForm(id){
+  const v = id ? eigeneVorlagen().find(x => x.id === id) : { name:"", form:"rund", seite:"A4", b:40, h:40, sp:4, ze:6, ro:13.5, li:15, ah:5, av:5 };
+  if(!v) return;
+  const zahlFeld = (l, i, w) => feld(l, i, w, "number", ' step="0.01" min="0" inputmode="decimal"');
+  let h = '<h3>' + (id ? "Etiketten-Art bearbeiten" : "Neue Etiketten-Art") + '</h3>';
+  h += feld("Name", "vName", v.name, "text", ' placeholder="z. B. Zweckform rund 40 mm"');
+  h += '<div class="grid2">' + auswahl("Form", "vForm", [["rechteck","rechteckig"],["rund","rund"]], v.form) + auswahl("Papier", "vSeite", [["A4","A4-Bogen"],["einzeln","einzeln / Rolle"]], v.seite) + '</div>';
+  h += '<div class="grid2">' + zahlFeld("Breite bzw. Ø (mm)", "vB", v.b) + zahlFeld("Höhe (mm, bei rund = Ø)", "vH", v.h) + '</div>';
+  h += '<p class="sub" style="margin:-4px 0 8px">Nur für A4-Bögen:</p>';
+  h += '<div class="grid2">' + zahlFeld("Spalten", "vSp", v.sp) + zahlFeld("Zeilen", "vZe", v.ze) + '</div>';
+  h += '<div class="grid2">' + zahlFeld("Rand oben (mm)", "vRo", v.ro) + zahlFeld("Rand links (mm)", "vLi", v.li) + '</div>';
+  h += '<div class="grid2">' + zahlFeld("Abstand waagerecht (mm)", "vAh", v.ah) + zahlFeld("Abstand senkrecht (mm)", "vAv", v.av) + '</div>';
+  h += '<p class="sub">Rand = vom Papierrand bis zum ersten Etikett. Abstand = Lücke zwischen zwei Etiketten.</p>';
+  h += '<div class="row wrapr" style="gap:8px"><button class="btn" data-a="vorlagenVerwalten">Zurück</button>' +
+       (id ? '<button class="btn small" data-a="vorlageLoeschen" data-x="' + esc(id) + '">löschen</button>' : '') +
+       '<span class="sp"></span><button class="btn primary" data-a="vorlageSpeichern" data-x="' + esc(id || "") + '">Speichern</button></div>';
+  modal(h);
 }
 
 /* ===============================================================
@@ -1457,7 +1568,8 @@ function inventarView(){
   const gesperrt = offline ? " disabled" : "";
   if(!view.serieOffen) view.serieOffen = {};
   let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="scan" data-x="stueck">Nummer scannen</button>' +
-          '<button class="btn" data-a="stueckNeu"' + gesperrt + '>Neues Einzelstück</button></div>';
+          '<button class="btn" data-a="stueckNeu"' + gesperrt + '>Neues Einzelstück</button>' +
+          (drucklisteAnzahl() ? '<button class="btn warnwahl" data-a="zurDruckliste">Druckliste · ' + drucklisteAnzahl() + '</button>' : '') + '</div>';
 
   const roh = DB.stueck || [], qRoh = view.suche.toLowerCase().trim();
   const nAus = roh.filter(s => s.ort === "ausgemustert").length;
@@ -1518,9 +1630,49 @@ function inventarView(){
 /* ===============================================================
    Verwaltung — Stammdaten, Trainer, Rechnungen, Export
    ===============================================================*/
+/** Verwaltung → Etiketten: Druckliste und Sammel-Auswahl (z. B. zum Start alles auf einmal). */
+function etikettenVerw(){
+  const dl = druckliste(), anz = drucklisteAnzahl();
+  let h = '<div class="card"><div class="row wrapr" style="gap:8px"><strong>Druckliste · ' + anz + ' Etikett' + (anz === 1 ? '' : 'en') + '</strong><span class="sp"></span>' +
+          (dl.length ? '<button class="btn small" data-a="dlLeeren">leeren</button><button class="btn small primary" data-a="dlDrucken">Drucken …</button>' : '') + '</div>';
+  if(dl.length){
+    h += '<div class="liste" style="margin-top:8px">';
+    dl.forEach(e => {
+      const it = etikettAus(e);
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(it ? it.titel : e.id) + '</strong> <span class="sub">' + esc(it ? it.zeile : "gibt es nicht mehr") + '</span></div>' +
+           ((e.n || 1) > 1 ? '<span class="chip grau">× ' + e.n + '</span>' : '') +
+           '<button class="btn small link" data-a="dlEntfernen" data-x="' + esc(e.typ + "|" + e.id) + '">entfernen</button></div>';
+    });
+    h += '</div>';
+  } else h += '<p class="sub" style="margin:6px 0 0">Leer. Etiketten sammeln mit „auf Druckliste“ im Druck-Dialog oder unten auswählen.</p>';
+  h += '</div>';
+
+  // Sammel-Auswahl
+  const block = (key, titel, zeilen) => {
+    if(!zeilen.length) return "";
+    let b = '<div class="card"><div class="row wrapr" style="gap:8px"><strong>' + titel + '</strong><span class="sp"></span>' +
+            '<button class="btn small link" data-a="dlAlle" data-x="' + key + '">alle</button><button class="btn small link" data-a="dlKeine" data-x="' + key + '">keine</button></div><div class="liste" style="margin-top:6px">';
+    zeilen.forEach(z => b += '<label class="eintrag" style="cursor:pointer"><input type="checkbox" data-dl="' + key + '" value="' + esc(z.wert) + '" style="width:20px;height:20px">' +
+                            '<div class="txt">' + z.html + '</div></label>');
+    return b + '</div></div>';
+  };
+  h += '<h2 class="sec">Etiketten auswählen</h2>';
+  h += block("rad", "Räder (QR → neues Ticket)", (DB.raeder||[]).filter(r => r.aktiv).map(r => ({ wert:"rad|" + r.id, html:'<strong>' + esc(r.id) + '</strong> ' + esc(r.bezeichnung) + (r.fahrer ? ' <span class="sub">· ' + esc(r.fahrer) + '</span>' : '') })));
+  const teile = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert").sort((a, b) => a.nummer.localeCompare(b.nummer, "de", { numeric:true }));
+  const gruppen = {}, reihe = [];
+  teile.forEach(s => { const k = serienSchluessel(s); if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); } gruppen[k].push(s); });
+  h += block("stueck", "Einzelstücke", reihe.map(k => { const g = gruppen[k];
+    return { wert:g.map(s => "stueck|" + s.nummer).join(","), html:(g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '<strong>' + esc(g[0].nummer) + '</strong> ') + esc(g[0].typ) + (g[0].marke ? ' · ' + esc(g[0].marke) : '') +
+             (g.length > 1 ? ' <span class="sub">· ' + esc(nummernText(g.map(s => s.nummer))) + '</span>' : '') }; }));
+  h += block("artikel", "Lager-Artikel (Regal-Etiketten)", (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale").map(a => ({ wert:"artikel|" + a.code, html:'<strong>' + esc(a.code) + '</strong> ' + esc(a.name) })));
+  h += '<button class="btn primary voll" data-a="dlAuswahl">Auswahl zur Druckliste</button>';
+  h += '<p class="sub">Die Druckliste liegt auf diesem Gerät. Drucken füllt die Bögen der Reihe nach — beim angefangenen Bogen das erste freie Feld angeben.</p>';
+  return h;
+}
+
 function verwaltungView(){
   let h = '<div class="seg drei" style="margin-bottom:12px">';
-  [["sportler","Sportler"],["raeder","Räder"],["artikel","Artikel"],["personen","Personen"],["rechnungen","Rechnungen"],["export","Export"]]
+  [["sportler","Sportler"],["raeder","Räder"],["artikel","Artikel"],["personen","Personen"],["rechnungen","Rechnungen"],["etiketten","Etiketten"],["export","Export"]]
     .forEach(x => h += segBtn("verw", x[0], x[1], view.verw));
   h += '</div>';
   if(offline) return h + '<div class="leer">Offline — Verwaltung erst mit Netz.</div>';
@@ -1530,6 +1682,7 @@ function verwaltungView(){
   if(v === "artikel")    return h + artikelVerw();
   if(v === "personen")   return h + personenVerw();
   if(v === "rechnungen") return h + rechnungenVerw();
+  if(v === "etiketten")  return h + etikettenVerw();
   return h + exportVerw();
 }
 function sportlerVerw(){
@@ -2394,12 +2547,62 @@ const A = {
   radEtikett: x => { const r = rad(x); if(r) etikettDialog([etikettRad(r)], "QR-Etikett " + r.bezeichnung); },
   radEtikettenAlle: () => { const l = (DB.raeder||[]).filter(r => r.aktiv); etikettDialog(l.map(etikettRad), "QR-Etiketten · " + l.length + " Räder"); },
   etDrucken: () => {
-    const f = wert("etFormat") || "a4", start = Math.min(24, Math.max(1, Number(wert("etStart") || 1))), k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
-    try{ localStorage.setItem("wEtikettFormat", f); }catch(e){}
-    const items = etikettAuftrag || [];
+    const v = vorlage(wert("etVorlage")), start = Math.min(felderJeSeite(v), Math.max(1, Number(wert("etStart") || 1)));
+    const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
+    try{ localStorage.setItem("wEtikettVorlage", v.id); }catch(e){}
+    const items = etikettAuftrag || [], quelle = etikettQuelle, leeren = !!($("etLeeren") && $("etLeeren").checked);
     modalZu();
-    etikettenDrucken(items, f, f === "a4" ? start : 1, k);
+    if(quelle === "druckliste" && leeren){ drucklisteSpeichern([]); render(); }
+    etikettenDrucken(items, v, v.seite === "A4" ? start : 1, k);
   },
+  etSammeln: () => {
+    const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
+    aufDruckliste(etikettAuftrag || [], k);
+    modalZu(); render();
+    toast("Auf der Druckliste: " + drucklisteAnzahl() + " Etiketten — Verwaltung → Etiketten");
+  },
+  etZurueck: () => etikettDialog(etikettAuftrag || [], "Etiketten drucken", false, etikettQuelle),
+  vorlagenVerwalten: () => vorlagenVerwalten(),
+  vorlageForm: x => vorlageForm(x),
+  vorlageSpeichern: x => {
+    const n = id => Number(String(wert(id) || "0").replace(",", "."));
+    const v = { id:x || "eigen_" + Date.now(), eigen:true, name:wert("vName"), form:wert("vForm"), seite:wert("vSeite"),
+                b:n("vB"), h:wert("vForm") === "rund" ? n("vB") : n("vH"), sp:Math.round(n("vSp")), ze:Math.round(n("vZe")),
+                ro:n("vRo"), li:n("vLi"), ah:n("vAh"), av:n("vAv") };
+    if(!v.name){ toast("Bitte einen Namen eingeben.", true); return; }
+    if(!(v.b > 0 && v.h > 0)){ toast("Breite und Höhe fehlen.", true); return; }
+    if(v.seite === "A4"){
+      if(!(v.sp >= 1 && v.ze >= 1)){ toast("Spalten und Zeilen fehlen.", true); return; }
+      const breit = v.li + v.sp * v.b + (v.sp - 1) * v.ah, hoch = v.ro + v.ze * v.h + (v.ze - 1) * v.av;
+      if(breit > 210.5 || hoch > 297.5){ toast("Passt nicht auf A4 (" + breit.toFixed(1) + " × " + hoch.toFixed(1) + " mm) — Maße prüfen.", true); return; }
+    }
+    const l = eigeneVorlagen().filter(y => y.id !== v.id); l.push(v); eigeneSpeichern(l);
+    try{ localStorage.setItem("wEtikettVorlage", v.id); }catch(e){}
+    toast("Gespeichert: " + v.name); vorlagenVerwalten();
+  },
+  vorlageLoeschen: x => { if(!confirm("Diese Etiketten-Art löschen?")) return; eigeneSpeichern(eigeneVorlagen().filter(y => y.id !== x)); vorlagenVerwalten(); },
+  vorlageTest: x => { modalZu(); etikettenDrucken([], vorlage(x), 1, 1, true); },
+  /* Druckliste */
+  dlEntfernen: x => { const [t, id] = x.split("|"); drucklisteSpeichern(druckliste().filter(e => !(e.typ === t && e.id === id))); render(); },
+  dlLeeren: () => { if(!confirm("Druckliste leeren?")) return; drucklisteSpeichern([]); render(); },
+  dlDrucken: () => {
+    const items = [];
+    druckliste().forEach(e => { const it = etikettAus(e); if(it) for(let i = 0; i < (e.n || 1); i++) items.push(it); });
+    if(!items.length){ toast("Die Druckliste ist leer.", true); return; }
+    etikettDialog(items, "Druckliste drucken", false, "druckliste");
+  },
+  dlAlle: x => { document.querySelectorAll('[data-dl="' + x + '"]').forEach(c => c.checked = true); },
+  dlKeine: x => { document.querySelectorAll('[data-dl="' + x + '"]').forEach(c => c.checked = false); },
+  dlAuswahl: () => {
+    const items = [];
+    document.querySelectorAll("[data-dl]:checked").forEach(c => c.value.split(",").forEach(v => {
+      const [t, id] = v.split("|"); const it = etikettAus({ typ:t, id }); if(it) items.push(it);
+    }));
+    if(!items.length){ toast("Nichts ausgewählt.", true); return; }
+    aufDruckliste(items, 1); render(); window.scrollTo(0,0);
+    toast(items.length + " Etiketten zur Druckliste hinzugefügt");
+  },
+  zurDruckliste: () => { view.tab = "verwaltung"; view.verw = "etiketten"; render(); window.scrollTo(0,0); },
   zeigAus: () => { view.zeigAus = !view.zeigAus; render(); },
 
   /* Inventar: Kategorie und Serien */
@@ -2541,7 +2744,7 @@ const C = {
     render();
   },
   nrVorschau: () => vorschauNummer(),
-  etFormat: v => { const f = $("etStartFeld"); if(f) f.hidden = v !== "a4"; },
+  etVorlage: v => { const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"); if(f) f.hidden = vo.seite !== "A4"; if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; } },
   artGruppe: v => {
     const g = $("nrGruppe"), k = $("nrKat");
     if(!g || !GRUPPE_FUER_ART[v]) return;
