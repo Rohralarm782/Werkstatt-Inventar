@@ -1,9 +1,10 @@
 # Version
 
-**6.2.1** — 01.10.2026
+**7.0.0** — 02.10.2026
 
-Auswahl „Rad oder Einzelstück“ kompakter: ohne Suche nur Räder, lose
-Einzelstücke zugeklappt nach Kategorie; Teile am Rad über das Rad.
+Arbeitszeit je Artikel; daraus schätzt die App den Arbeitsaufwand eines
+Tickets (plus 5 min je Wechsel). Material vormerken ohne Vorrat-Artikel.
+Datenstruktur geändert — Migration nötig.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -12,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 7.0.0 | 02.10.2026 | Arbeitszeit-Schätzung, Vormerken ohne Vorrat |
 | 6.2.1 | 01.10.2026 | Auswahlliste kompakter |
 | 6.2.0 | 01.10.2026 | Gemeinsame Auswahlliste Rad/Einzelstück |
 | 6.1.0 | 01.10.2026 | Neues Ticket mit Einzelstück, setzt „zu prüfen“ |

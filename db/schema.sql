@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 6.1.0 — für eine NEUE, leere Datenbank.
+--  Stand 7.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 5.2.0 aus db/migration_6.0.0.sql und danach db/migration_6.1.0.sql.)
+--   von 6.1.0 aus nur db/migration_7.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -88,7 +88,8 @@ create table artikel (
   lieferant        text,
   bestellnummer    text,
   shop_link        text,
-  aktiv            boolean not null default true
+  aktiv            boolean not null default true,
+  dauer_min        integer check (dauer_min is null or dauer_min >= 0)   -- Arbeitszeit je Stück bzw. Leistung
 );
 
 create table rad (
@@ -734,7 +735,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_code := naechster_code(p_buchstabe, p_gruppe);
   insert into artikel (code, name, einheit, preis, mindestbestand, lieferzeit_tage, art,
-                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv)
+                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min)
   values (v_code,
           p_daten ->> 'name',
           coalesce(nullif(p_daten ->> 'einheit', ''), 'Stück'),
@@ -747,7 +748,8 @@ begin
           nullif(p_daten ->> 'lieferant', ''),
           nullif(p_daten ->> 'bestellnummer', ''),
           nullif(p_daten ->> 'shop_link', ''),
-          coalesce((p_daten ->> 'aktiv')::boolean, true));
+          coalesce((p_daten ->> 'aktiv')::boolean, true),
+          (p_daten ->> 'dauer_min')::integer);
   return v_code;
 end $$;
 

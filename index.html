@@ -207,7 +207,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "6.2.1";
+const APP_VERSION = "7.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -646,6 +646,8 @@ function boardView(){
   h += segBtn("filter", "material", "Material · " + alle.filter(t => fehlend(t).length > 0).length, view.filter);
   h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad, Problem" value="' + esc(view.suche) + '"></div>';
 
+  const summe = liste.reduce((m, t) => { const x = schaetzung(positionen(t.id)); return m + (x ? x.min : 0); }, 0);
+  if(summe) h += '<p class="sub" style="margin:0 0 4px">Geschätzte Arbeit in dieser Auswahl: <strong>' + dauerText(summe) + '</strong> (nur Tickets mit Arbeitszeit am Material)</p>';
   const steht = sortiert(liste.filter(t => !t.fahrbereit));
   const faehrt = sortiert(liste.filter(t => t.fahrbereit));
   h += '<h2 class="sec alarm">Rad steht</h2>';
@@ -659,6 +661,27 @@ function segBtn(aktion, wert, label, aktuell, extraKlasse){
   return '<button data-a="' + aktion + '" data-x="' + esc(wert) + '" aria-pressed="' + (aktuell === wert) + '"' +
          (extraKlasse ? ' class="' + extraKlasse + '"' : '') + '>' + esc(label) + '</button>';
 }
+/* ---------------------------------------------------------------
+   Arbeitszeit-Schätzung aus dem vorgemerkten Material: je Artikel eine
+   Arbeitszeit (Minuten je Stück bzw. je Leistung), zwischen den einzelnen
+   Arbeitsschritten jeweils WECHSEL_MIN dazu.
+----------------------------------------------------------------*/
+const WECHSEL_MIN = 5;
+function schaetzung(pos){
+  let min = 0, schritte = 0;
+  pos.forEach(p => { const a = artikel(p.code), d = a ? num(a.dauer_min) : 0; if(d > 0){ min += d * num(p.menge); schritte++; } });
+  if(!schritte) return null;
+  return { min: Math.round(min + WECHSEL_MIN * (schritte - 1)), schritte, arbeit: Math.round(min) };
+}
+function dauerText(min){ if(min < 60) return min + " min"; const h = Math.floor(min / 60), m = min % 60; return h + " h" + (m ? " " + m + " min" : ""); }
+/** Vorschlag für die Aufwand-Stufe: bis 2 h klein, bis 8 h mittel, darüber groß. */
+function aufwandVorschlag(min){ return min == null ? null : min <= 120 ? "klein" : min <= 480 ? "mittel" : "groß"; }
+function schaetzText(sch){
+  return "≈ " + dauerText(sch.min) + (sch.schritte > 1 ? " (" + dauerText(sch.arbeit) + " Arbeit + " + (sch.schritte - 1) + " × " + WECHSEL_MIN + " min Wechsel)" : "");
+}
+/** Vormerkbar sind Stück-Artikel und Leistungen — Vorrat (Bremsöl, Fett …) zieht die Leistung selbst ab. */
+function vormerkbar(a){ return a.aktiv && a.art !== "Vorrat"; }
+
 function ticketKarte(t, steht){
   const p = pufferText(t), pos = positionen(t.id), f = fehlend(t), b = beschaffung(t), pr = pruefOffen(t).length;
   let h = '<button class="ticket' + (steht ? " steht" : "") + '" data-a="oeffnen" data-x="' + t.id + '">';
@@ -668,7 +691,8 @@ function ticketKarte(t, steht){
   h += !pos.length ? '<span class="chip grau">kein Material</span>'
      : f.length ? '<span class="chip warn">' + (b > 0 ? 'Bestellen · ' + b + ' T' : 'Fehlt · ' + f.length) + '</span>'
      : '<span class="chip ok">Reserviert · ' + pos.length + '</span>';
-  h += '<span class="chip grau">' + esc(t.aufwand) + '</span>';
+  const sch = schaetzung(pos);
+  h += '<span class="chip grau">' + esc(t.aufwand) + (sch ? ' · ≈ ' + dauerText(sch.min) : '') + '</span>';
   h += '<span class="chip grau">' + (t.naechstmoeglich ? "nächstmöglich" : t.soll_fertig ? de(t.soll_fertig) + (t.anlass ? " · " + esc(t.anlass) : "") : "kein Termin") + '</span>';
   if(t.arbeitsort !== "Werkstatt") h += '<span class="chip warn">' + esc(t.arbeitsort) + '</span>';
   if(t.status === "angenommen") h += '<span class="chip ok">in Arbeit</span>';
@@ -779,13 +803,16 @@ function detailView(id){
   }
   h += '<div class="row trenn" style="gap:8px"><button class="btn small" data-a="scan" data-x="ticketMaterial"' + gesperrt + '>Scannen</button>';
   h += '<select data-c="tMatWahl" style="flex:1"' + gesperrt + '><option value="">Teil hinzufügen…</option>';
-  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale").forEach(a => {
-    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' — ' + zahl(greifbar(a.code, t.arbeitsort, t.id)) + ' da</option>';
+  (DB.artikel||[]).filter(a => vormerkbar(a) && a.art !== "Pauschale").forEach(a => {
+    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' — ' + zahl(greifbar(a.code, t.arbeitsort, t.id)) + ' da' + (num(a.dauer_min) ? ' · ' + a.dauer_min + ' min' : '') + '</option>';
   });
   (DB.artikel||[]).filter(a => a.aktiv && a.art === "Pauschale").forEach(a => {
-    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' (Leistung)</option>';
+    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' (Leistung' + (num(a.dauer_min) ? ' · ' + a.dauer_min + ' min' : '') + ')</option>';
   });
-  h += '</select></div></div>';
+  h += '</select></div>';
+  const schD = schaetzung(pos);
+  if(schD) h += '<p class="sub" style="margin:8px 0 0">Geschätzter Arbeitsaufwand: <strong>' + schaetzText(schD) + '</strong></p>';
+  h += '</div>';
 
   h += '<div class="card"><span class="lbl">Abschluss</span><div class="row wrapr" style="gap:8px">';
   if(t.status !== "angenommen") h += '<button class="btn" data-a="annehmen"' + gesperrt + '>Übernehmen</button>';
@@ -819,8 +846,9 @@ function neuView(){
   h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" data-c="nAnlass" value="' + esc(neu.anlass) + '" placeholder="Wettkampf, Training…"></div>';
   h += '<div class="feld"><span class="lbl">Material vormerken (optional)</span><div class="row" style="gap:8px">';
   h += '<button class="btn small" data-a="scan" data-x="neuMaterial"' + (offline ? " disabled" : "") + '>Scannen</button><select data-c="nMat" style="flex:1"><option value="">Teil wählen…</option>';
-  (DB.artikel||[]).filter(a => a.aktiv).forEach(a => {
-    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + (a.art === "Pauschale" ? " (Leistung)" : " — " + zahl(greifbar(a.code, neu.arbeitsort)) + " da") + '</option>';
+  (DB.artikel||[]).filter(vormerkbar).forEach(a => {
+    const dm = num(a.dauer_min) ? a.dauer_min + " min" : "";
+    h += '<option value="' + esc(a.code) + '">' + esc(a.name) + (a.art === "Pauschale" ? " (Leistung" + (dm ? " · " + dm : "") + ")" : " — " + zahl(greifbar(a.code, neu.arbeitsort)) + " da" + (dm ? " · " + dm : "")) + '</option>';
   });
   h += '</select></div>';
   if(neu.pos.length){
@@ -832,6 +860,8 @@ function neuView(){
     });
     h += '</div>';
   }
+  const schN = schaetzung(neu.pos);
+  if(schN) h += '<p class="sub" style="margin:8px 0 0">Geschätzter Arbeitsaufwand: <strong>' + schaetzText(schN) + '</strong></p>';
   h += '</div>';
   if(!neu.fotos) neu.fotos = [];
   h += '<div class="feld"><span class="lbl">Fotos (optional)</span>';
@@ -1542,6 +1572,7 @@ function artikelForm(code){
     feld("Bezeichnung", "aName", a.name) +
     '<div class="grid2">' + feld("Einheit", "aEinheit", a.einheit) + feld("Preis (€)", "aPreis", a.preis, "number", ' step="0.01" min="0"') + '</div>' +
     '<div class="grid2">' + feld("Mindestbestand", "aMin", a.mindestbestand, "number", ' step="any" min="0"') + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + '</div>' +
+    feld("Arbeitszeit (min, je Stück bzw. Leistung)", "aDauer", a.dauer_min, "number", ' step="1" min="0" inputmode="numeric" placeholder="z. B. 15 fürs Lenkerband wickeln"') +
     '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
     '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
     feld("Shop-Link", "aLink", a.shop_link) + auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) +
@@ -1996,8 +2027,11 @@ const A = {
   posWeg: x => aktion(() => aendern("ticket_position", "id=eq." + x, { status:"storniert" }), "Reservierung freigegeben"),
   annehmen: () => {
     const t = ticket(view.ticket); if(!t) return;
-    let h = '<h3>Übernehmen</h3><p class="sub" style="margin-top:-6px">Wie groß ist der Arbeitsaufwand?</p><div style="display:grid;gap:8px">';
-    ["klein","mittel","groß"].forEach(k => h += '<button class="btn' + (t.aufwand === k ? " primary" : "") + '" data-a="annehmenMit" data-x="' + k + '">' + k + ' · ' + AUFWAND[k] + ' T</button>');
+    const sch = schaetzung(positionen(t.id)), vorschlag = sch ? aufwandVorschlag(sch.min) : null;
+    let h = '<h3>Übernehmen</h3><p class="sub" style="margin-top:-6px">Wie groß ist der Arbeitsaufwand?' +
+            (sch ? ' Laut Material ' + schaetzText(sch) + ' — Vorschlag: <strong>' + vorschlag + '</strong>.' : '') + '</p><div style="display:grid;gap:8px">';
+    const markiert = vorschlag || t.aufwand;
+    ["klein","mittel","groß"].forEach(k => h += '<button class="btn' + (markiert === k ? " primary" : "") + '" data-a="annehmenMit" data-x="' + k + '">' + k + ' · ' + AUFWAND[k] + ' T' + (k === vorschlag ? ' · Vorschlag' : '') + '</button>');
     h += '<button class="btn" data-a="modalZu">Abbrechen</button></div>';
     modal(h);
   },
@@ -2101,7 +2135,8 @@ const A = {
     const d = { name:wert("aName"), einheit:wert("aEinheit") || "Stück", preis:zahlOderNull("aPreis") || 0, mindestbestand:zahlOderNull("aMin") || 0,
                 lieferzeit_tage: Math.round(zahlOderNull("aLz") || 0), art:wert("aArt"), verbraucht_code:wert("aVerb") || null,
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
-                shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true" };
+                shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true",
+                dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
     if(x){ aktion(() => aendern("artikel", "code=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
     if(nrForm && nrForm.modus === "auto"){
