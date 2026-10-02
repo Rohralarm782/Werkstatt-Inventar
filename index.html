@@ -141,6 +141,23 @@
   .wahl-zeile .nummern{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .wahl-gewaehlt{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
   .wahl-gewaehlt .txt{flex:1;min-width:0}
+  #druck{display:none}
+  @media print{
+    body.drucken > *:not(#druck){display:none !important}
+    body.drucken{background:#fff !important}
+    body.drucken #druck{display:block}
+  }
+  #druck .bogen{width:210mm;height:296mm;display:grid;grid-template-columns:repeat(3,70mm);grid-template-rows:repeat(8,37mm);break-after:page;page-break-after:always;overflow:hidden}
+  #druck .rolle .etikett{width:62mm;height:29mm;break-after:page;page-break-after:always}
+  #druck .etikett{box-sizing:border-box;display:flex;align-items:center;gap:2.5mm;padding:3mm;overflow:hidden;color:#000;font-family:Arial,Helvetica,sans-serif}
+  #druck .bogen .qr{width:30mm;height:30mm;flex:0 0 30mm}
+  #druck .rolle .qr{width:23mm;height:23mm;flex:0 0 23mm}
+  #druck .qr svg{display:block;width:100%;height:100%}
+  #druck .etikett .txt{min-width:0}
+  #druck .etikett .t{font-size:15pt;font-weight:700;line-height:1.05;letter-spacing:.02em}
+  #druck .etikett .z{font-size:8pt;line-height:1.2;margin-top:1.2mm}
+  #druck .etikett .f{font-size:6.5pt;margin-top:1.2mm}
+  a.btn{text-decoration:none;display:inline-flex;align-items:center;color:var(--ink)}
   .btn.warnwahl{border-color:var(--warn);color:var(--warn)}
   .liste .eintrag input.menge{width:68px;flex:0 0 auto;min-height:38px;padding:4px 6px;text-align:right}
   table{width:100%;border-collapse:collapse}
@@ -207,7 +224,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "7.0.0";
+const APP_VERSION = "8.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -330,10 +347,11 @@ async function ladeAlles(){
     rest("/person?order=name"),
     rest("/rechnung?order=id.desc&limit=100"),
     rest("/v_offene_posten?order=zeit"),
-    rest("/zaehlung")
+    rest("/zaehlung"),
+    rest("/bestellung?erhalten_am=is.null&order=bestellt_am")
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung] = await Promise.all(q);
-  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung };
+  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen] = await Promise.all(q);
+  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB })); }catch(e){}
@@ -600,7 +618,7 @@ function render(){
   const v = view.tab;
   app.innerHTML =
     v === "neu"        ? neuView() :
-    v === "lager"      ? (view.inventur && inv ? inventurView() : lagerView()) :
+    v === "lager"      ? (view.inventur && inv ? inventurView() : view.bestellen ? bestellView() : lagerView()) :
     v === "koffer"     ? kofferView() :
     v === "inventar"   ? inventarView() :
     v === "verwaltung" ? verwaltungView() :
@@ -639,7 +657,8 @@ function boardView(){
   if(view.filter === "material") liste = liste.filter(t => fehlend(t).length > 0);
   const alle = offeneTickets();
 
-  let h = '<button class="btn primary voll" data-a="tab" data-x="neu" style="margin-bottom:12px">+ Neues Ticket</button>';
+  let h = '<div class="row" style="gap:8px;margin-bottom:12px"><button class="btn primary" data-a="tab" data-x="neu" style="flex:1">+ Neues Ticket</button>' +
+          '<button class="btn" data-a="scan" data-x="ticket" title="QR am Rad oder Teil scannen">Scannen</button></div>';
   h += '<div class="seg" style="margin-bottom:10px">';
   h += segBtn("filter", "offen",    "Offen · " + alle.length, view.filter);
   h += segBtn("filter", "steht",    "Steht · " + alle.filter(t => !t.fahrbereit).length, view.filter);
@@ -674,8 +693,8 @@ function schaetzung(pos){
   return { min: Math.round(min + WECHSEL_MIN * (schritte - 1)), schritte, arbeit: Math.round(min) };
 }
 function dauerText(min){ if(min < 60) return min + " min"; const h = Math.floor(min / 60), m = min % 60; return h + " h" + (m ? " " + m + " min" : ""); }
-/** Vorschlag für die Aufwand-Stufe: bis 2 h klein, bis 8 h mittel, darüber groß. */
-function aufwandVorschlag(min){ return min == null ? null : min <= 120 ? "klein" : min <= 480 ? "mittel" : "groß"; }
+/** Vorschlag für die Aufwand-Stufe: bis 45 min klein, bis 1:30 h mittel, darüber groß. */
+function aufwandVorschlag(min){ return min == null ? null : min <= 45 ? "klein" : min <= 90 ? "mittel" : "groß"; }
 function schaetzText(sch){
   return "≈ " + dauerText(sch.min) + (sch.schritte > 1 ? " (" + dauerText(sch.arbeit) + " Arbeit + " + (sch.schritte - 1) + " × " + WECHSEL_MIN + " min Wechsel)" : "");
 }
@@ -885,6 +904,8 @@ function lagerView(){
   let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px">';
   h += '<button class="btn primary" data-a="scan" data-x="lager"' + gesperrt + '>Artikel scannen</button>';
   h += '<button class="btn" data-a="artikelNeu"' + gesperrt + '>Neuer Artikel</button>';
+  const nb = bestellBedarf().filter(x => x.rest > 0).length;
+  h += '<button class="btn' + (nb ? " warnwahl" : "") + '" data-a="bestellAuf">Bestellliste' + (nb ? " · " + nb : "") + '</button>';
   h += '<button class="btn' + (inv ? " warnwahl" : "") + '" data-a="invStart">' + (inv ? "Inventur fortsetzen · " + esc(invTitel()) : "Inventur") + '</button></div>';
   h += '<div class="seg" style="margin-bottom:10px">';
   const knapp = (DB.bestand||[]).filter(b => b.aktiv && (b.status === "nachbestellen" || b.status === "leer"));
@@ -929,6 +950,7 @@ function artikelMenue(code){
   h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : "An Sportler ausgeben") + '</button>';
   if(a.art !== "Pauschale") h += '<button class="btn" data-a="formInventur" data-x="' + esc(code) + '">Inventur / Bestand korrigieren</button>';
   h += '<button class="btn" data-a="buchungenArtikel" data-x="' + esc(code) + '">Buchungen · Fehlbuchung stornieren</button>';
+  h += '<button class="btn" data-a="artikelEtikett" data-x="' + esc(code) + '">Etikett drucken</button>';
   h += '<button class="btn" data-a="artikelBearbeiten" data-x="' + esc(code) + '">Artikel bearbeiten</button>';
   h += '<button class="btn" data-a="modalZu">Schließen</button></div>';
   modal(h);
@@ -965,6 +987,130 @@ function ortSelect(id, wert, dataC, dataX){
   let h = '<select id="' + id + '"' + (dataC ? ' data-c="' + dataC + '" data-x="' + esc(dataX || "") + '"' : '') + '>';
   ORTE.forEach(o => h += '<option' + (o === wert ? " selected" : "") + '>' + o + '</option>');
   return h + '</select>';
+}
+
+/* ===============================================================
+   Bestellliste — was muss nachbestellt werden?
+   Bedarf je Artikel (nur Werkstatt-Lager, ohne Leistungen):
+     Mindestbestand + was in den Koffern fehlt − frei in der Werkstatt
+   („frei“ = Werkstattbestand minus Reservierungen offener Tickets).
+   Offene Bestellungen werden abgezogen; ein Zugang schließt sie
+   automatisch ab (Datenbank).
+   ===============================================================*/
+function bestellBedarf(){
+  const offen = {};
+  (DB.bestellungen||[]).forEach(b => (offen[b.code] = offen[b.code] || []).push(b));
+  const liste = [];
+  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale").forEach(a => {
+    const b = bestand(a.code), frei = b ? num(b.frei) : 0, mind = num(a.mindestbestand);
+    const kofferFehlt = (DB.koffer||[]).filter(k => k.code === a.code).reduce((m, k) => m + num(k.fehlt), 0);
+    const bedarf = Math.max(0, mind + kofferFehlt - frei);
+    const bestellt = (offen[a.code] || []).reduce((m, x) => m + num(x.menge), 0);
+    if(bedarf <= 0 && !bestellt) return;
+    const gruende = [];
+    if(mind && frei < mind) gruende.push("frei " + zahl(frei) + " von mind. " + zahl(mind));
+    else if(frei < 0) gruende.push(zahl(-frei) + " mehr reserviert als da");
+    const tk = (DB.tickets||[]).filter(t => fehlend(t).indexOf(a.code) >= 0).map(t => tnr(t.id));
+    if(tk.length) gruende.push("fehlt für " + tk.join(", "));
+    (DB.koffer||[]).filter(k => k.code === a.code && num(k.fehlt) > 0).forEach(k => gruende.push(k.ort + " fehlt " + zahl(k.fehlt)));
+    liste.push({ a, frei, bedarf, bestellt, rest:Math.max(0, bedarf - bestellt), offen:offen[a.code] || [], gruende });
+  });
+  return liste;
+}
+function bestellView(){
+  const gesperrt = offline ? " disabled" : "";
+  const liste = bestellBedarf();
+  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn small" data-a="bestellZu">← Lager</button>' +
+          '<span class="big" style="font-size:22px">Bestellliste</span></div>';
+  if(!liste.length) return h + '<div class="leer">Nichts zu bestellen — alles über Mindestbestand, keine Fehlteile.</div>';
+  const gruppen = {};
+  liste.forEach(x => (gruppen[x.a.lieferant || ""] = gruppen[x.a.lieferant || ""] || []).push(x));
+  Object.keys(gruppen).sort((a, b) => (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b, "de")).forEach(lief => {
+    const g = gruppen[lief], offenGes = g.filter(x => x.rest > 0);
+    h += '<div class="row wrapr" style="gap:8px;margin:16px 0 8px"><h2 class="sec" style="margin:0">' + esc(lief || "Ohne Lieferant") + '</h2><span class="sp"></span>';
+    if(offenGes.length){
+      h += '<button class="btn small" data-a="bestellKopieren" data-x="' + esc(lief) + '">Liste kopieren</button>';
+      h += '<button class="btn small" data-a="bestellAlle" data-x="' + esc(lief) + '"' + gesperrt + '>alle bestellt</button>';
+    }
+    h += '</div><div class="card liste">';
+    g.forEach(x => {
+      const a = x.a;
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(a.name) + '</strong> <span class="sub">' + esc(a.code) + (a.bestellnummer ? ' · Best.-Nr. ' + esc(a.bestellnummer) : '') + '</span>' +
+           '<br><span class="sub">' + esc(x.gruende.join(" · ")) + '</span>';
+      x.offen.forEach(o => h += '<br><span class="sub" style="color:var(--ok)">bestellt ' + zahl(o.menge) + ' ' + esc(a.einheit) + ' am ' + de(o.bestellt_am) + (o.bearbeiter ? ' · ' + esc(o.bearbeiter) : '') + '</span> ' +
+                                  '<button class="btn small link" data-a="bestellZurueck" data-x="' + o.id + '"' + gesperrt + '>zurücknehmen</button>');
+      h += '</div>';
+      if(x.rest > 0) h += '<span class="chip warn">' + zahl(x.rest) + ' ' + esc(a.einheit) + '</span>';
+      else h += '<span class="chip ok">bestellt</span>';
+      h += '<div class="knoepfe">';
+      if(a.shop_link) h += '<a class="btn small" href="' + esc(a.shop_link) + '" target="_blank" rel="noopener">Shop ↗</a>';
+      if(x.rest > 0) h += '<button class="btn small primary" data-a="bestellMarkieren" data-x="' + esc(a.code) + '"' + gesperrt + '>bestellt</button>';
+      h += '</div></div>';
+    });
+    h += '</div>';
+  });
+  h += '<p class="sub">Vorschlag = Mindestbestand + was in den Koffern fehlt − frei in der Werkstatt. Wird der Artikel als Zugang gebucht, ist die Bestellung erledigt.</p>';
+  return h;
+}
+function bestellText(lief){
+  const g = bestellBedarf().filter(x => (x.a.lieferant || "") === lief && x.rest > 0);
+  return "Bestellung LV Radsport M-V" + (lief ? " bei " + lief : "") + "\n\n" +
+    g.map(x => "- " + zahl(x.rest) + " " + x.a.einheit + " " + x.a.name + (x.a.bestellnummer ? " (Best.-Nr. " + x.a.bestellnummer + ")" : "")).join("\n");
+}
+
+/* ===============================================================
+   Etiketten drucken — QR-Code (mit dem eingebauten ZXing erzeugt),
+   Nummer groß, Beschreibung klein. Zwei Formate: A4-Bogen 3 × 8
+   (70 × 37 mm) oder Etikettendrucker 62 × 29 mm.
+   ===============================================================*/
+const ETIKETT_FORMATE = { a4:"A4-Bogen 3 × 8 (70 × 37 mm)", rolle:"Etikettendrucker 62 × 29 mm" };
+let etikettAuftrag = null;
+function appUrl(){ return location.origin + location.pathname; }
+function radQrText(id){ return appUrl() + "?rad=" + encodeURIComponent(id); }
+function etikettStueck(s){ return { qr:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : "") }; }
+function etikettArtikel(a){ return { qr:a.code, titel:a.code, zeile:a.name }; }
+function etikettRad(r){ return { qr:radQrText(r.id), titel:r.id, zeile:r.bezeichnung, fuss:"Problem? Scannen → Ticket" }; }
+
+function etikettDialog(items, titel, mitKopien){
+  if(!items.length) return;
+  etikettAuftrag = items;
+  const fmt = localStorage.getItem("wEtikettFormat") || "a4";
+  let h = '<h3>' + esc(titel || "Etiketten drucken") + '</h3><p class="sub" style="margin-top:-6px">' + items.length + ' Etikett' + (items.length === 1 ? '' : 'en') + ': ' +
+          esc(items.slice(0, 6).map(x => x.titel).join(", ") + (items.length > 6 ? " …" : "")) + '</p>';
+  h += '<div class="feld"><span class="lbl">Format</span><select id="etFormat" data-c="etFormat">' +
+       Object.keys(ETIKETT_FORMATE).map(k => '<option value="' + k + '"' + (k === fmt ? " selected" : "") + '>' + ETIKETT_FORMATE[k] + '</option>').join("") + '</select></div>';
+  h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (fmt === "a4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld (1–24)</span><input type="number" id="etStart" value="1" min="1" max="24" inputmode="numeric"></div>';
+  h += mitKopien ? feld("Anzahl je Etikett", "etKopien", 1, "number", ' min="1" max="50" inputmode="numeric"') : '';
+  h += '</div><p class="sub">Beim angefangenen A4-Bogen das erste freie Feld angeben — gezählt wird zeilenweise von links oben.</p>';
+  h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="etDrucken">Drucken</button></div>';
+  modal(h);
+}
+function qrSvg(text, cache){
+  if(cache[text]) return cache[text];
+  const hints = new Map(); hints.set(ZXing.EncodeHintType.MARGIN, 0);
+  const svg = new ZXing.BrowserQRCodeSvgWriter().write(text, 200, 200, hints);
+  svg.setAttribute("viewBox", "0 0 200 200"); svg.setAttribute("width", "100%"); svg.setAttribute("height", "100%");
+  return (cache[text] = svg.outerHTML);
+}
+function etikettenDrucken(items, format, start, kopien){
+  const liste = [];
+  items.forEach(it => { for(let i = 0; i < kopien; i++) liste.push(it); });
+  const cache = {};
+  const eins = it => '<div class="etikett"><div class="qr">' + qrSvg(it.qr, cache) + '</div><div class="txt"><div class="t">' + esc(it.titel) + '</div>' +
+                     '<div class="z">' + esc(it.zeile || "") + '</div>' + (it.fuss ? '<div class="f">' + esc(it.fuss) + '</div>' : '') + '</div></div>';
+  let html = "";
+  if(format === "a4"){
+    const felder = Array(Math.max(0, start - 1)).fill('<div class="etikett frei"></div>').concat(liste.map(eins));
+    for(let i = 0; i < felder.length; i += 24) html += '<div class="bogen">' + felder.slice(i, i + 24).join("") + '</div>';
+  } else html = '<div class="rolle">' + liste.map(eins).join("") + '</div>';
+  let d = $("druck"); if(!d){ d = document.createElement("div"); d.id = "druck"; document.body.appendChild(d); }
+  d.innerHTML = html;
+  let st = $("druckSeite"); if(!st){ st = document.createElement("style"); st.id = "druckSeite"; document.head.appendChild(st); }
+  st.textContent = format === "a4" ? "@page{size:A4;margin:0}" : "@page{size:62mm 29mm;margin:0}";
+  document.body.classList.add("drucken");
+  const fertig = () => { document.body.classList.remove("drucken"); window.removeEventListener("afterprint", fertig); };
+  window.addEventListener("afterprint", fertig);
+  setTimeout(() => { window.print(); setTimeout(fertig, 1500); }, 50);
 }
 
 /* ===============================================================
@@ -1228,6 +1374,7 @@ function serienKarte(gruppe, offen){
   h += '<p class="sub" style="margin:8px 0"><span class="mono">' + esc(nummernText(gruppe.map(s => s.nummer))) + '</span> · ' + esc(ortText) + esc(kauf) + '</p>';
   h += '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn small" data-a="serieAuf" data-x="' + esc(key) + '">' + (offen ? "zuklappen ▴" : "einzeln ▾") + '</button>' +
        '<button class="btn small" data-a="serieBearbeiten" data-x="' + esc(key) + '"' + (offline ? " disabled" : "") + '>bearbeiten</button>' +
+       '<button class="btn small" data-a="serieEtiketten" data-x="' + esc(key) + '">Etiketten</button>' +
        '<button class="btn small" data-a="serieLoeschen" data-x="' + esc(key) + '"' + (offline ? " disabled" : "") + '>löschen</button></div></div>';
   return h;
 }
@@ -1312,7 +1459,10 @@ function inventarView(){
   let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="scan" data-x="stueck">Nummer scannen</button>' +
           '<button class="btn" data-a="stueckNeu"' + gesperrt + '>Neues Einzelstück</button></div>';
 
-  const alle = DB.stueck || [];
+  const roh = DB.stueck || [], qRoh = view.suche.toLowerCase().trim();
+  const nAus = roh.filter(s => s.ort === "ausgemustert").length;
+  // Ausgemusterte nur auf Wunsch — oder wenn genau ihre Nummer gesucht/gescannt wird
+  const alle = view.zeigAus ? roh : roh.filter(s => s.ort !== "ausgemustert" || (qRoh && s.nummer.toLowerCase() === qRoh));
   const kats = zaehle(alle, s => stueckKategorie(s.nummer));
   const kListe = Object.keys(kats).sort();
   if(view.invKat && !kats[view.invKat]) view.invKat = "";
@@ -1326,7 +1476,8 @@ function inventarView(){
   const q = view.suche.toLowerCase();
   const liste = alle.filter(s => (!view.invKat || stueckKategorie(s.nummer) === view.invKat) &&
     (!q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0));
-  if(!liste.length) return h + '<div class="leer">' + (alle.length ? "Nichts gefunden." : "Noch keine Einzelstücke erfasst.") + '</div>';
+  const ausKnopf = nAus ? '<p style="text-align:center;margin-top:14px"><button class="btn small link" data-a="zeigAus">' + (view.zeigAus ? "ausgemusterte ausblenden" : "ausgemusterte zeigen (" + nAus + ")") + '</button></p>' : '';
+  if(!liste.length) return h + '<div class="leer">' + (alle.length ? "Nichts gefunden." : roh.length ? "Nur ausgemusterte Einzelstücke vorhanden." : "Noch keine Einzelstücke erfasst.") + '</div>' + ausKnopf;
 
   // Gruppieren, Reihenfolge nach der kleinsten Nummer
   const gruppen = {}, reihe = [];
@@ -1361,7 +1512,7 @@ function inventarView(){
     h += serienKarte(g, offen);
     if(offen) h += '<div class="serie-teile">' + g.map(s => stueckKarte(s, gesperrt)).join("") + '</div>';
   });
-  return h;
+  return h + ausKnopf;
 }
 
 /* ===============================================================
@@ -1395,16 +1546,19 @@ function sportlerVerw(){
   return h + '</div>';
 }
 function raederVerw(){
-  let h = '<button class="btn primary" data-a="radNeu" style="margin-bottom:10px">Neues Rad</button><div class="card liste">';
+  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="radNeu">Neues Rad</button>' +
+          '<button class="btn" data-a="radEtikettenAlle">QR-Etiketten aller Räder</button></div><div class="card liste">';
   if(!(DB.raeder||[]).length) h += '<div class="sub">Noch keine Räder angelegt.</div>';
   (DB.raeder||[]).forEach(r => {
     h += '<div class="eintrag" style="flex-wrap:wrap"><div class="txt"><strong>' + esc(r.bezeichnung) + '</strong> <span class="sub">' + esc(r.id) + ' · ' + esc(r.typ) + (r.marke ? ' · ' + esc(r.marke) : '') +
          (r.eigentuemer_id ? ' · gehört ' + esc(sportlerName(r.eigentuemer_id)) : '') + '</span>' + (r.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
     h += '<select data-c="radFahrer" data-x="' + esc(r.id) + '" style="max-width:190px"><option value="">— kein Fahrer —</option>';
     (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
-    h += '</select><button class="btn small" data-a="radBearbeiten" data-x="' + esc(r.id) + '">bearbeiten</button></div>';
+    h += '</select><button class="btn small" data-a="radBearbeiten" data-x="' + esc(r.id) + '">bearbeiten</button>' +
+         '<button class="btn small" data-a="radEtikett" data-x="' + esc(r.id) + '">QR</button></div>';
   });
-  return h + '</div><p class="sub">Ein Fahrerwechsel schließt die alte Zuordnung und öffnet eine neue — der Verlauf bleibt erhalten.</p>';
+  return h + '</div><p class="sub">Ein Fahrerwechsel schließt die alte Zuordnung und öffnet eine neue — der Verlauf bleibt erhalten. ' +
+             'Der QR-Code am Rad öffnet die App direkt mit einem neuen Ticket für dieses Rad.</p>';
 }
 function artikelVerw(){
   let h = '<button class="btn primary" data-a="artikelNeu" style="margin-bottom:10px">Neuer Artikel</button><div class="card liste">';
@@ -1605,7 +1759,7 @@ function stueckForm(nr){
     '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + kaufFeld("eKauf", s.kaufdatum) + '</div>' +
     feld("Notiz", "eNotiz", s.notiz) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
-    (nr ? '<button class="btn small" data-a="stueckLoeschen" data-x="' + esc(nr) + '">Löschen</button>' : '') +
+    (nr ? '<button class="btn small" data-a="stueckLoeschen" data-x="' + esc(nr) + '">Löschen</button><button class="btn small" data-a="stueckEtikett" data-x="' + esc(nr) + '">Etikett</button>' : '') +
     '<span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
 }
 const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
@@ -1638,6 +1792,19 @@ async function scanStart(ziel){
 }
 function scanStopp(){ try{ if(leser) leser.reset(); }catch(e){} leser = null; }
 function scanTreffer(ziel, code){
+  // QR-Code eines Rads enthält einen Link (…?rad=BR-01)
+  const mRad = /[?&]rad=([^&#]+)/.exec(code);
+  if(mRad){
+    const id = decodeURIComponent(mRad[1]);
+    if(ziel === "ticket") return ticketFuerRad(id);
+    if(ziel === "neuRad" || ziel === "neuStueck"){ code = id; ziel = "neuRad"; }
+    else { piep(false); toast("Das ist der QR-Code von Rad " + id + " — für ein Ticket unter Tickets scannen.", true); return; }
+  }
+  if(ziel === "ticket"){
+    if(rad(code)) return ticketFuerRad(code);
+    if(stueckNr(code)){ neuStart(); view.tab = "neu"; view.ticket = null; neuStueckWaehlen(code); return; }
+    piep(false); toast("Weder Rad noch Einzelstück: " + code, true); return;
+  }
   if(ziel === "neuStueck" || (ziel === "neuRad" && stueckNr(code) && !rad(code))){
     if(!stueckNr(code)){ piep(false); toast("Unbekanntes Einzelstück: " + code, true); return; }
     neu.rad = ""; neu.wahlSuche = ""; neuStueckWaehlen(code); return;
@@ -2096,10 +2263,15 @@ const A = {
       if(!/^[A-Z]{1,3}$/.test(b)){ toast(b ? "Neue Kategorie: 1–3 Buchstaben A–Z." : "Bitte eine Kategorie wählen.", true); return; }
       const n = Number(wert("eAnzahl") || 1);
       if(!Number.isInteger(n) || n < 1 || n > 50){ toast("Anzahl: 1 bis 50.", true); return; }
-      if(n === 1){ aktion(() => rpc("stueck_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), nr => nr + " angelegt — diese Nummer aufs Etikett"); return; }
+      if(n === 1){
+        aktion(() => rpc("stueck_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), nr => nr + " angelegt")
+          .then(nr => { if(nr) etikettDialog([etikettStueck(stueckNr(nr) || Object.assign({ nummer:nr }, d))], nr + " angelegt — Etikett drucken?"); });
+        return;
+      }
       d.seriennummer = null;
       aktion(() => rpc("stueck_serie_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d, p_anzahl:n }),
-             l => l.length + " Stück angelegt: " + l[0] + " bis " + l[l.length - 1] + " — diese Nummern auf die Etiketten");
+             l => l.length + " Stück angelegt: " + l[0] + " bis " + l[l.length - 1])
+        .then(l => { if(l && l.length) etikettDialog(l.map(nr => etikettStueck(stueckNr(nr) || Object.assign({ nummer:nr }, d))), l.length + " Stück angelegt — Etiketten drucken?"); });
       return;
     }
     if(Number(wert("eAnzahl") || 1) > 1){ toast("Mehrere Stück auf einmal nur mit automatischer Nummer.", true); return; }
@@ -2142,7 +2314,8 @@ const A = {
     if(nrForm && nrForm.modus === "auto"){
       const b = nrBuchstabe();
       if(!/^[A-Z]{1,3}$/.test(b)){ toast(b ? "Neue Kategorie: 1–3 Buchstaben A–Z." : "Bitte eine Kategorie wählen.", true); return; }
-      aktion(() => rpc("artikel_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), c => c + " angelegt — diesen Code aufs Etikett");
+      aktion(() => rpc("artikel_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), c => c + " angelegt")
+        .then(c => { if(c) etikettDialog([etikettArtikel(artikel(c) || Object.assign({ code:c }, d))], c + " angelegt — Etikett drucken?", true); });
       return;
     }
     const code = wert("nrEigenWert").toUpperCase();
@@ -2185,6 +2358,49 @@ const A = {
     aktion(() => loeschen("foto", "id=eq." + Number(x)), "Foto gelöscht");
   },
   nFotoWeg: x => { neu.fotos = neu.fotos.filter(f => f.client_id !== x); render(); },
+
+  /* Bestellliste */
+  bestellAuf: () => { view.bestellen = true; render(); window.scrollTo(0,0); },
+  bestellZu: () => { view.bestellen = false; render(); },
+  bestellMarkieren: x => {
+    const e = bestellBedarf().find(y => y.a.code === x); if(!e) return;
+    modal('<h3>Als bestellt markieren</h3><p class="sub" style="margin-top:-6px">' + esc(e.a.name) + ' · ' + esc(e.a.code) + '</p>' +
+          feld("Bestellte Menge (" + esc(e.a.einheit) + ")", "bMenge", e.rest, "number", ' min="0" step="any" inputmode="decimal"') +
+          '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="bestellSpeichern" data-x="' + esc(x) + '">Bestellt</button></div>');
+  },
+  bestellSpeichern: x => {
+    const m = zahlOderNull("bMenge"); if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
+    aktion(() => neuIn("bestellung", { code:x, menge:m, bearbeiter:bearbeiter || null }), "Als bestellt markiert");
+  },
+  bestellAlle: x => {
+    const g = bestellBedarf().filter(y => (y.a.lieferant || "") === x && y.rest > 0);
+    if(!g.length || !confirm(g.length + " Artikel" + (x ? " bei " + x : "") + " als bestellt markieren (jeweils die vorgeschlagene Menge)?")) return;
+    aktion(() => neuIn("bestellung", g.map(y => ({ code:y.a.code, menge:y.rest, bearbeiter:bearbeiter || null }))), g.length + " Artikel als bestellt markiert");
+  },
+  bestellZurueck: x => {
+    if(!confirm("Bestellung zurücknehmen?")) return;
+    aktion(() => loeschen("bestellung", "id=eq." + Number(x)), "Bestellung zurückgenommen");
+  },
+  bestellKopieren: async x => {
+    const t = bestellText(x);
+    try{ await navigator.clipboard.writeText(t); toast("Bestellliste kopiert"); }
+    catch(e){ modal('<h3>Bestellliste</h3><textarea rows="10" style="width:100%">' + esc(t) + '</textarea><button class="btn voll" data-a="modalZu">Schließen</button>'); }
+  },
+
+  /* Etiketten */
+  serieEtiketten: x => { const g = (DB.stueck||[]).filter(s => serienSchluessel(s) === x && s.ort !== "ausgemustert"); etikettDialog(g.map(etikettStueck), g.length + " Etiketten · " + g[0].typ); },
+  stueckEtikett: x => { const s = stueckNr(x); if(s) etikettDialog([etikettStueck(s)], "Etikett " + x); },
+  artikelEtikett: x => { const a = artikel(x); if(a) etikettDialog([etikettArtikel(a)], "Etikett " + a.name, true); },
+  radEtikett: x => { const r = rad(x); if(r) etikettDialog([etikettRad(r)], "QR-Etikett " + r.bezeichnung); },
+  radEtikettenAlle: () => { const l = (DB.raeder||[]).filter(r => r.aktiv); etikettDialog(l.map(etikettRad), "QR-Etiketten · " + l.length + " Räder"); },
+  etDrucken: () => {
+    const f = wert("etFormat") || "a4", start = Math.min(24, Math.max(1, Number(wert("etStart") || 1))), k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
+    try{ localStorage.setItem("wEtikettFormat", f); }catch(e){}
+    const items = etikettAuftrag || [];
+    modalZu();
+    etikettenDrucken(items, f, f === "a4" ? start : 1, k);
+  },
+  zeigAus: () => { view.zeigAus = !view.zeigAus; render(); },
 
   /* Inventar: Kategorie und Serien */
   invKat: x => { view.invKat = x; render(); },
@@ -2325,6 +2541,7 @@ const C = {
     render();
   },
   nrVorschau: () => vorschauNummer(),
+  etFormat: v => { const f = $("etStartFeld"); if(f) f.hidden = v !== "a4"; },
   artGruppe: v => {
     const g = $("nrGruppe"), k = $("nrKat");
     if(!g || !GRUPPE_FUER_ART[v]) return;
@@ -2431,6 +2648,21 @@ function werAuswahl(){
   modal(h);
 }
 
+/** Aufruf über den QR-Code am Rad (…?rad=BR-01): direkt ein neues Ticket für dieses Rad. */
+function radAusLink(){
+  const id = new URLSearchParams(location.search).get("rad");
+  if(!id) return;
+  try{ history.replaceState(null, "", location.pathname); }catch(e){}
+  ticketFuerRad(id);
+}
+function ticketFuerRad(id){
+  const r = rad(id);
+  if(!r){ toast("Unbekanntes Rad: " + id, true); return; }
+  neuStart(); neu.rad = r.id;
+  view.tab = "neu"; view.ticket = null; render(); window.scrollTo(0,0);
+  toast("Neues Ticket für " + (r.fahrer || r.bezeichnung));
+}
+
 async function start(){
   $("ver").textContent = APP_VERSION;
   app.innerHTML = '<div class="leer">Lädt…</div>';
@@ -2439,6 +2671,7 @@ async function start(){
     await holeJwt(true);
     await ladeAlles();
     render();
+    radAusLink();
     if(!bearbeiter || !(DB.personen||[]).some(p => p.aktiv && p.name === bearbeiter)) werAuswahl();
     sendeWarteschlange();
   }catch(e){

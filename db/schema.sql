@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 7.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 8.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 6.1.0 aus nur db/migration_7.0.0.sql.)
+--   von 7.0.0 aus nur db/migration_8.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -251,6 +251,17 @@ create table inventur_lauf (
   gezaehlt     integer not null,
   korrekturen  integer not null
 );
+-- Bestellungen: was wurde wann bestellt; ein Zugang schließt offene Bestellungen ab
+create table bestellung (
+  id           bigint generated always as identity primary key,
+  code         text not null references artikel (code),
+  menge        numeric not null check (menge > 0),
+  bestellt_am  timestamptz not null default now(),
+  bearbeiter   text,
+  erhalten_am  timestamptz
+);
+create index bestellung_offen on bestellung (code) where erhalten_am is null;
+
 -- Fotos am Ticket (verkleinert, als Base64-Text)
 create table foto (
   id           bigint generated always as identity primary key,
@@ -842,6 +853,19 @@ begin
   return v_id;
 end $$;
 
+-- Ein Zugang schließt offene Bestellungen des Artikels ab.
+create function bestellung_erhalten() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  update bestellung set erhalten_am = now() where code = new.code and erhalten_am is null;
+  return null;
+end $$;
+
+create trigger zugang_schliesst_bestellung
+  after insert on buchung
+  for each row when (new.art = 'zugang')
+  execute function bestellung_erhalten();
+
 
 -- ---------------------------------------------------------------------
 --  Zugriffsregeln
@@ -852,7 +876,7 @@ declare
 begin
   foreach t in array array['person', 'sportler', 'artikel', 'rad', 'zuordnung', 'stueck', 'ticket',
                            'ticket_position', 'buchung', 'rechnung', 'koffer_soll', 'termin',
-                           'zaehlung', 'inventur_lauf', 'foto'] loop
+                           'zaehlung', 'inventur_lauf', 'foto', 'bestellung'] loop
     execute format('alter table %I enable row level security', t);
     execute format('create policy nur_trainer on %I for all to authenticated
                     using (ist_trainer()) with check (ist_trainer())', t);
@@ -919,6 +943,11 @@ create policy offen_aendern on rechnung for update to anonymous
 create policy offen_lesen on zaehlung for select to anonymous using (true);
 create policy offen_lesen on inventur_lauf for select to anonymous using (true);
 
+-- Bestellungen: lesen, als bestellt markieren, offene zurücknehmen.
+create policy offen_lesen     on bestellung for select to anonymous using (true);
+create policy offen_bestellen on bestellung for insert to anonymous with check (erhalten_am is null);
+create policy offen_loeschen  on bestellung for delete to anonymous using (erhalten_am is null);
+
 -- Fotos: lesen; hochladen über foto_hochladen; löschen nur an offenen Tickets.
 create policy offen_lesen    on foto for select to anonymous using (true);
 create policy offen_loeschen on foto for delete to anonymous
@@ -936,12 +965,13 @@ revoke select on trainer from anonymous;
 grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person to anonymous;
 grant insert (art, code, menge, ort, notiz, bearbeiter) on buchung to anonymous;
 grant insert (ticket_id, code, menge) on ticket_position to anonymous;
+grant insert (code, menge, bearbeiter) on bestellung to anonymous;
 grant update on stueck, koffer_soll, sportler, rad, artikel, person to anonymous;
 grant update (soll_fertig, naechstmoeglich, anlass, aufwand, fahrbereit, arbeitsort,
               kostentraeger_id, status, uebernommen_von) on ticket to anonymous;
 grant update (menge, status) on ticket_position to anonymous;
 grant update (status) on rechnung to anonymous;
-grant delete on termin, koffer_soll, foto, stueck to anonymous;
+grant delete on termin, koffer_soll, foto, stueck, bestellung to anonymous;
 grant usage, select on all sequences in schema public to anonymous;
 
 revoke execute on all functions in schema public from public, anonymous;
