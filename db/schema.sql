@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 8.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 9.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 7.0.0 aus nur db/migration_8.0.0.sql.)
+--   von 8.x aus nur db/migration_9.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -165,12 +165,21 @@ create table ticket (
 );
 create index ticket_stueck on ticket (stueck_nummer);
 
+-- Arbeitsschritte eines Tickets: mit Material (code) oder als reiner Text (titel).
+-- Jeder Schritt lässt sich einzeln abhaken (position_erledigen).
 create table ticket_position (
-  id         bigint generated always as identity primary key,
-  ticket_id  bigint not null references ticket (id) on delete cascade,
-  code       text not null references artikel (code),
-  menge      numeric not null check (menge > 0),
-  status     text not null default 'reserviert' check (status in ('reserviert', 'gebucht', 'storniert'))
+  id            bigint generated always as identity primary key,
+  ticket_id     bigint not null references ticket (id) on delete cascade,
+  code          text references artikel (code),
+  menge         numeric not null check (menge > 0),
+  status        text not null default 'reserviert',
+  titel         text,
+  dauer_min     integer check (dauer_min is null or dauer_min >= 0),   -- nur für Schritte ohne Material
+  erledigt_am   timestamptz,
+  erledigt_von  text,
+  buchung_id    bigint,                                                -- Entnahme beim Abhaken (Fremdschlüssel unten)
+  constraint ticket_position_status_check check (status in ('reserviert', 'gebucht', 'erledigt', 'storniert')),
+  constraint ticket_position_material_oder_text check (code is not null or coalesce(trim(titel), '') <> '')
 );
 create index ticket_position_offen on ticket_position (code) where status = 'reserviert';
 
@@ -213,6 +222,7 @@ create table buchung (
 );
 create index buchung_code_ort on buchung (code, ort);
 create index buchung_offen on buchung (sportler_id) where abrechnen and rechnung_id is null;
+alter table ticket_position add constraint ticket_position_buchung_id_fkey foreign key (buchung_id) references buchung (id);
 
 -- ---------------------------------------------------------------------
 --  Koffer und Termine — nur zur Übersicht und Warnung
@@ -466,9 +476,11 @@ begin
     return v_id;
   end if;
 
+  -- Schritte: {"code":"A-104","menge":1} oder {"titel":"Laufrad zentrieren","dauer_min":20}
   for v_pos in select * from jsonb_array_elements(coalesce(p_positionen, '[]'::jsonb)) loop
-    insert into ticket_position (ticket_id, code, menge)
-    values (v_id, v_pos ->> 'code', coalesce((v_pos ->> 'menge')::numeric, 1));
+    insert into ticket_position (ticket_id, code, titel, menge, dauer_min)
+    values (v_id, nullif(v_pos ->> 'code', ''), nullif(trim(v_pos ->> 'titel'), ''),
+            coalesce((v_pos ->> 'menge')::numeric, 1), (v_pos ->> 'dauer_min')::integer);
   end loop;
 
   -- Einzelstück mit Ticket muss geprüft werden: „frei“ wird zu „zu prüfen“
@@ -480,15 +492,16 @@ begin
   return v_id;
 end $$;
 
--- Ticket abschließen: jede reservierte Position wird zur Entnahme am
--- Arbeitsort. Blockiert, solange ein Einzelstück am Rad "zu prüfen" ist.
+-- Ticket abschließen: alle noch offenen Schritte auf einmal (Material wird zur
+-- Entnahme am Arbeitsort). Blockiert, solange ein Einzelstück "zu prüfen" ist.
 create function ticket_abschliessen(p_ticket bigint, p_bearbeiter text default null) returns numeric
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  t        ticket;
-  p        record;
-  v_summe  numeric := 0;
-  v_offen  text;
+  t          ticket;
+  p          record;
+  v_summe    numeric := 0;
+  v_offen    text;
+  v_buchung  bigint;
 begin
   select * into t from ticket where id = p_ticket for update;
   if not found then raise exception 'Ticket % nicht gefunden', p_ticket; end if;
@@ -499,9 +512,15 @@ begin
   if v_offen is not null then raise exception 'Erst prüfen und freigeben: %', v_offen; end if;
 
   for p in select * from ticket_position
-            where ticket_id = p_ticket and status = 'reserviert' for update loop
-    v_summe := v_summe + material_ausgeben(p.code, p.menge, t.arbeitsort, t.kostentraeger_id, p_ticket, null, p_bearbeiter);
-    update ticket_position set status = 'gebucht' where id = p.id;
+            where ticket_id = p_ticket and status = 'reserviert' order by id for update loop
+    if p.code is null then
+      update ticket_position set status = 'erledigt', erledigt_am = now(), erledigt_von = p_bearbeiter where id = p.id;
+    else
+      v_summe := v_summe + material_ausgeben(p.code, p.menge, t.arbeitsort, t.kostentraeger_id, p_ticket, null, p_bearbeiter);
+      select max(id) into v_buchung from buchung where ticket_id = p_ticket and code = p.code and art = 'entnahme';
+      update ticket_position set status = 'gebucht', erledigt_am = now(), erledigt_von = p_bearbeiter, buchung_id = v_buchung
+       where id = p.id;
+    end if;
   end loop;
 
   update ticket set status = 'erledigt', erledigt_am = now(), erledigt_von = p_bearbeiter where id = p_ticket;
@@ -520,6 +539,66 @@ begin
 
   update ticket_position set status = 'storniert' where ticket_id = p_ticket and status = 'reserviert';
   update ticket set status = 'storniert', storniert_am = now(), storniert_von = p_bearbeiter where id = p_ticket;
+end $$;
+
+-- ---------------------------------------------------------------------
+--  Einen Schritt abhaken. Material wird sofort am Arbeitsort an den
+--  Kostenträger gebucht; das Ticket bleibt offen. Gibt den Betrag zurück.
+-- ---------------------------------------------------------------------
+create function position_erledigen(p_position bigint, p_bearbeiter text default null) returns numeric
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_tid      bigint;
+  t          ticket;
+  p          ticket_position;
+  v_betrag   numeric := 0;
+  v_buchung  bigint;
+begin
+  select ticket_id into v_tid from ticket_position where id = p_position;
+  if not found then raise exception 'Schritt % nicht gefunden', p_position; end if;
+  select * into t from ticket where id = v_tid for update;          -- erst das Ticket, dann der Schritt (wie beim Abschließen)
+  select * into p from ticket_position where id = p_position for update;
+  if t.status not in ('offen', 'angenommen') then raise exception 'Ticket ist bereits abgeschlossen'; end if;
+  if p.status <> 'reserviert' then raise exception 'Schritt ist schon erledigt oder freigegeben'; end if;
+
+  if p.code is not null then
+    v_betrag := material_ausgeben(p.code, p.menge, t.arbeitsort, t.kostentraeger_id, t.id, null, p_bearbeiter);
+    select max(id) into v_buchung from buchung where ticket_id = t.id and code = p.code and art = 'entnahme';
+    update ticket_position set status = 'gebucht', erledigt_am = now(), erledigt_von = p_bearbeiter, buchung_id = v_buchung
+     where id = p.id;
+  else
+    update ticket_position set status = 'erledigt', erledigt_am = now(), erledigt_von = p_bearbeiter
+     where id = p.id;
+  end if;
+  return v_betrag;
+end $$;
+
+-- ---------------------------------------------------------------------
+--  Abgehakten Schritt zurücknehmen (vertippt). Die Buchung wird
+--  storniert — nicht möglich, wenn sie schon auf einer Rechnung steht.
+-- ---------------------------------------------------------------------
+create function position_zuruecknehmen(p_position bigint, p_bearbeiter text default null) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_tid  bigint;
+  t      ticket;
+  p      ticket_position;
+begin
+  select ticket_id into v_tid from ticket_position where id = p_position;
+  if not found then raise exception 'Schritt % nicht gefunden', p_position; end if;
+  select * into t from ticket where id = v_tid for update;
+  select * into p from ticket_position where id = p_position for update;
+  if t.status not in ('offen', 'angenommen') then raise exception 'Ticket ist bereits abgeschlossen'; end if;
+  if p.status not in ('gebucht', 'erledigt') then raise exception 'Schritt ist nicht abgehakt'; end if;
+  if p.status = 'gebucht' and p.buchung_id is null then
+    raise exception 'Buchung nicht zuzuordnen — bitte unter Material → Buchungen stornieren';
+  end if;
+
+  if p.buchung_id is not null and not exists (select 1 from buchung where storno_von = p.buchung_id) then
+    perform buchung_stornieren(p.buchung_id, 'Schritt an T-' || lpad(t.id::text, 4, '0') || ' zurückgenommen', p_bearbeiter);
+  end if;
+  update ticket_position set status = 'reserviert', erledigt_am = null, erledigt_von = null, buchung_id = null
+   where id = p.id;
 end $$;
 
 -- Fahrer eines Rads wechseln: alte Zuordnung schließen, neue öffnen.
@@ -964,12 +1043,12 @@ grant select on all tables in schema public to anonymous;
 revoke select on trainer from anonymous;
 grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person to anonymous;
 grant insert (art, code, menge, ort, notiz, bearbeiter) on buchung to anonymous;
-grant insert (ticket_id, code, menge) on ticket_position to anonymous;
+grant insert (ticket_id, code, menge, titel, dauer_min) on ticket_position to anonymous;
 grant insert (code, menge, bearbeiter) on bestellung to anonymous;
 grant update on stueck, koffer_soll, sportler, rad, artikel, person to anonymous;
 grant update (soll_fertig, naechstmoeglich, anlass, aufwand, fahrbereit, arbeitsort,
               kostentraeger_id, status, uebernommen_von) on ticket to anonymous;
-grant update (menge, status) on ticket_position to anonymous;
+grant update (menge, status, titel, dauer_min) on ticket_position to anonymous;
 grant update (status) on rechnung to anonymous;
 grant delete on termin, koffer_soll, foto, stueck, bestellung to anonymous;
 grant usage, select on all sequences in schema public to anonymous;
@@ -984,6 +1063,8 @@ grant execute on function
   ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid, text),
   ticket_abschliessen(bigint, text),
   ticket_stornieren(bigint, text),
+  position_erledigen(bigint, text),
+  position_zuruecknehmen(bigint, text),
   rechnung_erstellen(bigint, date, date),
   rechnung_stornieren(bigint, text, text),
   buchung_stornieren(bigint, text, text),

@@ -22,7 +22,7 @@
   [hidden]{display:none!important}
   html,body{margin:0;padding:0}
   body{background:var(--paper);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;
-    font-size:16px;line-height:1.45;padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+    font-size:16px;line-height:1.45;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   .wrap{max-width:760px;margin:0 auto;padding:0 16px}
 
   header{background:var(--ink);color:#fff;padding-top:calc(12px + env(safe-area-inset-top,0px));box-shadow:0 2px 0 var(--sprint)}
@@ -33,27 +33,47 @@
   .brand .stand{font-size:12px;color:#9AA3AD;letter-spacing:.06em;text-transform:uppercase}
   .brand .sp{flex:1}
   .brand button{background:none;border:1px solid #3a4048;color:#C9D0D8;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
-  .brand #wer{color:#fff;border-color:#5a616b;font-size:13px;font-weight:600}
+  .brand #wer{color:#fff;border-color:#5a616b;font-size:13px;font-weight:600;min-height:36px}
+  .brand #scanBtn{background:var(--sprint);border:none;color:#fff;width:46px;height:42px;border-radius:10px;padding:0;display:flex;align-items:center;justify-content:center}
+  .brand{padding-bottom:12px}
+  .brand .titel{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.15}
+  .brand h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   .banner{padding:12px 14px;border-radius:var(--radius);margin:0 0 12px;font-size:14px;font-weight:500}
   .banner.rot{background:var(--sprint);color:#fff}
   .banner.gelb{background:#FBEEDC;color:#7A3E06;border:1px solid #F1D2A6}
 
-  /* Hauptmenü: Reiter in der dunklen Kopfleiste */
-  .tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  .tabs::-webkit-scrollbar{display:none}
-  .tab{flex:1 0 auto;min-height:46px;padding:10px 12px 8px;background:none;border:none;border-bottom:4px solid transparent;
-    font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:17px;letter-spacing:.07em;text-transform:uppercase;color:#8E97A1;cursor:pointer}
-  .tab:hover{color:#fff}
-  .tab[aria-selected="true"]{color:#fff;border-bottom-color:var(--sprint)}
+  /* Hauptmenü: Leiste unten, mit dem Daumen erreichbar */
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 max(0px,calc((100vw - 760px)/2)) env(safe-area-inset-bottom,0px)}
+  .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:62px;padding:6px 2px 4px;background:none;border:none;border-top:3px solid transparent;
+    font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:#5F6670;cursor:pointer}
+  .tab svg{width:22px;height:22px}
+  .tab:hover{color:var(--ink)}
+  .tab[aria-selected="true"]{color:var(--ink);border-top-color:var(--sprint);font-weight:700}
   main.wrap{padding-top:14px}
   @media (max-width:480px){
-    .brand h1{font-size:20px}
+    .brand h1{font-size:19px;letter-spacing:.02em}
     .brand .stand{font-size:11px}
-    .tab{flex:1 1 auto;padding:10px 4px 8px;font-size:14px;letter-spacing:.03em}
   }
-
+  .zurueck{display:inline-flex;align-items:center;gap:4px;margin-bottom:10px}
+  /* Arbeitsschritte */
+  .schritt{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .schritt .haken{flex:0 0 auto;width:34px;height:34px;border-radius:9px;border:2px solid #8B939C;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .schritt .haken.ja{background:var(--ok);border-color:var(--ok);color:#fff}
+  .schritt .txt{flex:1;min-width:0}
+  .schritt.fertig .name{color:var(--ink-2);text-decoration:line-through}
+  .schritt .name{font-weight:600}
+  .fortschritt{height:6px;background:#EFEDE9;border-radius:3px;margin:8px 0 4px;overflow:hidden}
+  .fortschritt > div{height:6px;background:var(--ok)}
+  .chip.blau{background:#E3ECF8;color:#1B4CA1}
+  .zeile-btn{display:flex;align-items:center;gap:10px;width:100%;padding:12px 0;border:none;border-top:1px solid var(--line);background:none;text-align:left;cursor:pointer;color:var(--ink)}
+  .zeile-btn:first-child{border-top:none}
+  .zeile-btn .txt{flex:1;min-width:0}
+  .zeile-btn .titel{display:block;font-weight:600}
+  .lzeile{flex:1 1 140px;min-width:0;background:none;border:none;padding:0;text-align:left;cursor:pointer;color:var(--ink);font:inherit}
   #app.laedt{opacity:.45;pointer-events:none;transition:opacity .15s}
+  #modal.laedt .sheet{opacity:.6;pointer-events:none}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
   .row{display:flex;align-items:center;gap:10px}
   .wrapr{flex-wrap:wrap}
@@ -178,14 +198,14 @@
   .reticle{position:absolute;inset:18% 14%;border:2px solid rgba(255,255,255,.5);border-radius:8px}
   .reticle::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:var(--sprint);box-shadow:0 0 12px var(--sprint)}
 
-  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;
     padding:12px 18px;border-radius:10px;font-size:15px;z-index:60;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,.2)}
   .toast.fehler{background:var(--sprint)}
   .leer{padding:22px;border:1px dashed var(--line);border-radius:var(--radius);color:var(--ink-2);text-align:center}
   .fehlerbox{background:#FBE3E7;border:1px solid #E9B4BC;color:var(--sprint);padding:12px 14px;border-radius:var(--radius);margin:12px 0}
   .fuss{margin:22px 0 8px;font-size:12px;color:var(--ink-2);text-align:center}
   @media print{
-    header,main,#toast{display:none!important}
+    header,main,#toast,#tabs{display:none!important}
     body{background:#fff;padding:0}
     .overlay{position:static;background:none;padding:0;display:block}
     .sheet{max-width:none;padding:0;background:#fff}
@@ -197,19 +217,17 @@
 
 <header>
   <div class="wrap brand">
-    <h1>Werkstatt RSZ MV</h1>
-    <span class="stand" id="stand"></span>
-    <span class="sp"></span>
+    <div class="titel"><h1>Werkstatt RSZ MV</h1><span class="stand" id="stand"></span></div>
     <button id="wer" hidden title="Name wechseln"></button>
+    <button id="scanBtn" hidden aria-label="Scannen: Rad, Teil oder Artikel" title="Scannen"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/></svg></button>
   </div>
-  <nav class="wrap tabs" id="tabs" role="tablist" hidden>
-    <button class="tab" role="tab" data-tab="tickets">Tickets</button>
-    <button class="tab" role="tab" data-tab="lager">Lager</button>
-    <button class="tab" role="tab" data-tab="koffer">Koffer</button>
-    <button class="tab" role="tab" data-tab="inventar">Inventar</button>
-    <button class="tab" role="tab" data-tab="verwaltung">Verwaltung</button>
-  </nav>
 </header>
+<nav class="tabs" id="tabs" hidden aria-label="Hauptmenü">
+  <button class="tab" data-tab="tickets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 10h6"/><path d="M9 14h6"/></svg>Tickets</button>
+  <button class="tab" data-tab="material"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>Material</button>
+  <button class="tab" data-tab="raeder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="16" r="4"/><circle cx="18" cy="16" r="4"/><path d="M6 16l4-8h5l3 8"/><path d="M10 8l2 8"/></svg>Räder &amp; Teile</button>
+  <button class="tab" data-tab="mehr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Mehr</button>
+</nav>
 
 <main class="wrap">
   <div id="banner"></div>
@@ -226,7 +244,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "8.1.0";
+const APP_VERSION = "9.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -237,7 +255,8 @@ const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.n
 let DB = null;             // frisch geladene Daten
 let stand = null;          // Zeitpunkt des letzten erfolgreichen Ladens
 let offline = false;       // true = Anzeige zeigt einen alten Stand
-let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", lagerFilter:"alle", verw:"sportler" };
+// tab: tickets | neu | material | raeder | mehr
+let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", mat:"lager", matFilter:"alle", rt:"raeder", rad:null, mehr:null };
 let neu = null;            // Entwurf neues Ticket
 let jwt = null, jwtExp = 0;
 let bearbeiter = localStorage.getItem("wBearbeiter") || "";   // wer arbeitet gerade an diesem Gerät
@@ -343,7 +362,6 @@ async function ladeAlles(){
     rest("/sportler?order=name"),
     rest("/stueck?order=nummer"),
     rest("/ticket?status=in.(offen,angenommen)&order=id"),
-    rest("/ticket_position?status=eq.reserviert&order=id"),
     rest("/v_koffer?order=ort,code"),
     rest("/termin?datum=gte." + tag + "&order=datum"),
     rest("/person?order=name"),
@@ -352,7 +370,10 @@ async function ladeAlles(){
     rest("/zaehlung"),
     rest("/bestellung?erhalten_am=is.null&order=bestellt_am")
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen] = await Promise.all(q);
+  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen] = await Promise.all(q);
+  // Arbeitsschritte der offenen Tickets — offene und schon abgehakte
+  verlaufCache = {};   // Rad-Verlauf beim nächsten Anzeigen neu holen
+  const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
   DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen };
   stand = new Date();
   offline = false;
@@ -362,7 +383,7 @@ async function ladeAlles(){
 /* ---------------------------------------------------------------
    Nur frische Daten zeigen: während geladen wird, ist die Seite gesperrt.
 ----------------------------------------------------------------*/
-function sperren(an){ app.classList.toggle("laedt", !!an); if(an) $("stand").textContent = "lädt…"; }
+function sperren(an){ app.classList.toggle("laedt", !!an); $("modal").classList.toggle("laedt", !!an); if(an) $("stand").textContent = "lädt…"; }
 
 async function frischLaden(){
   sperren(true);
@@ -376,9 +397,13 @@ async function frischLaden(){
   }finally{ sperren(false); zeigeStand(); }
 }
 
-/** Jede Änderung: schreiben, danach alles frisch laden — erst dann ist die Anzeige wieder frei. */
+/** Jede Änderung: schreiben, danach alles frisch laden — erst dann ist die Anzeige wieder frei.
+    Läuft schon eine, wird eine zweite nicht gestartet (Doppeltipp auf „Buchen“ bucht sonst doppelt). */
+let aktionLaeuft = false;
 async function aktion(fn, meldung){
   if(offline){ toast("Offline — Änderungen sind erst mit Netz möglich.", true); return; }
+  if(aktionLaeuft){ toast("Moment — es wird noch gespeichert.", true); return; }
+  aktionLaeuft = true;
   sperren(true);
   let r, geschrieben = false;
   try{
@@ -403,7 +428,7 @@ async function aktion(fn, meldung){
     }
     toast(e.message, true);
     try{ await ladeAlles(); render(); }catch(x){}
-  }finally{ sperren(false); zeigeStand(); }
+  }finally{ aktionLaeuft = false; sperren(false); zeigeStand(); }
 }
 
 function zeigeStand(){
@@ -484,8 +509,9 @@ function fehlerZeigen(){
   if(!f.length){ modalZu(); return; }
   let h = '<h3>Nicht angelegte Tickets</h3><p class="sub" style="margin-top:-6px">Diese Tickets wurden offline erfasst, beim Nachsenden aber abgelehnt. Sie liegen nur auf diesem Gerät.</p><div class="liste">';
   f.forEach(x => {
-    const r = rad(x.op.p_rad);
-    h += '<div class="eintrag"><div class="txt"><strong>' + esc(r ? (r.fahrer || r.bezeichnung) : x.op.p_rad) + '</strong> · ' + esc(x.op.p_problem) +
+    const r = x.op.p_rad ? rad(x.op.p_rad) : null;
+    const name = r ? (r.fahrer || r.bezeichnung) : x.op.p_stueck ? stueckText(x.op.p_stueck) : (x.op.p_rad || "?");
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(name) + '</strong> · ' + esc(x.op.p_problem) +
          '<br><span class="sub" style="color:var(--sprint)">' + esc(x.fehler) + '</span></div>' +
          '<div class="knoepfe"><button class="btn small" data-a="fehlerNochmal" data-x="' + esc(x.op.p_client_id) + '">nochmal senden</button>' +
          '<button class="btn small" data-a="fehlerVerwerfen" data-x="' + esc(x.op.p_client_id) + '">verwerfen</button></div></div>';
@@ -513,7 +539,12 @@ function rad(id){ return (DB.raeder||[]).find(r => r.id === id) || null; }
 function artikel(code){ return (DB.artikel||[]).find(a => a.code === code) || null; }
 function bestand(code){ return (DB.bestand||[]).find(b => b.code === code) || null; }
 function ticket(id){ return (DB.tickets||[]).find(t => t.id === id) || null; }
-function positionen(tid){ return (DB.positionen||[]).filter(p => p.ticket_id === tid); }
+/** Offene Schritte eines Tickets (noch nicht abgehakt): Material ist reserviert. */
+function positionen(tid){ return (DB.positionen||[]).filter(p => p.ticket_id === tid && p.status === "reserviert"); }
+/** Alle Schritte eines Tickets — offen und abgehakt. */
+function schritte(tid){ return (DB.positionen||[]).filter(p => p.ticket_id === tid && p.status !== "storniert"); }
+function schrittFertig(p){ return p.status === "gebucht" || p.status === "erledigt"; }
+function schrittName(p){ return p.code ? ((artikel(p.code) || {}).name || p.code) : (p.titel || "Schritt"); }
 function stueckAm(radId){ return (DB.stueck||[]).filter(s => s.rad_id === radId); }
 function stueckNr(nr){ return (DB.stueck||[]).find(s => s.nummer === nr) || null; }
 /** Einzelstücke, die zu einem Ticket gehören: die am Rad und das Einzelstück des Tickets selbst. */
@@ -561,7 +592,7 @@ function greifbar(code, ort, tid){
 /** Codes, von denen für dieses Ticket am Arbeitsort nicht genug da ist — unabhängig von der Lieferzeit. */
 function fehlend(t){
   const bedarf = {};
-  positionen(t.id).forEach(p => { bedarf[p.code] = (bedarf[p.code] || 0) + num(p.menge); });
+  positionen(t.id).forEach(p => { if(p.code) bedarf[p.code] = (bedarf[p.code] || 0) + num(p.menge); });
   return Object.keys(bedarf).filter(c => bedarf[c] > greifbar(c, t.arbeitsort, t.id));
 }
 /** Längste Lieferzeit der fehlenden Teile (0, wenn nichts fehlt oder keine Lieferzeit eingetragen ist). */
@@ -611,7 +642,7 @@ function kofferWarnungen(){
 function render(){
   if(!DB) return;
   $("tabs").hidden = false;
-  $("wer").hidden = false;
+  $("wer").hidden = false; $("scanBtn").hidden = false;
   $("wer").textContent = (bearbeiter || "Name wählen") + " ▾";
   $("ver").textContent = APP_VERSION;
   const reiter = view.tab === "neu" ? "tickets" : view.tab;   // "Neu" gehört zu Tickets
@@ -619,11 +650,10 @@ function render(){
   renderBanner();
   const v = view.tab;
   app.innerHTML =
-    v === "neu"        ? neuView() :
-    v === "lager"      ? (view.inventur && inv ? inventurView() : view.bestellen ? bestellView() : lagerView()) :
-    v === "koffer"     ? kofferView() :
-    v === "inventar"   ? inventarView() :
-    v === "verwaltung" ? verwaltungView() :
+    v === "neu"      ? neuView() :
+    v === "material" ? materialView() :
+    v === "raeder"   ? raederView() :
+    v === "mehr"     ? mehrView() :
     (view.ticket ? detailView(view.ticket) : boardView());
   zeigeStand();
 }
@@ -654,27 +684,29 @@ function renderBanner(){
 function boardView(){
   let liste = offeneTickets();
   const q = view.suche.toLowerCase();
-  if(q) liste = liste.filter(t => (wer(t) + " " + ticketObjekt(t) + " " + (t.stueck_nummer || "") + " " + t.problem).toLowerCase().indexOf(q) >= 0);
+  const meins = t => t.status === "angenommen" && !!bearbeiter && t.uebernommen_von === bearbeiter;
+  if(q) liste = liste.filter(t => (wer(t) + " " + ticketObjekt(t) + " " + (t.stueck_nummer || "") + " " + t.problem + " " + schritte(t.id).map(schrittName).join(" ")).toLowerCase().indexOf(q) >= 0);
   if(view.filter === "steht") liste = liste.filter(t => !t.fahrbereit);
   if(view.filter === "material") liste = liste.filter(t => fehlend(t).length > 0);
+  if(view.filter === "ich") liste = liste.filter(meins);
   const alle = offeneTickets();
 
-  let h = '<div class="row" style="gap:8px;margin-bottom:12px"><button class="btn primary" data-a="tab" data-x="neu" style="flex:1">+ Neues Ticket</button>' +
-          '<button class="btn" data-a="scan" data-x="ticket" title="QR am Rad oder Teil scannen">Scannen</button></div>';
+  let h = '<button class="btn primary voll" data-a="tab" data-x="neu" style="margin-bottom:12px">+ Neues Ticket</button>';
   h += '<div class="seg" style="margin-bottom:10px">';
   h += segBtn("filter", "offen",    "Offen · " + alle.length, view.filter);
   h += segBtn("filter", "steht",    "Steht · " + alle.filter(t => !t.fahrbereit).length, view.filter);
   h += segBtn("filter", "material", "Material · " + alle.filter(t => fehlend(t).length > 0).length, view.filter);
-  h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad, Problem" value="' + esc(view.suche) + '"></div>';
+  h += segBtn("filter", "ich",      "Ich · " + alle.filter(meins).length, view.filter);
+  h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad, Problem, Schritt" value="' + esc(view.suche) + '"></div>';
 
   const summe = liste.reduce((m, t) => { const x = schaetzung(positionen(t.id)); return m + (x ? x.min : 0); }, 0);
-  if(summe) h += '<p class="sub" style="margin:0 0 4px">Geschätzte Arbeit in dieser Auswahl: <strong>' + dauerText(summe) + '</strong> (nur Tickets mit Arbeitszeit am Material)</p>';
+  if(summe) h += '<p class="sub" style="margin:0 0 4px">Noch offene Arbeit in dieser Auswahl: <strong>' + dauerText(summe) + '</strong> (nur Schritte mit Arbeitszeit)</p>';
   const steht = sortiert(liste.filter(t => !t.fahrbereit));
   const faehrt = sortiert(liste.filter(t => t.fahrbereit));
   h += '<h2 class="sec alarm">Rad steht</h2>';
   h += steht.length ? steht.map(t => ticketKarte(t, true)).join("") : '<div class="leer">Kein Rad steht.</div>';
   h += '<h2 class="sec">Fahrbereit</h2>';
-  h += faehrt.length ? faehrt.map(t => ticketKarte(t, false)).join("") : '<div class="leer">Nichts offen.</div>';
+  h += faehrt.length ? faehrt.map(t => ticketKarte(t, false)).join("") : '<div class="leer">' + (view.filter === "ich" ? "Du hast nichts übernommen." : "Nichts offen.") + '</div>';
   h += '<p class="sub" style="margin-top:14px">Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit. „Sofort“ steht immer oben.</p>';
   return h;
 }
@@ -690,7 +722,7 @@ function segBtn(aktion, wert, label, aktuell, extraKlasse){
 const WECHSEL_MIN = 5;
 function schaetzung(pos){
   let min = 0, schritte = 0;
-  pos.forEach(p => { const a = artikel(p.code), d = a ? num(a.dauer_min) : 0; if(d > 0){ min += d * num(p.menge); schritte++; } });
+  pos.forEach(p => { const a = p.code ? artikel(p.code) : null, d = a ? num(a.dauer_min) * num(p.menge || 1) : num(p.dauer_min); if(d > 0){ min += d; schritte++; } });
   if(!schritte) return null;
   return { min: Math.round(min + WECHSEL_MIN * (schritte - 1)), schritte, arbeit: Math.round(min) };
 }
@@ -704,19 +736,21 @@ function schaetzText(sch){
 function vormerkbar(a){ return a.aktiv && a.art !== "Vorrat"; }
 
 function ticketKarte(t, steht){
-  const p = pufferText(t), pos = positionen(t.id), f = fehlend(t), b = beschaffung(t), pr = pruefOffen(t).length;
+  const p = pufferText(t), pos = positionen(t.id), alle = schritte(t.id), fertig = alle.filter(schrittFertig).length;
+  const mat = pos.filter(x => x.code), f = fehlend(t), b = beschaffung(t), pr = pruefOffen(t).length;
   let h = '<button class="ticket' + (steht ? " steht" : "") + '" data-a="oeffnen" data-x="' + t.id + '">';
   h += '<span class="kopf"><span class="big">' + esc(wer(t)) + '</span><span class="sub">' + esc(ticketObjekt(t)) + '</span>';
   h += '<span class="puffer mono" style="color:' + p.farbe + '">' + p.txt + '</span></span>';
   h += '<p class="prob">' + esc(t.problem) + '</p><span class="chips">';
-  h += !pos.length ? '<span class="chip grau">kein Material</span>'
-     : f.length ? '<span class="chip warn">' + (b > 0 ? 'Bestellen · ' + b + ' T' : 'Fehlt · ' + f.length) + '</span>'
-     : '<span class="chip ok">Reserviert · ' + pos.length + '</span>';
+  if(!alle.length) h += '<span class="chip grau">keine Schritte</span>';
+  else if(fertig) h += '<span class="chip blau">' + fertig + ' von ' + alle.length + ' erledigt</span>';
+  if(f.length) h += '<span class="chip warn">' + (b > 0 ? 'Bestellen · ' + b + ' T' : 'Fehlt · ' + f.length) + '</span>';
+  else if(mat.length) h += '<span class="chip ok">Reserviert · ' + mat.length + '</span>';
   const sch = schaetzung(pos);
-  h += '<span class="chip grau">' + esc(t.aufwand) + (sch ? ' · ≈ ' + dauerText(sch.min) : '') + '</span>';
+  h += '<span class="chip grau">' + esc(t.aufwand) + (sch ? ' · ≈ ' + dauerText(sch.min) + (fertig ? ' offen' : '') : '') + '</span>';
   h += '<span class="chip grau">' + (t.naechstmoeglich ? "nächstmöglich" : t.soll_fertig ? de(t.soll_fertig) + (t.anlass ? " · " + esc(t.anlass) : "") : "kein Termin") + '</span>';
   if(t.arbeitsort !== "Werkstatt") h += '<span class="chip warn">' + esc(t.arbeitsort) + '</span>';
-  if(t.status === "angenommen") h += '<span class="chip ok">in Arbeit</span>';
+  if(t.status === "angenommen") h += '<span class="chip ok">in Arbeit' + (t.uebernommen_von ? ' · ' + esc(t.uebernommen_von) : '') + '</span>';
   if(pr) h += '<span class="chip alarm">' + pr + ' zu prüfen</span>';
   h += '</span></button>';
   return h;
@@ -760,6 +794,7 @@ function detailView(id){
   h += '<p class="sub" style="margin:6px 0 0">Angelegt ' + deLang(t.angelegt) + (t.angelegt_von ? ' von ' + esc(t.angelegt_von) : '') +
        (t.uebernommen_von ? ' · übernommen von ' + esc(t.uebernommen_von) : '') + (t.anlass ? ' · ' + esc(t.anlass) : '') + '</p></div>';
 
+  h += schritteKarte(t, gesperrt);
   h += '<div class="card"><span class="lbl">Priorität</span>';
   if(t.naechstmoeglich){
     h += '<p style="margin:0"><strong style="color:var(--sprint)">Nächstmöglich</strong> — steht ganz oben in seiner Gruppe.</p>';
@@ -807,23 +842,45 @@ function detailView(id){
   }
   h += '</div>';
 
-  const pos = positionen(t.id), fehltCodes = fehlend(t);
-  h += '<div class="card"><span class="lbl">Material · gebucht wird aus ' + esc(t.arbeitsort) + '</span>';
-  if(!pos.length) h += '<p class="sub" style="margin:0 0 8px">Noch nichts reserviert.</p>';
-  else {
-    h += '<div class="liste">';
-    pos.forEach(pp => {
-      const a = artikel(pp.code), fehlt = fehltCodes.indexOf(pp.code) >= 0, lz = a ? num(a.lieferzeit_tage) : 0;
-      const info = istLeistung(pp.code) ? ' · Leistung'
-                 : fehlt ? ' · <span style="color:var(--warn)">fehlt' + (lz ? ', Lieferzeit ' + lz + ' T' : '') + '</span>' : ' · vorhanden';
-      h += '<div class="eintrag"><input type="number" class="menge" min="0" step="any" inputmode="decimal" value="' + num(pp.menge) + '" data-c="posMenge" data-x="' + pp.id + '" title="Menge — 0 gibt frei"' + gesperrt + '>' +
-           '<div class="txt">' + esc(a ? a.name : pp.code) + '<br><span class="sub">' + esc(pp.code) + info + '</span></div>';
-      h += '<button class="btn small" data-a="posWeg" data-x="' + pp.id + '"' + gesperrt + '>freigeben</button></div>';
-    });
+  const offen = positionen(t.id).length, fertigMat = schritte(t.id).some(x => x.status === "gebucht");
+  h += '<div class="card"><span class="lbl">Abschluss</span><div style="display:grid;gap:8px">';
+  h += '<button class="btn primary" data-a="erledigt"' + gesperrt + '>' + (offen ? "Rest erledigt &amp; Ticket schließen" : "Ticket schließen") + '</button>';
+  h += '<div class="row" style="gap:8px">' + (t.status !== "angenommen" ? '<button class="btn" style="flex:1" data-a="annehmen"' + gesperrt + '>Übernehmen</button>' : '<span class="sp"></span>') +
+       '<button class="btn small" data-a="stornieren"' + gesperrt + '>Stornieren</button></div></div>';
+  if(offen) h += '<p class="sub" style="margin:8px 0 0">Schließen bucht alle noch offenen Schritte auf einmal.</p>';
+  if(fertigMat) h += '<p class="sub" style="margin:4px 0 0">Stornieren gibt nur die offenen Schritte frei — abgehaktes Material bleibt gebucht.</p>';
+  h += '</div>';
+  return h;
+}
+/** Karte „Arbeitsschritte“: Material oder Text, einzeln abhaken. */
+function schritteKarte(t, gesperrt){
+  const alle = schritte(t.id), fertig = alle.filter(schrittFertig), fehltCodes = fehlend(t);
+  let h = '<div class="card"><div class="row"><span class="lbl" style="margin:0;flex:1">Arbeitsschritte · Material aus ' + esc(t.arbeitsort) + '</span>' +
+          (alle.length ? '<strong style="font-size:14px">' + fertig.length + ' von ' + alle.length + '</strong>' : '') + '</div>';
+  if(alle.length) h += '<div class="fortschritt"><div style="width:' + Math.round(100 * fertig.length / alle.length) + '%"></div></div>';
+  else h += '<p class="sub" style="margin:6px 0 8px">Noch keine Schritte. Teil wählen oder einen Schritt ohne Material eintragen.</p>';
+  alle.forEach(p => {
+    const a = p.code ? artikel(p.code) : null, ok = schrittFertig(p);
+    const dauer = a ? num(a.dauer_min) * num(p.menge) : num(p.dauer_min);
+    let info = p.code ? esc(p.code) + (istLeistung(p.code) ? ' · Leistung' : ' · ' + zahl(p.menge) + ' ' + esc(a ? a.einheit : '')) : 'ohne Material';
+    if(dauer) info += ' · ' + dauerText(dauer);
+    h += '<div class="schritt' + (ok ? ' fertig' : '') + '">';
+    if(ok){
+      h += '<button class="haken ja" data-a="schrittZurueck" data-x="' + p.id + '" aria-label="' + esc(schrittName(p)) + ' wieder öffnen"' + gesperrt + '>' + SVG_HAKEN + '</button>';
+      h += '<div class="txt"><div class="name">' + esc(schrittName(p)) + '</div><div class="sub">' + info + '</div>' +
+           '<div class="sub" style="color:var(--ok)">erledigt ' + (p.erledigt_am ? de(p.erledigt_am) : '') + (p.erledigt_von ? ' · ' + esc(p.erledigt_von) : '') + (p.status === 'gebucht' ? ' · gebucht' : '') + '</div></div>';
+    } else {
+      const fehlt = p.code && fehltCodes.indexOf(p.code) >= 0, lz = a ? num(a.lieferzeit_tage) : 0;
+      h += '<button class="haken" data-a="schrittAb" data-x="' + p.id + '" aria-label="' + esc(schrittName(p)) + ' abhaken"' + gesperrt + '></button>';
+      h += '<div class="txt"><div class="name">' + esc(schrittName(p)) + '</div><div class="sub">' + info +
+           (fehlt ? ' · <span style="color:var(--warn)">fehlt' + (lz ? ', Lieferzeit ' + lz + ' T' : '') + '</span>' : (p.code && !istLeistung(p.code) ? ' · vorhanden' : '')) + '</div></div>';
+      if(p.code && !istLeistung(p.code)) h += '<input type="number" class="menge" min="0" step="any" inputmode="decimal" value="' + num(p.menge) + '" data-c="posMenge" data-x="' + p.id + '" aria-label="Menge ' + esc(schrittName(p)) + ' — 0 gibt frei"' + gesperrt + ' style="width:62px;min-height:38px;padding:4px 6px;text-align:right">';
+      h += '<button class="btn small" data-a="posWeg" data-x="' + p.id + '" aria-label="' + esc(schrittName(p)) + ' entfernen"' + gesperrt + '>✕</button>';
+    }
     h += '</div>';
-  }
-  h += '<div class="row trenn" style="gap:8px"><button class="btn small" data-a="scan" data-x="ticketMaterial"' + gesperrt + '>Scannen</button>';
-  h += '<select data-c="tMatWahl" style="flex:1"' + gesperrt + '><option value="">Teil hinzufügen…</option>';
+  });
+  h += '<div class="trenn" style="display:grid;gap:8px"><div class="row" style="gap:8px"><button class="btn small" data-a="scan" data-x="ticketMaterial"' + gesperrt + '>Scannen</button>';
+  h += '<select data-c="tMatWahl" style="flex:1"' + gesperrt + '><option value="">Teil oder Leistung hinzufügen…</option>';
   (DB.artikel||[]).filter(a => vormerkbar(a) && a.art !== "Pauschale").forEach(a => {
     h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' — ' + zahl(greifbar(a.code, t.arbeitsort, t.id)) + ' da' + (num(a.dauer_min) ? ' · ' + a.dauer_min + ' min' : '') + '</option>';
   });
@@ -831,16 +888,15 @@ function detailView(id){
     h += '<option value="' + esc(a.code) + '">' + esc(a.name) + ' (Leistung' + (num(a.dauer_min) ? ' · ' + a.dauer_min + ' min' : '') + ')</option>';
   });
   h += '</select></div>';
-  const schD = schaetzung(pos);
-  if(schD) h += '<p class="sub" style="margin:8px 0 0">Geschätzter Arbeitsaufwand: <strong>' + schaetzText(schD) + '</strong></p>';
-  h += '</div>';
-
-  h += '<div class="card"><span class="lbl">Abschluss</span><div class="row wrapr" style="gap:8px">';
-  if(t.status !== "angenommen") h += '<button class="btn" data-a="annehmen"' + gesperrt + '>Übernehmen</button>';
-  h += '<button class="btn primary" data-a="erledigt"' + gesperrt + '>Erledigt &amp; buchen</button>';
-  h += '<span class="sp"></span><button class="btn small" data-a="stornieren"' + gesperrt + '>Stornieren</button></div></div>';
-  return h;
+  h += '<div class="row" style="gap:8px"><input type="text" id="tSchritt" placeholder="Schritt ohne Material, z. B. Laufrad zentrieren" style="flex:1"' + gesperrt + '>' +
+       '<input type="number" id="tSchrittMin" min="0" step="1" inputmode="numeric" placeholder="min" aria-label="Minuten (optional)" style="width:70px"' + gesperrt + '>' +
+       '<button class="btn small" data-a="schrittText"' + gesperrt + '>+</button></div></div>';
+  const sch = schaetzung(positionen(t.id));
+  if(sch) h += '<p class="sub" style="margin:8px 0 0">Noch offen: <strong>' + schaetzText(sch) + '</strong></p>';
+  if(alle.length) h += '<p class="sub" style="margin:4px 0 0">Abhaken bucht das Material sofort — das Ticket bleibt offen. Grüner Haken antippen = wieder öffnen.</p>';
+  return h + '</div>';
 }
+const SVG_HAKEN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 function zeile(l, r){ return '<div class="row" style="padding:4px 0"><span>' + l + '</span><span class="sp"></span><span class="mono">' + r + '</span></div>'; }
 
 /* ===============================================================
@@ -865,7 +921,7 @@ function neuView(){
   h += '</div></div>';
   h += '<div class="feld"><span class="lbl">Soll fertig</span>' + terminWahl("n", neu.soll_fertig, neu.naechstmoeglich) + '</div>';
   h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" data-c="nAnlass" value="' + esc(neu.anlass) + '" placeholder="Wettkampf, Training…"></div>';
-  h += '<div class="feld"><span class="lbl">Material vormerken (optional)</span><div class="row" style="gap:8px">';
+  h += '<div class="feld"><span class="lbl">Arbeitsschritte (optional)</span><div class="row" style="gap:8px">';
   h += '<button class="btn small" data-a="scan" data-x="neuMaterial"' + (offline ? " disabled" : "") + '>Scannen</button><select data-c="nMat" style="flex:1"><option value="">Teil wählen…</option>';
   (DB.artikel||[]).filter(vormerkbar).forEach(a => {
     const dm = num(a.dauer_min) ? a.dauer_min + " min" : "";
@@ -874,13 +930,16 @@ function neuView(){
   h += '</select></div>';
   if(neu.pos.length){
     h += '<div class="liste" style="margin-top:6px">';
-    neu.pos.forEach(p => {
-      const a = artikel(p.code);
-      h += '<div class="eintrag"><input type="number" class="menge" min="0" step="any" inputmode="decimal" value="' + num(p.menge) + '" data-c="nMenge" data-x="' + esc(p.code) + '" title="Menge">' +
-           '<div class="txt">' + esc(a ? a.name : p.code) + '</div><button class="btn small" data-a="nMatWeg" data-x="' + esc(p.code) + '">entfernen</button></div>';
+    neu.pos.forEach((p, i) => {
+      h += '<div class="eintrag">' + (p.code ? '<input type="number" class="menge" min="0" step="any" inputmode="decimal" value="' + num(p.menge) + '" data-c="nMenge" data-x="' + i + '" title="Menge">' : '') +
+           '<div class="txt">' + esc(schrittName(p)) + (p.code ? '' : ' <span class="sub">· ohne Material' + (p.dauer_min ? ' · ' + p.dauer_min + ' min' : '') + '</span>') + '</div>' +
+           '<button class="btn small" data-a="nMatWeg" data-x="' + i + '">entfernen</button></div>';
     });
     h += '</div>';
   }
+  h += '<div class="row" style="gap:8px;margin-top:8px"><input type="text" id="nSchritt" placeholder="Schritt ohne Material, z. B. Laufrad zentrieren" style="flex:1">' +
+       '<input type="number" id="nSchrittMin" min="0" step="1" inputmode="numeric" placeholder="min" aria-label="Minuten (optional)" style="width:70px">' +
+       '<button class="btn small" data-a="nSchrittText">+</button></div>';
   const schN = schaetzung(neu.pos);
   if(schN) h += '<p class="sub" style="margin:8px 0 0">Geschätzter Arbeitsaufwand: <strong>' + schaetzText(schN) + '</strong></p>';
   h += '</div>';
@@ -901,25 +960,38 @@ function neuView(){
 /* ===============================================================
    Lager
    ===============================================================*/
+/** Material: Lager · Koffer · Bestellen · Inventur */
+function materialView(){
+  const nb = bestellBedarf().filter(x => x.rest > 0).length;
+  let h = '<div class="seg" style="margin-bottom:12px">';
+  h += segBtn("mat", "lager", "Lager", view.mat);
+  h += segBtn("mat", "koffer", "Koffer", view.mat);
+  h += segBtn("mat", "bestellen", "Bestellen" + (nb ? " · " + nb : ""), view.mat);
+  h += segBtn("mat", "inventur", inv ? "Inventur ●" : "Inventur", view.mat);
+  h += '</div>';
+  if(view.mat === "koffer") return h + kofferView();
+  if(view.mat === "bestellen") return h + bestellView();
+  if(view.mat === "inventur") return h + (inv ? inventurView() : invStartView());
+  return h + lagerView();
+}
 function lagerView(){
   const gesperrt = offline ? " disabled" : "";
-  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px">';
-  h += '<button class="btn primary" data-a="scan" data-x="lager"' + gesperrt + '>Artikel scannen</button>';
-  h += '<button class="btn" data-a="artikelNeu"' + gesperrt + '>Neuer Artikel</button>';
-  const nb = bestellBedarf().filter(x => x.rest > 0).length;
-  h += '<button class="btn' + (nb ? " warnwahl" : "") + '" data-a="bestellAuf">Bestellliste' + (nb ? " · " + nb : "") + '</button>';
-  h += '<button class="btn' + (inv ? " warnwahl" : "") + '" data-a="invStart">' + (inv ? "Inventur fortsetzen · " + esc(invTitel()) : "Inventur") + '</button></div>';
-  h += '<div class="seg" style="margin-bottom:10px">';
-  const knapp = (DB.bestand||[]).filter(b => b.aktiv && (b.status === "nachbestellen" || b.status === "leer"));
-  h += segBtn("lagerFilter", "alle", "Alle", view.lagerFilter);
-  h += segBtn("lagerFilter", "knapp", "Nachbestellen · " + knapp.length, view.lagerFilter);
-  h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
+  const zuBestellen = {};
+  bestellBedarf().forEach(x => { if(x.rest > 0) zuBestellen[x.a.code] = x.rest; });
+  const aktiv = (DB.bestand||[]).filter(b => b.aktiv);
+  const res = aktiv.filter(b => num(b.reserviert) > 0);
+  let h = '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
+  h += '<div class="row wrapr" style="gap:6px;margin-bottom:10px">';
+  [["alle", "Alle · " + aktiv.length], ["bestellen", "zu bestellen · " + Object.keys(zuBestellen).length], ["reserviert", "reserviert · " + res.length]]
+    .forEach(x => h += '<button class="btn small' + (view.matFilter === x[0] ? " primary" : "") + '" data-a="matFilter" data-x="' + x[0] + '">' + x[1] + '</button>');
+  h += '</div>';
 
-  let liste = (DB.bestand||[]).filter(b => b.aktiv);
-  if(view.lagerFilter === "knapp") liste = knapp;
+  let liste = aktiv;
+  if(view.matFilter === "bestellen") liste = aktiv.filter(b => zuBestellen[b.code]);
+  if(view.matFilter === "reserviert") liste = res;
   const q = view.suche.toLowerCase();
   if(q) liste = liste.filter(b => (b.name + " " + b.code).toLowerCase().indexOf(q) >= 0);
-  if(!liste.length) return h + '<div class="leer">' + ((DB.bestand||[]).length ? "Nichts gefunden." : "Noch keine Artikel. Unter „Neuer Artikel“ anlegen.") + '</div>';
+  if(!liste.length) return h + '<div class="leer">' + ((DB.bestand||[]).length ? "Nichts in dieser Auswahl." : "Noch keine Artikel. Unter Mehr → Artikel anlegen.") + '</div>';
 
   h += '<div class="card liste">';
   liste.forEach(b => {
@@ -927,19 +999,24 @@ function lagerView(){
     const koffer = [];
     if(num(b.koffer_bahn)) koffer.push("Koffer Bahn " + zahl(b.koffer_bahn));
     if(num(b.koffer_strasse)) koffer.push("Koffer Straße " + zahl(b.koffer_strasse));
-    h += '<div class="eintrag"><div class="txt"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span><br>';
+    const knapp = !leistung && (num(b.frei) <= 0 || zuBestellen[b.code]);
+    h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span><br>';
     if(leistung) h += '<span class="sub">Leistung · ' + eur(b.preis) + '</span>';
     else {
       h += '<span class="sub">Werkstatt ' + zahl(b.werkstatt) + ' ' + esc(b.einheit);
       if(num(b.reserviert)) h += ' · ' + zahl(b.reserviert) + ' reserviert';
-      h += ' · <strong style="color:' + (b.status === "ok" ? "var(--ok)" : "var(--sprint)") + '">' + zahl(b.frei) + ' frei</strong>';
+      h += ' · <strong style="color:' + (knapp ? "var(--sprint)" : "var(--ok)") + '">' + zahl(b.frei) + ' frei</strong>';
       if(koffer.length) h += ' · ' + esc(koffer.join(", "));
       h += '</span>';
-      if(b.status !== "ok" && koffer.length) h += '<br><span class="sub" style="color:var(--warn)">Im Lager knapp — im Koffer liegt noch etwas.</span>';
+      const off = (DB.bestellungen||[]).filter(o => o.code === b.code);
+      if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
+      else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
     }
-    h += '</div><button class="btn small" data-a="artikelMenue" data-x="' + esc(b.code) + '"' + gesperrt + '>…</button></div>';
+    h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : "Ausgeben") + '</button>';
+    if(!leistung) h += '<button class="btn small" data-a="formZugang" data-x="' + esc(b.code) + '" aria-label="Zugang ' + esc(b.name) + '"' + gesperrt + '>+</button>';
+    h += '</div></div>';
   });
-  h += '</div>';
+  h += '</div><p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang.</p>';
   return h;
 }
 
@@ -1022,8 +1099,7 @@ function bestellBedarf(){
 function bestellView(){
   const gesperrt = offline ? " disabled" : "";
   const liste = bestellBedarf();
-  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn small" data-a="bestellZu">← Lager</button>' +
-          '<span class="big" style="font-size:22px">Bestellliste</span></div>';
+  let h = "";
   if(!liste.length) return h + '<div class="leer">Nichts zu bestellen — alles über Mindestbestand, keine Fehlteile.</div>';
   const gruppen = {};
   liste.forEach(x => (gruppen[x.a.lieferant || ""] = gruppen[x.a.lieferant || ""] || []).push(x));
@@ -1045,7 +1121,7 @@ function bestellView(){
       if(x.rest > 0) h += '<span class="chip warn">' + zahl(x.rest) + ' ' + esc(a.einheit) + '</span>';
       else h += '<span class="chip ok">bestellt</span>';
       h += '<div class="knoepfe">';
-      if(a.shop_link) h += '<a class="btn small" href="' + esc(a.shop_link) + '" target="_blank" rel="noopener">Shop ↗</a>';
+      if(a.shop_link) h += '<a class="btn small" href="' + esc(shopUrl(a.shop_link)) + '" target="_blank" rel="noopener">Shop ↗</a>';
       if(x.rest > 0) h += '<button class="btn small primary" data-a="bestellMarkieren" data-x="' + esc(a.code) + '"' + gesperrt + '>bestellt</button>';
       h += '</div></div>';
     });
@@ -1054,6 +1130,8 @@ function bestellView(){
   h += '<p class="sub">Vorschlag = Mindestbestand + was in den Koffern fehlt − frei in der Werkstatt. Wird der Artikel als Zugang gebucht, ist die Bestellung erledigt.</p>';
   return h;
 }
+/** Shop-Link als Webadresse: ohne http(s) wird https:// davorgesetzt, andere Schemata nicht zugelassen. */
+function shopUrl(l){ l = String(l || "").trim(); return /^https?:\/\//i.test(l) ? l : "https://" + l.replace(/^[a-z][a-z0-9+.-]*:\/*/i, ""); }
 function bestellText(lief){
   const g = bestellBedarf().filter(x => (x.a.lieferant || "") === lief && x.rest > 0);
   return "Bestellung LV Radsport M-V" + (lief ? " bei " + lief : "") + "\n\n" +
@@ -1189,7 +1267,7 @@ function etikettenDrucken(items, v, start, kopien, test){
   let st = $("druckSeite"); if(!st){ st = document.createElement("style"); st.id = "druckSeite"; document.head.appendChild(st); }
   st.textContent = v.seite === "A4" ? "@page{size:A4;margin:0}" : "@page{size:" + mm(b) + " " + mm(h) + ";margin:0}";
   document.body.classList.add("drucken");
-  const fertig = () => { document.body.classList.remove("drucken"); window.removeEventListener("afterprint", fertig); };
+  const fertig = () => { document.body.classList.remove("drucken"); st.textContent = ""; window.removeEventListener("afterprint", fertig); };
   window.addEventListener("afterprint", fertig);
   setTimeout(() => { window.print(); setTimeout(fertig, 1500); }, 50);
 }
@@ -1299,7 +1377,7 @@ function invZeile(b){
 function inventurView(){
   let liste = invArtikel();
   const buchstaben = Array.from(new Set(liste.map(b => invBuchstabe(b.code)))).sort();
-  let h = '<div class="card"><div class="row wrapr" style="gap:8px"><button class="btn small" data-a="invPause">← Lager</button>' +
+  let h = '<div class="card"><div class="row wrapr" style="gap:8px">' +
           '<span class="big" style="font-size:22px">Inventur · ' + esc(invTitel()) + '</span><span class="sp"></span>' +
           '<button class="btn small primary" data-a="scan" data-x="inventur">Scannen</button></div>';
   h += '<p class="sub" style="margin:8px 0 0">Begonnen ' + new Date(inv.start).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) +
@@ -1327,6 +1405,14 @@ function inventurView(){
   h += '<p class="sub">Zahl eintragen und Enter — weiter zum nächsten Feld. ✓ = stimmt mit dem System. Leeres Feld = nicht gezählt. ' +
        'Gebucht wird erst mit „Übernehmen“; bis dahin bleibt die Zählung auf diesem Gerät.</p>';
   return h;
+}
+/** Inventur starten: wo wird gezählt? */
+function invStartView(){
+  const g = offline ? " disabled" : "";
+  return '<div class="card"><span class="lbl">Inventur starten — wo wird gezählt?</span><div style="display:grid;gap:8px">' +
+    '<button class="btn primary" data-a="invNeu" data-x="' + INV_ALLE + '"' + g + '>Alles auf einmal</button>' +
+    ORTE.map(o => '<button class="btn" data-a="invNeu" data-x="' + o + '"' + g + '>' + o + '</button>').join("") + '</div>' +
+    '<p class="sub" style="margin:10px 0 0">Gezählt wird auf diesem Gerät; gebucht wird erst mit „Übernehmen“. Einen einzelnen Artikel korrigieren: Lager → Artikel antippen → Inventur.</p></div>';
 }
 function invSetzen(key, wertText){
   const n = wertText === "" || wertText == null ? null : Number(String(wertText).replace(",", "."));
@@ -1418,18 +1504,8 @@ function kofferView(){
   });
   h += '<p class="sub">+1 und −1 buchen zwischen Werkstatt und Koffer um. Der Gesamtbestand bleibt gleich.</p>';
 
-  h += '<h2 class="sec">Nächste Rennen</h2><div class="card">';
-  if(!(DB.termine||[]).length) h += '<p class="sub" style="margin:0 0 10px">Keine Termine eingetragen. Mit Termin warnt die App zehn Tage vorher, wenn im Koffer etwas fehlt.</p>';
-  else {
-    h += '<div class="liste">';
-    DB.termine.forEach(t => h += '<div class="eintrag"><div class="txt"><strong>' + deLang(t.datum) + '</strong> ' + esc(t.name) + '<br><span class="sub">' + esc(t.koffer || "kein Koffer") + '</span></div>' +
-      '<button class="btn small" data-a="terminWeg" data-x="' + t.id + '"' + gesperrt + '>löschen</button></div>');
-    h += '</div>';
-  }
-  h += '<div class="trenn"><div class="grid2"><div class="feld"><span class="lbl">Datum</span><input type="date" id="tDatum"></div>' +
-       '<div class="feld"><span class="lbl">Koffer</span><select id="tKoffer"><option>Koffer Bahn</option><option>Koffer Straße</option><option value="">keiner</option></select></div></div>' +
-       '<div class="feld"><span class="lbl">Rennen</span><input type="text" id="tName" placeholder="z. B. LM Bahn Cottbus"></div>' +
-       '<button class="btn" data-a="terminNeu"' + gesperrt + '>Termin eintragen</button></div></div>';
+  const n = (DB.termine||[]).length;
+  h += '<button class="btn small link" data-a="geheMehr" data-x="termine">Rennen &amp; Termine' + (n ? ' · ' + n : '') + ' — warnt 10 Tage vorher, wenn im Koffer etwas fehlt</button>';
   return h;
 }
 
@@ -1465,7 +1541,7 @@ function stueckKarte(s, gesperrt){
   h += '</div><p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + '</p>';
   h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
   ORTE.concat(["ausgemustert"]).forEach(o => h += '<option value="' + o + '"' + (s.ort === o ? " selected" : "") + '>' + o + '</option>');
-  (DB.raeder||[]).filter(x => x.aktiv).forEach(x => h += '<option value="rad:' + esc(x.id) + '"' + (s.rad_id === x.id ? " selected" : "") + '>an ' + esc(x.fahrer || x.bezeichnung) + '</option>');
+  (DB.raeder||[]).filter(x => x.aktiv || x.id === s.rad_id).forEach(x => h += '<option value="rad:' + esc(x.id) + '"' + (s.rad_id === x.id ? " selected" : "") + '>an ' + esc(x.fahrer || x.bezeichnung) + '</option>');
   h += '</select><select data-c="stueckZustand" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
   ["frei","zu prüfen","defekt"].forEach(z => h += '<option' + (s.zustand === z ? " selected" : "") + '>' + z + '</option>');
   h += '</select></div><button class="btn small" style="margin-top:8px" data-a="stueckBearbeiten" data-x="' + esc(s.nummer) + '"' + gesperrt + '>Details bearbeiten</button></div>';
@@ -1567,8 +1643,8 @@ function stueckeLoeschen(nummern){
 function inventarView(){
   const gesperrt = offline ? " disabled" : "";
   if(!view.serieOffen) view.serieOffen = {};
-  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="scan" data-x="stueck">Nummer scannen</button>' +
-          '<button class="btn" data-a="stueckNeu"' + gesperrt + '>Neues Einzelstück</button>' +
+  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px">' +
+          '<button class="btn" data-a="stueckNeu"' + gesperrt + '>+ Neues Einzelstück</button>' +
           (drucklisteAnzahl() ? '<button class="btn warnwahl" data-a="zurDruckliste">Druckliste · ' + drucklisteAnzahl() + '</button>' : '') + '</div>';
 
   const roh = DB.stueck || [], qRoh = view.suche.toLowerCase().trim();
@@ -1670,21 +1746,7 @@ function etikettenVerw(){
   return h;
 }
 
-function verwaltungView(){
-  let h = '<div class="seg drei" style="margin-bottom:12px">';
-  [["sportler","Sportler"],["raeder","Räder"],["artikel","Artikel"],["personen","Personen"],["rechnungen","Rechnungen"],["etiketten","Etiketten"],["export","Export"]]
-    .forEach(x => h += segBtn("verw", x[0], x[1], view.verw));
-  h += '</div>';
-  if(offline) return h + '<div class="leer">Offline — Verwaltung erst mit Netz.</div>';
-  const v = view.verw;
-  if(v === "sportler")   return h + sportlerVerw();
-  if(v === "raeder")     return h + raederVerw();
-  if(v === "artikel")    return h + artikelVerw();
-  if(v === "personen")   return h + personenVerw();
-  if(v === "rechnungen") return h + rechnungenVerw();
-  if(v === "etiketten")  return h + etikettenVerw();
-  return h + exportVerw();
-}
+
 function sportlerVerw(){
   let h = '<div class="card"><span class="lbl">Neuer Sportler</span><div class="row" style="gap:8px"><input type="text" id="sName" placeholder="Name">' +
           '<button class="btn primary" data-a="sportlerNeu">Anlegen</button></div>' +
@@ -1698,20 +1760,169 @@ function sportlerVerw(){
   });
   return h + '</div>';
 }
-function raederVerw(){
-  let h = '<div class="row wrapr" style="gap:8px;margin-bottom:10px"><button class="btn primary" data-a="radNeu">Neues Rad</button>' +
-          '<button class="btn" data-a="radEtikettenAlle">QR-Etiketten aller Räder</button></div><div class="card liste">';
-  if(!(DB.raeder||[]).length) h += '<div class="sub">Noch keine Räder angelegt.</div>';
-  (DB.raeder||[]).forEach(r => {
-    h += '<div class="eintrag" style="flex-wrap:wrap"><div class="txt"><strong>' + esc(r.bezeichnung) + '</strong> <span class="sub">' + esc(r.id) + ' · ' + esc(r.typ) + (r.marke ? ' · ' + esc(r.marke) : '') +
-         (r.eigentuemer_id ? ' · gehört ' + esc(sportlerName(r.eigentuemer_id)) : '') + '</span>' + (r.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
-    h += '<select data-c="radFahrer" data-x="' + esc(r.id) + '" style="max-width:190px"><option value="">— kein Fahrer —</option>';
-    (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
-    h += '</select><button class="btn small" data-a="radBearbeiten" data-x="' + esc(r.id) + '">bearbeiten</button>' +
-         '<button class="btn small" data-a="radEtikett" data-x="' + esc(r.id) + '">QR</button></div>';
+/** Räder & Teile: Liste der Räder oder der Einzelstücke; ein Rad antippen öffnet die Rad-Seite. */
+function raederView(){
+  if(view.rad && rad(view.rad)) return radSeite(view.rad);
+  view.rad = null;
+  const nTeile = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert").length;
+  let h = '<div class="seg" style="margin-bottom:12px">' + segBtn("rt", "raeder", "Räder · " + (DB.raeder||[]).filter(r => r.aktiv).length, view.rt) +
+          segBtn("rt", "teile", "Einzelstücke · " + nTeile, view.rt) + '</div>';
+  if(view.rt === "teile") return h + inventarView();
+  const gesperrt = offline ? " disabled" : "";
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad-ID, Marke" value="' + esc(view.suche) + '"></div>';
+  const q = view.suche.toLowerCase();
+  const liste = (DB.raeder||[]).filter(r => !q || [r.fahrer, r.bezeichnung, r.id, r.marke, r.typ].join(" ").toLowerCase().indexOf(q) >= 0)
+    .sort((a, b) => (b.aktiv ? 1 : 0) - (a.aktiv ? 1 : 0) || (a.fahrer ? 0 : 1) - (b.fahrer ? 0 : 1) || (a.fahrer || a.bezeichnung).localeCompare(b.fahrer || b.bezeichnung, "de"));
+  if(!liste.length) h += '<div class="leer">' + ((DB.raeder||[]).length ? "Nichts gefunden." : "Noch keine Räder angelegt.") + '</div>';
+  else {
+    h += '<div class="card" style="padding-top:2px;padding-bottom:2px">';
+    liste.forEach(r => {
+      const tk = (DB.tickets||[]).filter(t => t.rad_id === r.id), steht = tk.some(t => !t.fahrbereit);
+      h += '<button class="zeile-btn" data-a="radAuf" data-x="' + esc(r.id) + '"><span class="txt"><span class="titel">' + esc(r.fahrer || "ohne Fahrer") +
+           ' <span class="sub" style="font-weight:400">' + esc(r.id) + ' · ' + esc(r.bezeichnung) + '</span></span><span class="chips" style="margin-top:4px">' +
+           (!r.aktiv ? '<span class="chip grau">inaktiv</span>' : steht ? '<span class="chip alarm">steht</span>' : '<span class="chip ok">fährt</span>') +
+           (tk.length ? '<span class="chip warn">' + tk.length + ' Ticket' + (tk.length === 1 ? '' : 's') + '</span>' : '') +
+           (stueckAm(r.id).length ? '<span class="chip grau">' + stueckAm(r.id).length + (stueckAm(r.id).length === 1 ? ' Teil' : ' Teile') + '</span>' : '') + '</span></span>' + SVG_PFEIL + '</button>';
+    });
+    h += '</div>';
+  }
+  h += '<div class="row wrapr" style="gap:8px;margin-top:10px"><button class="btn" data-a="radNeu"' + gesperrt + '>+ Neues Rad</button>' +
+       '<button class="btn" data-a="radEtikettenAlle">QR-Etiketten aller Räder</button></div>';
+  return h;
+}
+const SVG_PFEIL = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#545B64" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
+/* ---------------------------------------------------------------
+   Rad-Seite: Fahrer, Teile am Rad (tauschen), offene Tickets, Verlauf
+----------------------------------------------------------------*/
+let verlaufCache = {};   // Rad-ID → [{ ticket…, schritte:[…] }] | "laedt" | "fehler"
+async function ladeVerlauf(id){
+  if(verlaufCache[id] === "laedt") return;
+  verlaufCache[id] = "laedt";
+  try{
+    const t = await rest("/ticket?rad_id=eq." + encodeURIComponent(id) + "&status=in.(erledigt,storniert)&order=id.desc&limit=15&select=id,problem,status,angelegt,erledigt_am,erledigt_von,storniert_am");
+    const pos = t.length ? await rest("/ticket_position?ticket_id=in.(" + t.map(x => x.id).join(",") + ")&status=in.(gebucht,erledigt)&select=ticket_id,code,titel,menge&order=id") : [];
+    t.forEach(x => x.schritte = pos.filter(p => p.ticket_id === x.id));
+    verlaufCache[id] = t;
+  }catch(e){ verlaufCache[id] = "fehler"; }
+  if(view.tab === "raeder" && view.rad === id) render();
+}
+function radSeite(id){
+  const r = rad(id), gesperrt = offline ? " disabled" : "";
+  const tk = sortiert((DB.tickets||[]).filter(t => t.rad_id === id)), steht = tk.some(t => !t.fahrbereit);
+  let h = '<button class="btn small zurueck" data-a="radZu">← Räder &amp; Teile</button>';
+  h += '<div class="card"><div class="row wrapr"><span class="big" style="font-size:26px">' + esc(r.bezeichnung) + '</span><span class="sp"></span>' +
+       (!r.aktiv ? '<span class="chip grau">inaktiv</span>' : steht ? '<span class="chip alarm">steht</span>' : '<span class="chip ok">fährt</span>') + '</div>';
+  h += '<p class="sub" style="margin:2px 0 10px">' + esc([r.id, r.typ, r.marke, r.groesse ? "Größe " + r.groesse : "", r.rahmennummer ? "Rahmen " + r.rahmennummer : "", r.eigentuemer_id ? "gehört " + sportlerName(r.eigentuemer_id) : ""].filter(Boolean).join(" · ")) + '</p>';
+  h += '<div class="row" style="gap:8px"><span class="lbl" style="margin:0">Fahrer</span><select data-c="radFahrer" data-x="' + esc(r.id) + '" style="flex:1"' + gesperrt + '><option value="">— kein Fahrer —</option>';
+  (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
+  h += '</select></div>';
+  if(r.fahrer_seit) h += '<p class="sub" style="margin:4px 0 0">fährt es seit ' + deLang(r.fahrer_seit) + '</p>';
+  h += '<button class="btn rot voll" style="margin-top:12px" data-a="ticketRad" data-x="' + esc(r.id) + '">Problem melden · neues Ticket</button>';
+  h += '<div class="row wrapr" style="gap:8px;margin-top:8px"><button class="btn small" data-a="radBearbeiten" data-x="' + esc(r.id) + '"' + gesperrt + '>bearbeiten</button>' +
+       '<button class="btn small" data-a="radEtikett" data-x="' + esc(r.id) + '">QR-Etikett</button></div></div>';
+
+  if(tk.length){
+    h += '<h2 class="sec">Offene Tickets</h2>' + tk.map(t => ticketKarte(t, !t.fahrbereit)).join("");
+  }
+
+  const teile = stueckAm(id);
+  h += '<div class="card"><span class="lbl">Teile am Rad</span>';
+  if(!teile.length) h += '<p class="sub" style="margin:0 0 8px">Keine nummerierten Teile am Rad.</p>';
+  else {
+    h += '<div class="liste">';
+    teile.forEach(s => {
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.nummer) + '</strong> ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br>' +
+           (s.zustand === "frei" ? '<span class="chip ok">frei</span>' : '<span class="chip alarm">' + esc(s.zustand) + '</span>') + '</div>' +
+           '<div class="knoepfe"><button class="btn small" data-a="teilTausch" data-x="' + esc(s.nummer) + '"' + gesperrt + '>tauschen</button>' +
+           '<button class="btn small" data-a="teilAb" data-x="' + esc(s.nummer) + '"' + gesperrt + '>abnehmen</button></div></div>';
+    });
+    h += '</div>';
+  }
+  h += '<button class="btn small" style="margin-top:8px" data-a="teilTausch" data-x=""' + gesperrt + '>+ Teil anbauen</button></div>';
+
+  const v = verlaufCache[id];
+  if(v === undefined && !offline) setTimeout(() => ladeVerlauf(id), 0);
+  h += '<div class="card"><span class="lbl">Verlauf · erledigte Tickets</span>';
+  if(offline) h += '<p class="sub" style="margin:0">Verlauf erst wieder mit Netz.</p>';
+  else if(v === undefined || v === "laedt") h += '<p class="sub" style="margin:0">lädt…</p>';
+  else if(v === "fehler") h += '<p class="sub" style="margin:0">Verlauf konnte nicht geladen werden.</p>';
+  else if(!v.length) h += '<p class="sub" style="margin:0">Noch keine abgeschlossenen Tickets.</p>';
+  else {
+    h += '<div class="liste">';
+    v.forEach(t => {
+      const gem = (t.schritte || []).map(p => p.code ? (zahl(p.menge) + "× " + ((artikel(p.code) || {}).name || p.code)) : p.titel);
+      h += '<div class="eintrag"><div class="txt"><strong>' + tnr(t.id) + '</strong> ' + esc(t.problem) +
+           (gem.length ? '<br><span class="sub">gemacht: ' + esc(gem.join(", ")) + '</span>' : '') +
+           '<br><span class="sub">' + (t.status === "erledigt" ? 'erledigt ' + deLang(t.erledigt_am) + (t.erledigt_von ? ' · ' + esc(t.erledigt_von) : '') : 'storniert ' + deLang(t.storniert_am)) + '</span></div></div>';
+    });
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+/** Auswahl beim Tauschen/Anbauen: freie Teile (nicht am Rad, nicht ausgemustert), gleiche Kategorie zuerst. */
+function teilWahl(alt){
+  const r = rad(view.rad); if(!r) return;
+  const kat = alt ? stueckKategorie(alt) : "";
+  const frei = (DB.stueck||[]).filter(s => !s.rad_id && s.ort !== "ausgemustert")
+    .sort((a, b) => (stueckKategorie(a.nummer) === kat ? 0 : 1) - (stueckKategorie(b.nummer) === kat ? 0 : 1) || a.nummer.localeCompare(b.nummer, "de", { numeric:true }));
+  let h = '<h3>' + (alt ? esc(stueckText(alt)) + ' tauschen' : 'Teil anbauen') + '</h3><p class="sub" style="margin-top:-6px">' +
+          (alt ? 'Neues Teil wählen — ' + esc(alt) + ' geht zurück in die Werkstatt.' : 'Freies Teil an ' + esc(r.fahrer || r.bezeichnung) + ' anbauen.') + '</p>';
+  if(!frei.length) h += '<div class="leer">Kein freies Einzelstück vorhanden.</div>';
+  else {
+    h += '<div class="wahl-liste" style="margin-bottom:12px">';
+    frei.forEach(s => h += '<button class="wahl-zeile" data-a="teilTauschOk" data-x="' + esc((alt || "") + "|" + s.nummer) + '"><strong>' + esc(s.nummer) + '</strong> ' + esc(s.typ) +
+                          (s.marke ? ' · ' + esc(s.marke) : '') + ' <span class="sub">· ' + esc(s.ort) + (s.zustand !== "frei" ? ' · ' + esc(s.zustand) : '') + '</span></button>');
+    h += '</div>';
+  }
+  modal(h + '<button class="btn voll" data-a="modalZu">Abbrechen</button>');
+}
+
+/* ===============================================================
+   Mehr — Abrechnung, Stammdaten, Werkzeuge
+   ===============================================================*/
+const MEHR = [
+  ["Abrechnung", [["rechnungen", "Rechnungen", () => { const n = new Set((DB.offenePosten||[]).map(p => p.sportler_id)).size, o = (DB.rechnungen||[]).filter(r => r.status === "offen").length; return (n ? n + " mit offenen Posten" : "keine offenen Posten") + (o ? " · " + o + " Rechnung" + (o === 1 ? "" : "en") + " unbezahlt" : ""); }]]],
+  ["Stammdaten", [["sportler", "Sportler &amp; Kostenträger", () => "Wer wird berechnet, wer nicht"],
+                  ["artikel", "Artikel", () => "Preise, Mindestbestand, Lieferant, Arbeitszeit"],
+                  ["personen", "Personen", () => "Namen für „wer hat was gemacht“"]]],
+  ["Werkzeuge", [["etiketten", "Etiketten &amp; Druckliste", () => { const n = drucklisteAnzahl(); return n ? "Druckliste · " + n + " Etikett" + (n === 1 ? "" : "en") : "QR-Codes für Räder, Teile, Regale"; }],
+                 ["termine", "Rennen &amp; Termine", () => { const t = (DB.termine||[])[0]; return t ? t.name + " · " + deLang(t.datum) : "Koffer-Warnung vor Rennen"; }],
+                 ["export", "Export", () => "CSV für Excel und Sicherung"]]]
+];
+function mehrView(){
+  if(view.mehr){
+    const titel = MEHR.flatMap(g => g[1]).find(x => x[0] === view.mehr);
+    let h = '<button class="btn small zurueck" data-a="mehrZu">← Mehr</button><h2 class="sec" style="margin-top:0">' + (titel ? titel[1] : "") + '</h2>';
+    if(offline) return h + '<div class="leer">Offline — erst wieder mit Netz.</div>';
+    const v = view.mehr;
+    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "personen" ? personenVerw() :
+                v === "etiketten" ? etikettenVerw() : v === "termine" ? termineView() : exportVerw());
+  }
+  let h = "";
+  MEHR.forEach(g => {
+    h += '<h2 class="sec" style="margin-top:6px">' + g[0] + '</h2><div class="card" style="padding-top:0;padding-bottom:0">';
+    g[1].forEach(x => h += '<button class="zeile-btn" data-a="geheMehr" data-x="' + x[0] + '"><span class="txt"><span class="titel">' + x[1] + '</span><span class="sub">' + esc(x[2]()) + '</span></span>' + SVG_PFEIL + '</button>');
+    h += '</div>';
   });
-  return h + '</div><p class="sub">Ein Fahrerwechsel schließt die alte Zuordnung und öffnet eine neue — der Verlauf bleibt erhalten. ' +
-             'Der QR-Code am Rad öffnet die App direkt mit einem neuen Ticket für dieses Rad.</p>';
+  return h;
+}
+function termineView(){
+  const gesperrt = offline ? " disabled" : "";
+  let h = "";
+  h += '<div class="card">';
+  if(!(DB.termine||[]).length) h += '<p class="sub" style="margin:0 0 10px">Keine Termine eingetragen. Mit Termin warnt die App zehn Tage vorher, wenn im Koffer etwas fehlt.</p>';
+  else {
+    h += '<div class="liste">';
+    DB.termine.forEach(t => h += '<div class="eintrag"><div class="txt"><strong>' + deLang(t.datum) + '</strong> ' + esc(t.name) + '<br><span class="sub">' + esc(t.koffer || "kein Koffer") + '</span></div>' +
+      '<button class="btn small" data-a="terminWeg" data-x="' + t.id + '"' + gesperrt + '>löschen</button></div>');
+    h += '</div>';
+  }
+  h += '<div class="trenn"><div class="grid2"><div class="feld"><span class="lbl">Datum</span><input type="date" id="tDatum"></div>' +
+       '<div class="feld"><span class="lbl">Koffer</span><select id="tKoffer"><option>Koffer Bahn</option><option>Koffer Straße</option><option value="">keiner</option></select></div></div>' +
+       '<div class="feld"><span class="lbl">Rennen</span><input type="text" id="tName" placeholder="z. B. LM Bahn Cottbus"></div>' +
+       '<button class="btn" data-a="terminNeu"' + gesperrt + '>Termin eintragen</button></div></div>';
+  return h;
 }
 function artikelVerw(){
   let h = '<button class="btn primary" data-a="artikelNeu" style="margin-bottom:10px">Neuer Artikel</button><div class="card liste">';
@@ -1947,17 +2158,12 @@ function scanStopp(){ try{ if(leser) leser.reset(); }catch(e){} leser = null; }
 function scanTreffer(ziel, code){
   // QR-Code eines Rads enthält einen Link (…?rad=BR-01)
   const mRad = /[?&]rad=([^&#]+)/.exec(code);
-  if(mRad){
-    const id = decodeURIComponent(mRad[1]);
-    if(ziel === "ticket") return ticketFuerRad(id);
-    if(ziel === "neuRad" || ziel === "neuStueck"){ code = id; ziel = "neuRad"; }
-    else { piep(false); toast("Das ist der QR-Code von Rad " + id + " — für ein Ticket unter Tickets scannen.", true); return; }
-  }
-  if(ziel === "ticket"){
-    if(rad(code)) return ticketFuerRad(code);
-    if(stueckNr(code)){ neuStart(); view.tab = "neu"; view.ticket = null; neuStueckWaehlen(code); return; }
-    piep(false); toast("Weder Rad noch Einzelstück: " + code, true); return;
-  }
+  if(mRad) code = decodeURIComponent(mRad[1]);
+  // Scan-Knopf oben: wirkt dort, wo man gerade ist
+  if(ziel === "kontextNeu") ziel = artikel(code) ? "neuMaterial" : "neuRad";
+  if(ziel === "kontextTicket") ziel = artikel(code) ? "ticketMaterial" : "global";
+  if(ziel === "global") return scanErgebnis(code);
+  if(mRad && ziel !== "neuRad" && ziel !== "neuStueck"){ piep(false); toast("Das ist der QR-Code von Rad " + code + " — oben mit dem Scan-Knopf scannen.", true); return; }
   if(ziel === "neuStueck" || (ziel === "neuRad" && stueckNr(code) && !rad(code))){
     if(!stueckNr(code)){ piep(false); toast("Unbekanntes Einzelstück: " + code, true); return; }
     neu.rad = ""; neu.wahlSuche = ""; neuStueckWaehlen(code); return;
@@ -1968,7 +2174,6 @@ function scanTreffer(ziel, code){
     neu.rad = r.id; neu.stueck = ""; neu.wahlSuche = ""; render(); toast("Rad: " + (r.fahrer || r.bezeichnung)); return;
   }
   const a = artikel(code);
-  if(ziel === "stueck"){ view.suche = code; render(); return; }
   if(ziel === "inventur"){
     if(!a || a.art === "Pauschale" || !a.aktiv){ piep(false); toast("Kein zählbarer Lagerartikel: " + code, true); return; }
     let el = document.querySelector('[data-c="invZahl"][data-x^="' + code + '|"]');
@@ -1976,10 +2181,38 @@ function scanTreffer(ziel, code){
     if(el){ el.scrollIntoView({ block:"center" }); el.focus(); try{ el.select(); }catch(e){} }
     return;
   }
-  if(!a){ piep(false); toast("Unbekannter Code: " + code, true); return; }
+  if(!a){ piep(false); toast("Kein Artikel: " + code, true); return; }
   if(ziel === "neuMaterial"){ neuMaterial(code); return; }
   if(ziel === "ticketMaterial"){ reservieren(code); return; }
-  if(ziel === "lager"){ artikelMenue(code); return; }
+  artikelMenue(code);
+}
+/** Scan-Knopf oben: im Ticket bzw. beim neuen Ticket landet ein Artikel dort, in der Inventur wird gezählt — sonst „was ist das?“. */
+function scanGlobal(){
+  if(view.tab === "material" && view.mat === "inventur" && inv) return scanStart("inventur");
+  if(view.tab === "neu") return scanStart("kontextNeu");
+  if(view.tab === "tickets" && view.ticket && ticket(view.ticket)) return scanStart("kontextTicket");
+  scanStart("global");
+}
+function scanErgebnis(code){
+  const r = rad(code) || (DB.raeder||[]).find(x => x.rahmennummer === code);
+  const st = !r && stueckNr(code), a = !r && !st && artikel(code);
+  if(a) return artikelMenue(code);
+  if(!r && !st){ piep(false); toast("Unbekannter Code: " + code, true); return; }
+  let h = '<span class="lbl">Erkannt: ' + (r ? "Rad" : "Einzelstück") + '</span>';
+  if(r){
+    const tk = (DB.tickets||[]).filter(t => t.rad_id === r.id);
+    h += '<h3 style="margin:0">' + esc(r.fahrer || r.bezeichnung) + '</h3><p class="sub" style="margin:2px 0 12px">' + esc(r.id + " · " + r.bezeichnung) + (tk.length ? ' · ' + tk.length + ' offene' + (tk.length === 1 ? 's Ticket' : ' Tickets') : '') + '</p>';
+    h += '<div style="display:grid;gap:8px"><button class="btn rot" data-a="ticketRad" data-x="' + esc(r.id) + '">Problem melden · neues Ticket</button>' +
+         '<button class="btn" data-a="radAuf" data-x="' + esc(r.id) + '">Zur Rad-Seite</button>';
+  } else {
+    const ar = st.rad_id ? rad(st.rad_id) : null;
+    h += '<h3 style="margin:0">' + esc(st.nummer + " · " + st.typ) + '</h3><p class="sub" style="margin:2px 0 12px">' + esc([st.marke, ar ? "am " + (ar.fahrer ? ar.bezeichnung + " (" + ar.fahrer + ")" : ar.bezeichnung) : st.ort, st.zustand].filter(Boolean).join(" · ")) + '</p>';
+    h += '<div style="display:grid;gap:8px"><button class="btn rot" data-a="ticketStueck" data-x="' + esc(st.nummer) + '">Problem melden · neues Ticket</button>' +
+         '<button class="btn" data-a="teilZeigen" data-x="' + esc(st.nummer) + '">Ort / Zustand ändern</button>' +
+         (ar ? '<button class="btn" data-a="radAuf" data-x="' + esc(ar.id) + '">Zum Rad</button>' : '');
+  }
+  piep(true);
+  modal(h + '<button class="btn" data-a="modalZu">Schließen</button></div>');
 }
 
 /* ---------------------------------------------------------------
@@ -1998,14 +2231,14 @@ function genugDa(code, ort, menge){
                  ". Trotzdem " + zahl(menge) + " buchen? " + folge);
 }
 function neuMaterial(code){
-  const da = neu.pos.find(p => p.code === code);
+  const da = neu.pos.find(p => p.code && p.code === code);
   if(da){ da.menge = num(da.menge) + 1; render(); toast((artikel(code)||{}).name + " — jetzt " + zahl(da.menge) + "×"); return; }
   neu.pos.push({ code, menge:1 }); render();
 }
 function reservieren(code){
   const t = ticket(view.ticket); if(!t) return;
   const da = positionen(t.id).find(p => p.code === code);
-  const name = (artikel(code)||{}).name || code;
+  const name = (artikel(code)||{}).name || code;   // nur offene Schritte zählen hoch
   aktion(() => da ? aendern("ticket_position", "id=eq." + da.id, { menge:num(da.menge) + 1 })
                   : neuIn("ticket_position", { ticket_id:t.id, code, menge:1 }),
          () => {
@@ -2318,11 +2551,38 @@ function grundAbfragen(titel, text, aktionName, x, knopf){
 
 /** Alle Klick-Aktionen, verteilt über data-a / data-x. */
 const A = {
-  tab: x => { view.tab = x; view.ticket = null; view.suche = ""; if(x === "neu" && !neu) neuStart(); render(); window.scrollTo(0,0); },
+  tab: x => {
+    // Reiter erneut antippen führt zurück zur Übersicht dieses Reiters
+    view.tab = x; view.ticket = null; view.suche = "";
+    if(x === "raeder") view.rad = null;
+    if(x === "mehr") view.mehr = null;
+    if(x === "neu" && !neu) neuStart();
+    render(); window.scrollTo(0,0);
+  },
   filter: x => { view.filter = x; render(); },
-  lagerFilter: x => { view.lagerFilter = x; render(); },
-  verw: x => { view.verw = x; render(); },
-  oeffnen: x => { view.ticket = Number(x); render(); window.scrollTo(0,0); },
+  mat: x => { view.mat = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  matFilter: x => { view.matFilter = x; render(); },
+  rt: x => { view.rt = x; view.suche = ""; render(); },
+  radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
+  radZu: () => { view.rad = null; render(); window.scrollTo(0,0); },
+  geheMehr: x => { view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  mehrZu: () => { view.mehr = null; render(); window.scrollTo(0,0); },
+  ticketRad: x => { modalZu(); ticketFuerRad(x); },
+  ticketStueck: x => { modalZu(); neuStart(); view.tab = "neu"; view.ticket = null; neuStueckWaehlen(x); window.scrollTo(0,0); },
+  teilZeigen: x => { modalZu(); view.tab = "raeder"; view.rt = "teile"; view.rad = null; view.invKat = ""; view.suche = x; render(); window.scrollTo(0,0); },
+  teilTausch: x => teilWahl(x),
+  teilAb: x => {
+    if(!confirm(stueckText(x) + " vom Rad nehmen? Es kommt in die Werkstatt.")) return;
+    aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), { ort:"Werkstatt", rad_id:null }), x + " abgenommen");
+  },
+  teilTauschOk: x => {
+    const [alt, neuNr] = x.split("|"), rid = view.rad;
+    aktion(async () => {
+      if(alt) await aendern("stueck", "nummer=eq." + encodeURIComponent(alt), { ort:"Werkstatt", rad_id:null });
+      await aendern("stueck", "nummer=eq." + encodeURIComponent(neuNr), { ort:"am Rad", rad_id:rid });
+    }, alt ? alt + " → " + neuNr + " getauscht" : neuNr + " angebaut");
+  },
+  oeffnen: x => { view.tab = "tickets"; view.ticket = Number(x); render(); window.scrollTo(0,0); },
   zurueck: () => { view.ticket = null; render(); },
   modalZu: () => modalZu(),
   modalHintergrund: (x, el, ev) => { if(ev.target === el) modalZu(); },
@@ -2333,7 +2593,13 @@ const A = {
   nFahrbereit: x => { neu.fahrbereit = x === "ja"; render(); },
   nOrt: x => { neu.arbeitsort = x; render(); },
   nTermin: x => { Object.assign(neu, terminWert(x)); render(); },
-  nMatWeg: x => { neu.pos = neu.pos.filter(p => p.code !== x); render(); },
+  nMatWeg: x => { neu.pos.splice(Number(x), 1); render(); },
+  nSchrittText: () => {
+    const t = wert("nSchritt"), m = wert("nSchrittMin");
+    if(!t){ toast("Was ist zu tun?", true); return; }
+    neu.pos.push({ titel:t, menge:1, dauer_min: m ? Math.max(0, Math.round(Number(m.replace(",", ".")) || 0)) : null });
+    render(); const el = $("nSchritt"); if(el) el.focus();
+  },
   anlegen: () => ticketAnlegen(),
 
   /* Ticket-Detail */
@@ -2344,7 +2610,33 @@ const A = {
     const s = (DB.stueck||[]).find(y => y.nummer === x);
     aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), { zustand: s.zustand === "frei" ? "zu prüfen" : "frei" }));
   },
-  posWeg: x => aktion(() => aendern("ticket_position", "id=eq." + x, { status:"storniert" }), "Reservierung freigegeben"),
+  posWeg: x => aktion(() => aendern("ticket_position", "id=eq." + x, { status:"storniert" }), "Schritt entfernt"),
+  schrittText: () => {
+    const t = ticket(view.ticket); if(!t) return;
+    const titel = wert("tSchritt"), m = wert("tSchrittMin");
+    if(!titel){ toast("Was ist zu tun?", true); return; }
+    aktion(() => neuIn("ticket_position", { ticket_id:t.id, titel, menge:1, dauer_min: m ? Math.max(0, Math.round(Number(m.replace(",", ".")) || 0)) : null }), "Schritt hinzugefügt");
+  },
+  schrittAb: x => {
+    const p = (DB.positionen||[]).find(y => y.id === Number(x)); if(!p) return;
+    const t = ticket(p.ticket_id); if(!t) return;
+    if(p.code && fehlend(t).indexOf(p.code) >= 0 &&
+       !confirm(schrittName(p) + " ist nicht genug da. Trotzdem abhaken? Der Bestand wird dann negativ.")) return;
+    aktion(() => rpc("position_erledigen", { p_position:p.id, p_bearbeiter:bearbeiter || null }),
+           b => schrittName(p) + " erledigt" + (num(b) ? " · " + eur(b) + " gebucht" : ""))
+      .then(b => {
+        if(b === undefined) return;
+        const tt = ticket(t.id);
+        if(tt && !positionen(tt.id).length && schritte(tt.id).length)
+          modal('<h3>Alle Schritte erledigt</h3><p class="sub" style="margin-top:-6px">Ticket jetzt schließen?</p><div style="display:grid;gap:8px">' +
+                '<button class="btn primary" data-a="erledigt">Ticket schließen</button><button class="btn" data-a="modalZu">Noch offen lassen</button></div>');
+      });
+  },
+  schrittZurueck: x => {
+    const p = (DB.positionen||[]).find(y => y.id === Number(x)); if(!p) return;
+    if(!confirm(schrittName(p) + " wieder öffnen?" + (p.status === "gebucht" ? " Die Buchung wird storniert." : ""))) return;
+    aktion(() => rpc("position_zuruecknehmen", { p_position:p.id, p_bearbeiter:bearbeiter || null }), schrittName(p) + " wieder offen");
+  },
   annehmen: () => {
     const t = ticket(view.ticket); if(!t) return;
     const sch = schaetzung(positionen(t.id)), vorschlag = sch ? aufwandVorschlag(sch.min) : null;
@@ -2357,16 +2649,17 @@ const A = {
   },
   annehmenMit: x => tAendern({ status:"angenommen", uebernommen_von:bearbeiter || null, aufwand:x }, "Übernommen"),
   erledigt: () => {
-    const t = ticket(view.ticket);
+    modalZu();
+    const t = ticket(view.ticket); if(!t) return;
     const f = fehlend(t);
     if(f.length && !confirm("Es fehlt noch Material (" + f.map(c => (artikel(c)||{}).name || c).join(", ") + "). Trotzdem abschließen? Der Bestand wird dann negativ.")) return;
-    aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id, p_bearbeiter:bearbeiter || null }), s => { view.ticket = null; return "Erledigt · " + eur(s) + " gebucht"; })
+    aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id, p_bearbeiter:bearbeiter || null }), s => { view.ticket = null; return "Ticket erledigt" + (num(s) ? " · " + eur(s) + " gebucht" : ""); })
       .then(() => { if(!ticket(t.id)){ view.ticket = null; render(); } });
   },
   stornieren: () => {
-    if(!confirm("Ticket stornieren? Reservierungen werden freigegeben.")) return;
+    if(!confirm("Ticket stornieren? Offene Schritte werden freigegeben" + (schritte(view.ticket).some(p => p.status === "gebucht") ? ", abgehaktes Material bleibt gebucht." : "."))) return;
     const id = view.ticket;
-    aktion(() => rpc("ticket_stornieren", { p_ticket:id, p_bearbeiter:bearbeiter || null }), "Storniert").then(() => { view.ticket = null; render(); });
+    aktion(() => rpc("ticket_stornieren", { p_ticket:id, p_bearbeiter:bearbeiter || null }), "Storniert").then(() => { if(!ticket(id)){ view.ticket = null; render(); } });
   },
 
   /* Lager */
@@ -2400,7 +2693,11 @@ const A = {
     if(!wert("tDatum") || !wert("tName")){ toast("Datum und Name fehlen.", true); return; }
     aktion(() => neuIn("termin", { datum:wert("tDatum"), name:wert("tName"), koffer:wert("tKoffer") || null }), "Termin eingetragen");
   },
-  terminWeg: x => aktion(() => loeschen("termin", "id=eq." + x)),
+  terminWeg: x => {
+    const t = (DB.termine||[]).find(y => y.id === Number(x));
+    if(!confirm((t ? t.name + " (" + deLang(t.datum) + ")" : "Termin") + " löschen?")) return;
+    aktion(() => loeschen("termin", "id=eq." + x), "Termin gelöscht");
+  },
 
   /* Inventar */
   stueckNeu: () => stueckForm(null),
@@ -2482,7 +2779,10 @@ const A = {
   werNeu: () => {
     const n = wert("wNeu");
     if(!n){ toast("Name fehlt.", true); return; }
-    aktion(() => neuIn("person", { name:n })).then(() => { if((DB.personen||[]).some(p => p.name === n)) A.werWaehlen(n); });
+    const da = (DB.personen||[]).find(p => p.name.toLowerCase() === n.toLowerCase());
+    if(da && da.aktiv){ A.werWaehlen(da.name); return; }
+    aktion(() => da ? aendern("person", "id=eq." + da.id, { aktiv:true }) : neuIn("person", { name:n }))
+      .then(() => { const p = (DB.personen||[]).find(y => y.name.toLowerCase() === n.toLowerCase()); if(p && p.aktiv) A.werWaehlen(p.name); });
   },
   rechnungErstellen: x => {
     if(!confirm("Rechnung für " + sportlerName(Number(x)) + " über alle offenen Posten erstellen?")) return;
@@ -2513,8 +2813,7 @@ const A = {
   nFotoWeg: x => { neu.fotos = neu.fotos.filter(f => f.client_id !== x); render(); },
 
   /* Bestellliste */
-  bestellAuf: () => { view.bestellen = true; render(); window.scrollTo(0,0); },
-  bestellZu: () => { view.bestellen = false; render(); },
+  bestellZu: () => { view.mat = "lager"; render(); },
   bestellMarkieren: x => {
     const e = bestellBedarf().find(y => y.a.code === x); if(!e) return;
     modal('<h3>Als bestellt markieren</h3><p class="sub" style="margin-top:-6px">' + esc(e.a.name) + ' · ' + esc(e.a.code) + '</p>' +
@@ -2559,7 +2858,7 @@ const A = {
     const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
     aufDruckliste(etikettAuftrag || [], k);
     modalZu(); render();
-    toast("Auf der Druckliste: " + drucklisteAnzahl() + " Etiketten — Verwaltung → Etiketten");
+    toast("Auf der Druckliste: " + drucklisteAnzahl() + " Etiketten — Mehr → Etiketten");
   },
   etZurueck: () => etikettDialog(etikettAuftrag || [], "Etiketten drucken", false, etikettQuelle),
   vorlagenVerwalten: () => vorlagenVerwalten(),
@@ -2602,7 +2901,7 @@ const A = {
     aufDruckliste(items, 1); render(); window.scrollTo(0,0);
     toast(items.length + " Etiketten zur Druckliste hinzugefügt");
   },
-  zurDruckliste: () => { view.tab = "verwaltung"; view.verw = "etiketten"; render(); window.scrollTo(0,0); },
+  zurDruckliste: () => { modalZu(); view.tab = "mehr"; view.mehr = "etiketten"; render(); window.scrollTo(0,0); },
   zeigAus: () => { view.zeigAus = !view.zeigAus; render(); },
 
   /* Inventar: Kategorie und Serien */
@@ -2656,22 +2955,16 @@ const A = {
   },
 
   /* Inventur-Modus */
-  invStart: () => {
-    if(inv){ view.inventur = true; view.suche = ""; render(); window.scrollTo(0,0); return; }
-    modal('<h3>Inventur starten</h3><p class="sub" style="margin-top:-6px">Wo wird gezählt?</p><div style="display:grid;gap:8px">' +
-          '<button class="btn primary" data-a="invNeu" data-x="' + INV_ALLE + '">Alles auf einmal</button>' +
-          ORTE.map(o => '<button class="btn" data-a="invNeu" data-x="' + o + '">' + o + '</button>').join("") +
-          '<button class="btn" data-a="modalZu">Abbrechen</button></div>');
-  },
-  invNeu: x => { inv = { ort:x, start:new Date().toISOString(), ids:{}, z:{} }; (x === INV_ALLE ? ORTE : [x]).forEach(o => inv.ids[o] = neueId()); invSpeichern(); invAnsicht = { filter:"alle", buchstabe:"" }; view.inventur = true; view.suche = ""; modalZu(); render(); window.scrollTo(0,0); },
-  invPause: () => { view.inventur = false; view.suche = ""; render(); },
+  invStart: () => { view.tab = "material"; view.mat = "inventur"; view.suche = ""; modalZu(); render(); window.scrollTo(0,0); },
+  invNeu: x => { inv = { ort:x, start:new Date().toISOString(), ids:{}, z:{} }; (x === INV_ALLE ? ORTE : [x]).forEach(o => inv.ids[o] = neueId()); invSpeichern(); invAnsicht = { filter:"alle", buchstabe:"" }; view.tab = "material"; view.mat = "inventur"; view.suche = ""; modalZu(); render(); window.scrollTo(0,0); },
+  invPause: () => { view.mat = "lager"; view.suche = ""; render(); },
   invFilter: x => { invAnsicht.filter = x; render(); },
   invBuchstabe: x => { invAnsicht.buchstabe = x; render(); },
   invOk: x => { invSetzen(x, String(invSystem(x))); invWeiter(x); },
   invAbbrechen: () => {
     const n = Object.keys(inv.z).length;
     if(n && !confirm("Zählung verwerfen? " + n + " gezählte Artikel gehen verloren, es wird nichts gebucht.")) return;
-    inv = null; invSpeichern(); view.inventur = false; render();
+    inv = null; invSpeichern(); render();
   },
   invAbschluss: () => invAbschluss(),
   invBuchen: () => {
@@ -2688,7 +2981,7 @@ const A = {
       }
       return summe;
     }, n => "Inventur gebucht · " + n + " Korrektur" + (n === 1 ? "" : "en"))
-      .then(r => { if(r !== undefined && inv === lauf){ inv = null; invSpeichern(); view.inventur = false; render(); } });
+      .then(r => { if(r !== undefined && inv === lauf){ inv = null; invSpeichern(); view.mat = "lager"; render(); } });
   },
 
   /* Nummernvergabe */
@@ -2739,8 +3032,8 @@ const C = {
   nMenge: (v, x) => {
     const n = Number(String(v).replace(",", "."));
     if(v === "" || isNaN(n) || n < 0){ render(); return; }
-    if(n === 0) neu.pos = neu.pos.filter(p => p.code !== x);
-    else { const p = neu.pos.find(p => p.code === x); if(p) p.menge = n; }
+    if(n === 0) neu.pos.splice(Number(x), 1);
+    else { const p = neu.pos[Number(x)]; if(p) p.menge = n; }
     render();
   },
   nrVorschau: () => vorschauNummer(),
@@ -2801,6 +3094,7 @@ document.addEventListener("click", ev => {
   const tab = ev.target.closest(".tab");
   if(tab){ A.tab(tab.dataset.tab); return; }
   if(ev.target.id === "wer"){ werAuswahl(); return; }
+  if(ev.target.closest("#scanBtn")){ scanGlobal(); return; }
   const el = ev.target.closest("[data-a]");
   if(!el || el.disabled) return;
   const f = A[el.dataset.a];
@@ -2878,7 +3172,7 @@ async function start(){
     if(!bearbeiter || !(DB.personen||[]).some(p => p.aktiv && p.name === bearbeiter)) werAuswahl();
     sendeWarteschlange();
   }catch(e){
-    if(e instanceof NetzFehler){ offlineAnzeigen(); zeigeStand(); return; }
+    if(e instanceof NetzFehler){ offlineAnzeigen(); if(DB) radAusLink(); zeigeStand(); return; }
     app.innerHTML = '<div class="fehlerbox">' + esc(e.message) + '</div>';
   }
   zeigeStand();
