@@ -244,7 +244,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "9.0.0";
+const APP_VERSION = "9.1.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -373,6 +373,7 @@ async function ladeAlles(){
   const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen] = await Promise.all(q);
   // Arbeitsschritte der offenen Tickets — offene und schon abgehakte
   verlaufCache = {};   // Rad-Verlauf beim nächsten Anzeigen neu holen
+  ticketVerlauf = undefined;   // Ticket-Verlauf ebenso
   const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
   DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen };
   stand = new Date();
@@ -682,6 +683,7 @@ function renderBanner(){
    Tickets — Board
    ===============================================================*/
 function boardView(){
+  if(view.filter === "verlauf") return verlaufView();
   let liste = offeneTickets();
   const q = view.suche.toLowerCase();
   const meins = t => t.status === "angenommen" && !!bearbeiter && t.uebernommen_von === bearbeiter;
@@ -691,7 +693,8 @@ function boardView(){
   if(view.filter === "ich") liste = liste.filter(meins);
   const alle = offeneTickets();
 
-  let h = '<button class="btn primary voll" data-a="tab" data-x="neu" style="margin-bottom:12px">+ Neues Ticket</button>';
+  let h = '<div class="row" style="gap:8px;margin-bottom:12px"><button class="btn primary" style="flex:1" data-a="tab" data-x="neu">+ Neues Ticket</button>' +
+          '<button class="btn" data-a="filter" data-x="verlauf">Verlauf</button></div>';
   h += '<div class="seg" style="margin-bottom:10px">';
   h += segBtn("filter", "offen",    "Offen · " + alle.length, view.filter);
   h += segBtn("filter", "steht",    "Steht · " + alle.filter(t => !t.fahrbereit).length, view.filter);
@@ -709,6 +712,102 @@ function boardView(){
   h += faehrt.length ? faehrt.map(t => ticketKarte(t, false)).join("") : '<div class="leer">' + (view.filter === "ich" ? "Du hast nichts übernommen." : "Nichts offen.") + '</div>';
   h += '<p class="sub" style="margin-top:14px">Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit. „Sofort“ steht immer oben.</p>';
   return h;
+}
+/* ---------------------------------------------------------------
+   Ticket-Verlauf: abgeschlossene und stornierte Tickets, neueste
+   zuerst, je 50 nachladbar. Nur mit Netz (steht nicht im Offline-Stand).
+----------------------------------------------------------------*/
+const VERLAUF_SEITE = 50;
+let ticketVerlauf;            // undefined | "laedt" | "fehler" | { liste:[…], ende:bool }
+let verlaufArt = "alle";      // alle | erledigt | storniert
+async function ladeTicketVerlauf(mehr){
+  const alt = mehr && ticketVerlauf && ticketVerlauf.liste ? ticketVerlauf : null;
+  if(ticketVerlauf === "laedt" || (alt && alt.laedt)) return;
+  if(alt){ alt.laedt = true; render(); } else ticketVerlauf = "laedt";
+  try{
+    const t = await rest("/ticket?status=in.(erledigt,storniert)&order=id.desc&limit=" + VERLAUF_SEITE + "&offset=" + (alt ? alt.liste.length : 0));
+    const pos = t.length ? await rest("/ticket_position?ticket_id=in.(" + t.map(x => x.id).join(",") + ")&status=in.(gebucht,erledigt)&select=ticket_id,code,titel,menge,dauer_min,erledigt_am,erledigt_von,status&order=id") : [];
+    t.forEach(x => x.schritte = pos.filter(p => p.ticket_id === x.id));
+    ticketVerlauf = { liste:(alt ? alt.liste : []).concat(t), ende:t.length < VERLAUF_SEITE };
+  }catch(e){ ticketVerlauf = alt ? Object.assign(alt, { laedt:false }) : "fehler"; toast(e.message, true); }
+  if(view.tab === "tickets" && view.filter === "verlauf") render();
+}
+function verlaufSchritt(p){ return p.code ? zahl(p.menge) + "× " + ((artikel(p.code) || {}).name || p.code) : p.titel; }
+function verlaufAbschluss(t){
+  return t.status === "erledigt"
+    ? 'erledigt ' + (t.erledigt_am ? deLang(t.erledigt_am) : '') + (t.erledigt_von ? ' · ' + esc(t.erledigt_von) : '')
+    : 'storniert ' + (t.storniert_am ? deLang(t.storniert_am) : '') + (t.storniert_von ? ' · ' + esc(t.storniert_von) : '');
+}
+function verlaufView(){
+  let h = '<div class="row" style="gap:8px;margin-bottom:12px"><button class="btn small zurueck" data-a="filter" data-x="offen">← Offene Tickets</button><span class="sp"></span>' +
+          (!offline ? '<button class="btn small" data-a="verlaufNeu">aktualisieren</button>' : '') + '</div>';
+  h += '<h2 class="sec" style="margin-top:0">Verlauf · abgeschlossene Tickets</h2>';
+  if(offline) return h + '<div class="leer">Der Verlauf ist nur mit Netz abrufbar.</div>';
+  const v = ticketVerlauf;
+  if(v === undefined) setTimeout(() => ladeTicketVerlauf(false), 0);
+  if(v === undefined || v === "laedt") return h + '<div class="leer">lädt…</div>';
+  if(v === "fehler") return h + '<div class="leer">Verlauf konnte nicht geladen werden. <button class="btn small" data-a="verlaufNeu">nochmal</button></div>';
+
+  const anz = a => v.liste.filter(t => a === "alle" || t.status === a).length;
+  h += '<div class="seg drei" style="margin-bottom:10px">';
+  h += segBtn("verlaufArt", "alle", "Alle · " + anz("alle"), verlaufArt);
+  h += segBtn("verlaufArt", "erledigt", "Erledigt · " + anz("erledigt"), verlaufArt);
+  h += segBtn("verlaufArt", "storniert", "Storniert · " + anz("storniert"), verlaufArt);
+  h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad, Problem, Schritt, T-Nummer" value="' + esc(view.suche) + '"></div>';
+
+  const q = view.suche.toLowerCase();
+  let liste = v.liste.filter(t => verlaufArt === "alle" || t.status === verlaufArt);
+  if(q) liste = liste.filter(t => (tnr(t.id) + " " + wer(t) + " " + ticketObjekt(t) + " " + (t.stueck_nummer || "") + " " + t.problem + " " +
+                                   (t.erledigt_von || "") + " " + (t.storniert_von || "") + " " + t.schritte.map(verlaufSchritt).join(" ")).toLowerCase().indexOf(q) >= 0);
+  if(!liste.length) h += '<div class="leer">' + (v.liste.length ? 'Nichts gefunden.' : 'Noch keine abgeschlossenen Tickets.') + '</div>';
+  liste.forEach(t => {
+    const gem = t.schritte.map(verlaufSchritt);
+    h += '<button class="ticket" data-a="verlaufTicket" data-x="' + t.id + '">';
+    h += '<span class="kopf"><span class="big">' + esc(wer(t)) + '</span><span class="sub">' + esc(ticketObjekt(t)) + '</span>' +
+         '<span class="sub mono" style="margin-left:auto">' + tnr(t.id) + '</span></span>';
+    h += '<p class="prob">' + esc(t.problem) + '</p>';
+    if(gem.length) h += '<p class="sub" style="margin:2px 0 0">gemacht: ' + esc(gem.join(", ")) + '</p>';
+    h += '<span class="chips">' + (t.status === "erledigt" ? '<span class="chip ok">' : '<span class="chip grau">') + verlaufAbschluss(t) + '</span>' +
+         '<span class="chip grau">angelegt ' + deLang(t.angelegt) + '</span></span></button>';
+  });
+  if(!v.ende) h += '<button class="btn voll" data-a="verlaufMehr"' + (v.laedt ? ' disabled' : '') + '>' + (v.laedt ? 'lädt…' : 'Ältere laden') + '</button>';
+  else if(v.liste.length) h += '<p class="sub" style="text-align:center">Das waren alle ' + v.liste.length + ' abgeschlossenen Tickets.</p>';
+  return h;
+}
+/** Abgeschlossenes Ticket ansehen (nur lesen). */
+async function verlaufTicket(id){
+  const t = ((ticketVerlauf && ticketVerlauf.liste) || []).find(x => x.id === id); if(!t) return;
+  let h = '<h3>' + esc(wer(t)) + ' <span class="sub">' + tnr(t.id) + '</span></h3>';
+  h += '<p class="sub" style="margin-top:-6px">' + esc(ticketObjekt(t)) + '</p>';
+  h += '<p style="margin:0 0 8px">' + esc(t.problem) + '</p>';
+  h += '<div class="card" style="margin:0 0 10px">';
+  h += zeile("Angelegt", deLang(t.angelegt) + (t.angelegt_von ? " · " + esc(t.angelegt_von) : ""));
+  if(t.uebernommen_von) h += zeile("Übernommen", esc(t.uebernommen_von));
+  h += zeile(t.status === "erledigt" ? "Erledigt" : "Storniert", (t.status === "erledigt" ? deLang(t.erledigt_am) + (t.erledigt_von ? " · " + esc(t.erledigt_von) : "")
+                                                                                   : deLang(t.storniert_am) + (t.storniert_von ? " · " + esc(t.storniert_von) : "")));
+  if(t.kostentraeger_id) h += zeile("Kostenträger", esc(sportlerName(t.kostentraeger_id)));
+  h += zeile("Arbeitsort", esc(t.arbeitsort));
+  if(t.anlass) h += zeile("Anlass", esc(t.anlass));
+  h += '</div><span class="lbl">Gemacht</span>';
+  if(!t.schritte.length) h += '<p class="sub" style="margin:0 0 10px">Keine erledigten Schritte.</p>';
+  else {
+    h += '<div class="liste" style="margin-bottom:10px">';
+    t.schritte.forEach(p => {
+      h += '<div class="eintrag"><div class="txt">' + esc(verlaufSchritt(p)) + '<br><span class="sub">' +
+           (p.erledigt_am ? de(p.erledigt_am) : '') + (p.erledigt_von ? ' · ' + esc(p.erledigt_von) : '') + (p.status === "gebucht" ? ' · gebucht' : '') + '</span></div></div>';
+    });
+    h += '</div>';
+  }
+  h += '<span class="lbl">Fotos</span><div id="vFotos"><p class="sub" style="margin:0">lädt…</p></div>';
+  h += '<div class="row" style="gap:8px;margin-top:12px"><button class="btn" data-a="modalZu">Schließen</button><span class="sp"></span>' +
+       (t.rad_id && rad(t.rad_id) ? '<button class="btn small" data-a="verlaufRad" data-x="' + esc(t.rad_id) + '">Zur Rad-Seite</button>' : '') + '</div>';
+  modal(h);
+  try{
+    const f = await rest("/foto?ticket_id=eq." + id + "&select=id,thumb,aufgenommen&order=id");
+    const el = $("vFotos"); if(!el) return;
+    el.innerHTML = !f.length ? '<p class="sub" style="margin:0">Keine Fotos.</p>' :
+      '<div class="fotos">' + f.map(x => '<button class="foto" data-a="fotoZeigen" data-x="' + x.id + '"><img src="data:image/jpeg;base64,' + x.thumb + '" alt="Foto vom ' + esc(zeitKurz(x.aufgenommen)) + '"></button>').join("") + '</div>';
+  }catch(e){ const el = $("vFotos"); if(el) el.innerHTML = '<p class="sub" style="margin:0">Fotos konnten nicht geladen werden.</p>'; }
 }
 function segBtn(aktion, wert, label, aktuell, extraKlasse){
   return '<button data-a="' + aktion + '" data-x="' + esc(wert) + '" aria-pressed="' + (aktuell === wert) + '"' +
@@ -2554,12 +2653,18 @@ const A = {
   tab: x => {
     // Reiter erneut antippen führt zurück zur Übersicht dieses Reiters
     view.tab = x; view.ticket = null; view.suche = "";
+    if(x === "tickets" && view.filter === "verlauf") view.filter = "offen";
     if(x === "raeder") view.rad = null;
     if(x === "mehr") view.mehr = null;
     if(x === "neu" && !neu) neuStart();
     render(); window.scrollTo(0,0);
   },
-  filter: x => { view.filter = x; render(); },
+  filter: x => { if(x === "verlauf" || view.filter === "verlauf") view.suche = ""; view.filter = x; render(); window.scrollTo(0,0); },
+  verlaufArt: x => { verlaufArt = x; render(); },
+  verlaufMehr: () => ladeTicketVerlauf(true),
+  verlaufNeu: () => { ticketVerlauf = undefined; render(); },
+  verlaufTicket: x => verlaufTicket(Number(x)),
+  verlaufRad: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.suche = ""; render(); window.scrollTo(0,0); },
   mat: x => { view.mat = x; view.suche = ""; render(); window.scrollTo(0,0); },
   matFilter: x => { view.matFilter = x; render(); },
   rt: x => { view.rt = x; view.suche = ""; render(); },
@@ -2653,13 +2758,13 @@ const A = {
     const t = ticket(view.ticket); if(!t) return;
     const f = fehlend(t);
     if(f.length && !confirm("Es fehlt noch Material (" + f.map(c => (artikel(c)||{}).name || c).join(", ") + "). Trotzdem abschließen? Der Bestand wird dann negativ.")) return;
-    aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id, p_bearbeiter:bearbeiter || null }), s => { view.ticket = null; return "Ticket erledigt" + (num(s) ? " · " + eur(s) + " gebucht" : ""); })
+    aktion(() => rpc("ticket_abschliessen", { p_ticket:t.id, p_bearbeiter:bearbeiter || null }), s => { view.ticket = null; return "Ticket erledigt" + (num(s) ? " · " + eur(s) + " gebucht" : "") + " · steht jetzt im Verlauf"; })
       .then(() => { if(!ticket(t.id)){ view.ticket = null; render(); } });
   },
   stornieren: () => {
     if(!confirm("Ticket stornieren? Offene Schritte werden freigegeben" + (schritte(view.ticket).some(p => p.status === "gebucht") ? ", abgehaktes Material bleibt gebucht." : "."))) return;
     const id = view.ticket;
-    aktion(() => rpc("ticket_stornieren", { p_ticket:id, p_bearbeiter:bearbeiter || null }), "Storniert").then(() => { if(!ticket(id)){ view.ticket = null; render(); } });
+    aktion(() => rpc("ticket_stornieren", { p_ticket:id, p_bearbeiter:bearbeiter || null }), "Storniert · steht im Verlauf").then(() => { if(!ticket(id)){ view.ticket = null; render(); } });
   },
 
   /* Lager */

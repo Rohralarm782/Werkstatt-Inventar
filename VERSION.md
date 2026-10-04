@@ -1,12 +1,11 @@
 # Version
 
-**9.0.0** — 02.10.2026
+**9.1.0** — 04.10.2026
 
-Neue Menüstruktur mit vier Reitern unten (Tickets · Material · Räder &
-Teile · Mehr) und einem Scan-Knopf oben für alles. Tickets haben
-Arbeitsschritte, die sich einzeln abhaken lassen — auch Schritte ohne
-Material. Neue Rad-Seite mit Teile-Tausch und Verlauf.
-Datenbank-Migration nötig (db/migration_9.0.0.sql).
+Ticket-Verlauf: Abgeschlossene und stornierte Tickets verschwinden nicht
+mehr einfach, sondern stehen unter Tickets → „Verlauf“ (neueste zuerst,
+durchsuchbar, je 50 nachladbar, Detailansicht mit Schritten und Fotos).
+Keine Datenbank-Änderung.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -15,6 +14,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 9.1.0 | 04.10.2026 | Ticket-Verlauf (erledigte/stornierte Tickets ansehen) |
 | 9.0.0 | 02.10.2026 | Neues Menü, Arbeitsschritte mit Teil-Abschluss, Rad-Seite, Scan überall |
 | 8.1.1 | 02.10.2026 | Bugfixes: Doppeltipp, Rad-QR offline, Druckformat, Inventar-Scan u. a. |
 | 8.1.0 | 02.10.2026 | Etiketten-Arten (auch rund), Druckliste/Sammel-Druck |
