@@ -1,11 +1,10 @@
 # Version
 
-**9.1.0** — 04.10.2026
+**9.2.0** — 04.10.2026
 
-Ticket-Verlauf: Abgeschlossene und stornierte Tickets verschwinden nicht
-mehr einfach, sondern stehen unter Tickets → „Verlauf“ (neueste zuerst,
-durchsuchbar, je 50 nachladbar, Detailansicht mit Schritten und Fotos).
-Keine Datenbank-Änderung.
+Rechnungen werden mit dem Briefkopf des Radsportverbands gedruckt —
+mit Zahlungsziel (14 Tage), Bankverbindung, eindeutigem
+Verwendungszweck und GiroCode. Keine Datenbank-Änderung.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -14,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 9.2.0 | 04.10.2026 | Rechnung mit Briefkopf, Verwendungszweck und GiroCode |
 | 9.1.0 | 04.10.2026 | Ticket-Verlauf (erledigte/stornierte Tickets ansehen) |
 | 9.0.0 | 02.10.2026 | Neues Menü, Arbeitsschritte mit Teil-Abschluss, Rad-Seite, Scan überall |
 | 8.1.1 | 02.10.2026 | Bugfixes: Doppeltipp, Rad-QR offline, Druckformat, Inventar-Scan u. a. |
