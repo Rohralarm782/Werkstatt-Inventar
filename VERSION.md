@@ -1,10 +1,10 @@
 # Version
 
-**9.2.0** — 04.10.2026
+**9.3.0** — 05.10.2026
 
-Rechnungen werden mit dem Briefkopf des Radsportverbands gedruckt —
-mit Zahlungsziel (14 Tage), Bankverbindung, eindeutigem
-Verwendungszweck und GiroCode. Keine Datenbank-Änderung.
+Koffer sind jetzt Unterbereiche des Lagers statt eines eigenen Reiters:
+Lager zeigt Werkstatt und Koffer gemeinsam, je Artikel steht der
+Lagerbestand vorne. Keine Datenbank-Änderung.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 9.3.0 | 05.10.2026 | Koffer als Unterbereiche des Lagers (kein eigener Reiter mehr) |
 | 9.2.0 | 04.10.2026 | Rechnung mit Briefkopf, Verwendungszweck und GiroCode |
 | 9.1.0 | 04.10.2026 | Ticket-Verlauf (erledigte/stornierte Tickets ansehen) |
 | 9.0.0 | 02.10.2026 | Neues Menü, Arbeitsschritte mit Teil-Abschluss, Rad-Seite, Scan überall |

@@ -225,6 +225,11 @@
   td{padding:9px 5px;border-bottom:1px solid var(--line);font-size:14px;text-align:right}
   tr.low td{background:#FFF7F8}
   .tabwrap{overflow-x:auto}
+  /* Lager → Orte (Werkstatt, Koffer als Unterbereiche) */
+  .orte .zeile-btn{padding:10px 0 10px 28px}
+  .orte .kopfzeile{display:flex;align-items:center;gap:10px;padding:2px 0 10px}
+  .vbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:#EFEDE9;margin-top:6px;max-width:260px}
+  .vbar > span{display:block;height:6px}
 
   .overlay{position:fixed;inset:0;background:rgba(10,12,14,.55);display:flex;align-items:flex-start;justify-content:center;
     padding:calc(20px + env(safe-area-inset-top,0px)) 14px calc(20px + env(safe-area-inset-bottom,0px));overflow:auto;z-index:50}
@@ -281,7 +286,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "9.2.0";
+const APP_VERSION = "9.3.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -293,7 +298,7 @@ let DB = null;             // frisch geladene Daten
 let stand = null;          // Zeitpunkt des letzten erfolgreichen Ladens
 let offline = false;       // true = Anzeige zeigt einen alten Stand
 // tab: tickets | neu | material | raeder | mehr
-let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", mat:"lager", matFilter:"alle", rt:"raeder", rad:null, mehr:null };
+let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", mat:"lager", koffer:null, matFilter:"alle", rt:"raeder", rad:null, mehr:null };
 let neu = null;            // Entwurf neues Ticket
 let jwt = null, jwtExp = 0;
 let bearbeiter = localStorage.getItem("wBearbeiter") || "";   // wer arbeitet gerade an diesem Gerät
@@ -571,6 +576,7 @@ document.addEventListener("visibilitychange", () => {
 ----------------------------------------------------------------*/
 const AUFWAND = { "klein":0, "mittel":1, "groß":5 };
 const ORTE = ["Werkstatt","Koffer Bahn","Koffer Straße"];
+const KOFFER = ORTE.filter(o => o !== "Werkstatt");   // Koffer sind Unterbereiche des Lagers
 
 function sportlerName(id){ const s = (DB.sportler||[]).find(x => x.id === id); return s ? s.name : ""; }
 function rad(id){ return (DB.raeder||[]).find(r => r.id === id) || null; }
@@ -711,7 +717,8 @@ function renderBanner(){
     h += '<div class="banner gelb"><strong>' + esc(w.termin.name) + '</strong> ' +
          (w.tage === 0 ? 'heute' : w.tage === 1 ? 'morgen' : 'in ' + w.tage + ' Tagen') +
          ' — im ' + esc(w.termin.koffer) + ' fehlen ' + w.fehlt.length + ' Positionen: ' +
-         esc(w.fehlt.slice(0,4).map(k => zahl(k.fehlt) + "× " + k.name).join(", ")) + (w.fehlt.length > 4 ? " …" : "") + '</div>';
+         esc(w.fehlt.slice(0,4).map(k => zahl(k.fehlt) + "× " + k.name).join(", ")) + (w.fehlt.length > 4 ? " …" : "") +
+         ' <button class="btn small" data-a="kofferAuf" data-x="' + esc(w.termin.koffer) + '" style="margin-left:6px">Koffer öffnen</button></div>';
   });
   $("banner").innerHTML = h;
 }
@@ -956,7 +963,7 @@ function detailView(id){
     h += '</div>';
   }
   h += '<div class="grid2"><div><span class="lbl">Arbeitsort</span><select data-c="tOrt">';
-  ORTE.forEach(o => h += '<option' + (t.arbeitsort === o ? " selected" : "") + '>' + o + '</option>');
+  h += ortOptionen(t.arbeitsort);
   h += '</select></div><div><span class="lbl">Kostenträger</span><select data-c="tKosten"><option value="">—</option>';
   (DB.sportler||[]).forEach(s => h += '<option value="' + s.id + '"' + (t.kostentraeger_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.abrechnen ? " (wird berechnet)" : "") + '</option>');
   h += '</select></div></div></div>';
@@ -1096,16 +1103,16 @@ function neuView(){
 /* ===============================================================
    Lager
    ===============================================================*/
-/** Material: Lager · Koffer · Bestellen · Inventur */
+/** Material: Lager (mit Werkstatt und Koffern) · Bestellen · Inventur */
 function materialView(){
+  if(view.mat === "koffer") view.mat = "lager";   // alter Reiter aus 9.2.0
+  if(view.mat === "lager" && view.koffer && KOFFER.indexOf(view.koffer) >= 0) return kofferDetail(view.koffer);
   const nb = bestellBedarf().filter(x => x.rest > 0).length;
   let h = '<div class="seg" style="margin-bottom:12px">';
   h += segBtn("mat", "lager", "Lager", view.mat);
-  h += segBtn("mat", "koffer", "Koffer", view.mat);
   h += segBtn("mat", "bestellen", "Bestellen" + (nb ? " · " + nb : ""), view.mat);
   h += segBtn("mat", "inventur", inv ? "Inventur ●" : "Inventur", view.mat);
   h += '</div>';
-  if(view.mat === "koffer") return h + kofferView();
   if(view.mat === "bestellen") return h + bestellView();
   if(view.mat === "inventur") return h + (inv ? inventurView() : invStartView());
   return h + lagerView();
@@ -1116,7 +1123,8 @@ function lagerView(){
   bestellBedarf().forEach(x => { if(x.rest > 0) zuBestellen[x.a.code] = x.rest; });
   const aktiv = (DB.bestand||[]).filter(b => b.aktiv);
   const res = aktiv.filter(b => num(b.reserviert) > 0);
-  let h = '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
+  let h = view.suche ? '' : orteBlock();
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
   h += '<div class="row wrapr" style="gap:6px;margin-bottom:10px">';
   [["alle", "Alle · " + aktiv.length], ["bestellen", "zu bestellen · " + Object.keys(zuBestellen).length], ["reserviert", "reserviert · " + res.length]]
     .forEach(x => h += '<button class="btn small' + (view.matFilter === x[0] ? " primary" : "") + '" data-a="matFilter" data-x="' + x[0] + '">' + x[1] + '</button>');
@@ -1132,18 +1140,20 @@ function lagerView(){
   h += '<div class="card liste">';
   liste.forEach(b => {
     const leistung = b.art === "Pauschale";
-    const koffer = [];
-    if(num(b.koffer_bahn)) koffer.push("Koffer Bahn " + zahl(b.koffer_bahn));
-    if(num(b.koffer_strasse)) koffer.push("Koffer Straße " + zahl(b.koffer_strasse));
+    const imKoffer = num(b.koffer_bahn) + num(b.koffer_strasse);
     const knapp = !leistung && (num(b.frei) <= 0 || zuBestellen[b.code]);
     h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span><br>';
     if(leistung) h += '<span class="sub">Leistung · ' + eur(b.preis) + '</span>';
     else {
-      h += '<span class="sub">Werkstatt ' + zahl(b.werkstatt) + ' ' + esc(b.einheit);
-      if(num(b.reserviert)) h += ' · ' + zahl(b.reserviert) + ' reserviert';
+      h += '<span class="sub"><strong style="color:var(--ink)">' + zahl(b.gesamt) + ' ' + esc(b.einheit) + ' im Lager</strong>';
       h += ' · <strong style="color:' + (knapp ? "var(--sprint)" : "var(--ok)") + '">' + zahl(b.frei) + ' frei</strong>';
-      if(koffer.length) h += ' · ' + esc(koffer.join(", "));
+      if(num(b.reserviert)) h += ' · ' + zahl(b.reserviert) + ' reserviert';
       h += '</span>';
+      if(imKoffer){
+        const teile = ["Werkstatt " + zahl(b.werkstatt)];
+        KOFFER.forEach(o => { if(num(amOrt(b, o))) teile.push(o + " " + zahl(amOrt(b, o))); });
+        h += '<br><span class="sub" style="font-size:12px">' + esc(teile.join(" · ")) + '</span>' + aufteilungsBalken(b, knapp);
+      }
       const off = (DB.bestellungen||[]).filter(o => o.code === b.code);
       if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
       else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
@@ -1152,14 +1162,52 @@ function lagerView(){
     if(!leistung) h += '<button class="btn small" data-a="formZugang" data-x="' + esc(b.code) + '" aria-label="Zugang ' + esc(b.name) + '"' + gesperrt + '>+</button>';
     h += '</div></div>';
   });
-  h += '</div><p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang.</p>';
+  h += '</div><p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang. „frei“ = in der Werkstatt und nicht reserviert; was in Koffern gepackt ist, zählt zum Lager, aber nicht als frei.</p>';
   return h;
+}
+
+/** Balken: frei · reserviert/übrige Werkstatt · in Koffern */
+function aufteilungsBalken(b, knapp){
+  const ges = Math.max(num(b.werkstatt), 0) + Math.max(num(b.koffer_bahn), 0) + Math.max(num(b.koffer_strasse), 0);
+  if(ges <= 0) return "";
+  const frei = Math.max(Math.min(num(b.frei), num(b.werkstatt)), 0);
+  const rest = Math.max(num(b.werkstatt) - frei, 0);
+  const teil = (v, farbe) => v > 0 ? '<span style="width:' + (v / ges * 100).toFixed(1) + '%;background:' + farbe + '"></span>' : '';
+  return '<span class="vbar" aria-hidden="true">' + teil(frei, knapp ? "var(--sprint)" : "var(--ok)") + teil(rest, "#C9C4BC") +
+         teil(Math.max(num(b.koffer_bahn), 0) + Math.max(num(b.koffer_strasse), 0), "var(--steher)") + '</span>';
+}
+
+/** Orte im Lager: Werkstatt und die Koffer als Unterbereiche */
+function kofferStatus(ort){
+  const zeilen = (DB.koffer||[]).filter(k => k.ort === ort);
+  const fehlt = zeilen.filter(k => num(k.fehlt) > 0).length;
+  if(!zeilen.length) return '<span class="chip grau">keine Packliste</span>';
+  return fehlt ? '<span class="chip warn">' + fehlt + (fehlt === 1 ? ' Position fehlt' : ' Positionen fehlen') + '</span>' : '<span class="chip ok">komplett</span>';
+}
+function naechsterTermin(ort){
+  return (DB.termine||[]).filter(t => t.koffer === ort && tageBis(t.datum) !== null && tageBis(t.datum) >= 0)
+    .sort((a, b) => String(a.datum).localeCompare(String(b.datum)))[0] || null;
+}
+function orteBlock(){
+  const aktiv = (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale");
+  const imKoffer = aktiv.filter(b => num(b.koffer_bahn) + num(b.koffer_strasse) > 0).length;
+  let h = '<div class="card orte" style="padding-bottom:2px"><div class="kopfzeile">' +
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/></svg>' +
+    '<div style="flex:1"><strong>Lager</strong><br><span class="sub">' + aktiv.length + ' Artikel' + (imKoffer ? ' · ' + imKoffer + ' davon auch in Koffern' : '') + '</span></div></div>';
+  h += '<div class="zeile-btn" style="cursor:default"><span class="txt"><span class="titel">Werkstatt</span><span class="sub">Regal — daraus kommt „frei“</span></span></div>';
+  KOFFER.forEach(o => {
+    const t = naechsterTermin(o), tage = t ? tageBis(t.datum) : null;
+    const sub = t ? (tage === 0 ? "Rennen heute" : tage === 1 ? "Rennen morgen" : "Rennen in " + tage + " Tagen") : "Packliste ansehen";
+    h += '<button class="zeile-btn" data-a="kofferAuf" data-x="' + esc(o) + '"><span class="txt"><span class="titel">' + esc(o) + '</span><span class="sub">' + esc(sub) + '</span></span>' +
+         kofferStatus(o) + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>';
+  });
+  return h + '</div>';
 }
 
 function artikelMenue(code){
   const b = bestand(code), a = artikel(code);
   if(!a) return;
-  let h = '<h3>' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(code) + (b && a.art !== "Pauschale" ? ' · Werkstatt ' + zahl(b.werkstatt) + ' · frei ' + zahl(b.frei) : '') + '</p>';
+  let h = '<h3>' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(code) + (b && a.art !== "Pauschale" ? ' · ' + zahl(b.gesamt) + ' im Lager · Werkstatt ' + zahl(b.werkstatt) + ' · frei ' + zahl(b.frei) : '') + '</p>';
   h += '<div style="display:grid;gap:8px">';
   if(a.art !== "Pauschale") h += '<button class="btn primary" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
   h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : "An Sportler ausgeben") + '</button>';
@@ -1200,8 +1248,13 @@ function formInventur(code){
 }
 function ortSelect(id, wert, dataC, dataX){
   let h = '<select id="' + id + '"' + (dataC ? ' data-c="' + dataC + '" data-x="' + esc(dataX || "") + '"' : '') + '>';
-  ORTE.forEach(o => h += '<option' + (o === wert ? " selected" : "") + '>' + o + '</option>');
-  return h + '</select>';
+  return h + ortOptionen(wert) + '</select>';
+}
+/** Werkstatt zuerst, die Koffer als Gruppe darunter */
+function ortOptionen(wert){
+  let h = '<option' + (wert === "Werkstatt" ? " selected" : "") + '>Werkstatt</option><optgroup label="Koffer im Lager">';
+  KOFFER.forEach(o => h += '<option' + (o === wert ? " selected" : "") + '>' + o + '</option>');
+  return h + '</optgroup>';
 }
 
 /* ===============================================================
@@ -1546,8 +1599,10 @@ function inventurView(){
 function invStartView(){
   const g = offline ? " disabled" : "";
   return '<div class="card"><span class="lbl">Inventur starten — wo wird gezählt?</span><div style="display:grid;gap:8px">' +
-    '<button class="btn primary" data-a="invNeu" data-x="' + INV_ALLE + '"' + g + '>Alles auf einmal</button>' +
-    ORTE.map(o => '<button class="btn" data-a="invNeu" data-x="' + o + '"' + g + '>' + o + '</button>').join("") + '</div>' +
+    '<button class="btn primary" data-a="invNeu" data-x="' + INV_ALLE + '"' + g + '>Ganzes Lager (Werkstatt und Koffer)</button>' +
+    '<button class="btn" data-a="invNeu" data-x="Werkstatt"' + g + '>Nur Werkstatt</button>' +
+    '<span class="lbl" style="margin:6px 0 0">Einzelner Koffer</span>' +
+    KOFFER.map(o => '<button class="btn" data-a="invNeu" data-x="' + o + '"' + g + '>' + o + '</button>').join("") + '</div>' +
     '<p class="sub" style="margin:10px 0 0">Gezählt wird auf diesem Gerät; gebucht wird erst mit „Übernehmen“. Einen einzelnen Artikel korrigieren: Lager → Artikel antippen → Inventur.</p></div>';
 }
 function invSetzen(key, wertText){
@@ -1607,39 +1662,40 @@ function invAbschluss(){
 /* ===============================================================
    Koffer — Überblick und Warnung
    ===============================================================*/
-function kofferView(){
+function kofferDetail(ort){
   const gesperrt = offline ? " disabled" : "";
-  let h = "";
-  ["Koffer Bahn","Koffer Straße"].forEach(ort => {
-    const zeilen = (DB.koffer||[]).filter(k => k.ort === ort);
-    const fehlt = zeilen.filter(k => num(k.fehlt) > 0);
-    h += '<h2 class="sec">' + ort + '</h2><div class="card">';
-    h += '<div class="row" style="margin-bottom:6px">' + (!zeilen.length ? '<span class="sub">Noch keine Packliste.</span>' :
-         fehlt.length ? '<span class="chip warn">' + fehlt.length + ' Positionen unvollständig</span>' : '<span class="chip ok">komplett</span>') + '</div>';
-    if(zeilen.length){
-      h += '<div class="tabwrap"><table><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th></th></tr></thead><tbody>';
-      zeilen.forEach(k => {
-        h += '<tr class="' + (num(k.fehlt) > 0 ? "low" : "") + '"><td>' + esc(k.name) + '</td>';
-        h += '<td><input type="number" min="0" step="any" value="' + num(k.soll) + '" data-c="kofferSoll" data-x="' + esc(k.code) + '|' + ort + '" style="width:64px;min-height:36px;padding:4px 6px"' + gesperrt + '></td>';
-        h += '<td class="mono"><strong>' + zahl(k.ist) + '</strong></td>';
-        h += '<td class="mono" style="color:' + (num(k.fehlt) > 0 ? "var(--sprint)" : "var(--ink-2)") + '">' + (num(k.fehlt) > 0 ? zahl(k.fehlt) : "–") + '</td>';
-        h += '<td style="white-space:nowrap"><button class="btn small" data-a="kofferRein" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>+1</button> ' +
-             '<button class="btn small" data-a="kofferRaus" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>−1</button></td></tr>';
-      });
-      h += '</tbody></table></div>';
-    }
-    h += '<div class="row trenn" style="gap:8px"><select data-c="kofferNeu" data-x="' + ort + '" style="flex:1"' + gesperrt + '><option value="">Artikel zur Packliste…</option>';
-    (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
-    h += '</select></div>';
-    const st = (DB.stueck||[]).filter(s => s.ort === ort);
-    if(st.length){
-      h += '<span class="lbl" style="margin-top:12px">Einzelstücke im Koffer</span>';
-      st.forEach(s => h += '<div class="sub">' + esc(s.nummer) + ' · ' + esc(s.typ) + '</div>');
-    }
+  const zeilen = (DB.koffer||[]).filter(k => k.ort === ort);
+  let h = '<button class="btn small zurueck" data-a="kofferZu"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Lager</button>';
+  h += '<div class="row wrapr" style="gap:10px;margin-bottom:10px"><span class="big" style="font-size:26px">' + esc(ort) + '</span>' + kofferStatus(ort) + '</div>';
+  const t = naechsterTermin(ort);
+  if(t){
+    const tage = tageBis(t.datum), fehlt = zeilen.filter(k => num(k.fehlt) > 0).length;
+    h += '<div class="banner ' + (fehlt && tage <= 10 ? 'gelb' : '') + '" style="' + (fehlt && tage <= 10 ? '' : 'background:var(--card);border:1px solid var(--line)') + '">Nächstes Rennen: <strong>' + esc(t.name) + '</strong> am ' + deLang(t.datum) +
+         (tage === 0 ? ' (heute)' : tage === 1 ? ' (morgen)' : ' (in ' + tage + ' Tagen)') + '</div>';
+  }
+  h += '<div class="card">';
+  if(zeilen.length){
+    h += '<div class="tabwrap"><table><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th></th></tr></thead><tbody>';
+    zeilen.forEach(k => {
+      h += '<tr class="' + (num(k.fehlt) > 0 ? "low" : "") + '"><td>' + esc(k.name) + '</td>';
+      h += '<td><input type="number" min="0" step="any" value="' + num(k.soll) + '" data-c="kofferSoll" data-x="' + esc(k.code) + '|' + ort + '" style="width:64px;min-height:36px;padding:4px 6px"' + gesperrt + '></td>';
+      h += '<td class="mono"><strong>' + zahl(k.ist) + '</strong></td>';
+      h += '<td class="mono" style="color:' + (num(k.fehlt) > 0 ? "var(--sprint)" : "var(--ink-2)") + '">' + (num(k.fehlt) > 0 ? zahl(k.fehlt) : "–") + '</td>';
+      h += '<td style="white-space:nowrap"><button class="btn small" data-a="kofferRein" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>+1</button> ' +
+           '<button class="btn small" data-a="kofferRaus" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>−1</button></td></tr>';
+    });
+    h += '</tbody></table></div>';
+  } else h += '<p class="sub" style="margin:0 0 6px">Noch keine Packliste.</p>';
+  h += '<div class="row trenn" style="gap:8px"><select data-c="kofferNeu" data-x="' + ort + '" style="flex:1"' + gesperrt + '><option value="">Artikel zur Packliste…</option>';
+  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
+  h += '</select></div></div>';
+  const st = (DB.stueck||[]).filter(s => s.ort === ort);
+  if(st.length){
+    h += '<h2 class="sec">Einzelstücke im Koffer</h2><div class="card">';
+    st.forEach(s => h += '<div class="sub" style="color:var(--ink)">' + esc(s.nummer) + ' · ' + esc(s.typ) + '</div>');
     h += '</div>';
-  });
-  h += '<p class="sub">+1 und −1 buchen zwischen Werkstatt und Koffer um. Der Gesamtbestand bleibt gleich.</p>';
-
+  }
+  h += '<p class="sub">+1 und −1 buchen zwischen Werkstatt und Koffer um. Der Lagerbestand bleibt gleich, nur „frei“ ändert sich.</p>';
   const n = (DB.termine||[]).length;
   h += '<button class="btn small link" data-a="geheMehr" data-x="termine">Rennen &amp; Termine' + (n ? ' · ' + n : '') + ' — warnt 10 Tage vorher, wenn im Koffer etwas fehlt</button>';
   return h;
@@ -2776,6 +2832,7 @@ const A = {
     if(x === "tickets" && view.filter === "verlauf") view.filter = "offen";
     if(x === "raeder") view.rad = null;
     if(x === "mehr") view.mehr = null;
+    if(x === "material") view.koffer = null;
     if(x === "neu" && !neu) neuStart();
     render(); window.scrollTo(0,0);
   },
@@ -2785,8 +2842,10 @@ const A = {
   verlaufNeu: () => { ticketVerlauf = undefined; render(); },
   verlaufTicket: x => verlaufTicket(Number(x)),
   verlaufRad: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.suche = ""; render(); window.scrollTo(0,0); },
-  mat: x => { view.mat = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  mat: x => { view.mat = x; view.koffer = null; view.suche = ""; render(); window.scrollTo(0,0); },
   matFilter: x => { view.matFilter = x; render(); },
+  kofferAuf: x => { modalZu(); view.tab = "material"; view.mat = "lager"; view.koffer = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  kofferZu: () => { view.koffer = null; render(); window.scrollTo(0,0); },
   rt: x => { view.rt = x; view.suche = ""; render(); },
   radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
   radZu: () => { view.rad = null; render(); window.scrollTo(0,0); },
