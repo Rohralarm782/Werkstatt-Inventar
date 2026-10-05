@@ -286,7 +286,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "9.3.0";
+const APP_VERSION = "9.4.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -1679,12 +1679,16 @@ function kofferDetail(ort){
     zeilen.forEach(k => {
       h += '<tr class="' + (num(k.fehlt) > 0 ? "low" : "") + '"><td>' + esc(k.name) + '</td>';
       h += '<td><input type="number" min="0" step="any" value="' + num(k.soll) + '" data-c="kofferSoll" data-x="' + esc(k.code) + '|' + ort + '" style="width:64px;min-height:36px;padding:4px 6px"' + gesperrt + '></td>';
-      h += '<td class="mono"><strong>' + zahl(k.ist) + '</strong></td>';
+      const ein = (artikel(k.code) || {}).einheit || "";
+      h += '<td class="mono"><strong>' + zahl(k.ist) + '</strong>' + (ein && ein !== "Stück" ? ' <span class="sub">' + esc(ein) + '</span>' : '') + '</td>';
       h += '<td class="mono" style="color:' + (num(k.fehlt) > 0 ? "var(--sprint)" : "var(--ink-2)") + '">' + (num(k.fehlt) > 0 ? zahl(k.fehlt) : "–") + '</td>';
       h += '<td style="white-space:nowrap"><button class="btn small" data-a="kofferRein" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>+1</button> ' +
-           '<button class="btn small" data-a="kofferRaus" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>−1</button></td></tr>';
+           '<button class="btn small" data-a="kofferRaus" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>−1</button> ' +
+           '<button class="btn small" data-a="kofferMenge" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>Menge…</button></td></tr>';
     });
     h += '</tbody></table></div>';
+    const offen = zeilen.filter(k => num(k.fehlt) > 0).length;
+    if(offen) h += '<div class="row trenn" style="gap:8px"><button class="btn primary" data-a="kofferAuffuellen" data-x="' + ort + '" style="flex:1"' + gesperrt + '>Alles Fehlende einpacken (' + offen + (offen === 1 ? ' Position' : ' Positionen') + ')</button></div>';
   } else h += '<p class="sub" style="margin:0 0 6px">Noch keine Packliste.</p>';
   h += '<div class="row trenn" style="gap:8px"><select data-c="kofferNeu" data-x="' + ort + '" style="flex:1"' + gesperrt + '><option value="">Artikel zur Packliste…</option>';
   (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
@@ -1695,10 +1699,28 @@ function kofferDetail(ort){
     st.forEach(s => h += '<div class="sub" style="color:var(--ink)">' + esc(s.nummer) + ' · ' + esc(s.typ) + '</div>');
     h += '</div>';
   }
-  h += '<p class="sub">+1 und −1 buchen zwischen Werkstatt und Koffer um. Der Lagerbestand bleibt gleich, nur „frei“ ändert sich.</p>';
+  h += '<p class="sub">+1, −1 und „Menge…“ buchen zwischen Werkstatt und Koffer um, „Alles Fehlende einpacken“ füllt jede Position bis zum Soll auf (soweit in der Werkstatt frei). Der Lagerbestand bleibt gleich, nur „frei“ ändert sich.</p>';
   const n = (DB.termine||[]).length;
   h += '<button class="btn small link" data-a="geheMehr" data-x="termine">Rennen &amp; Termine' + (n ? ' · ' + n : '') + ' — warnt 10 Tage vorher, wenn im Koffer etwas fehlt</button>';
   return h;
+}
+
+/** Beliebige Menge zwischen Werkstatt und Koffer umbuchen; Vorschlag = was fehlt. */
+function formKofferMenge(code, ort){
+  const a = artikel(code) || { name:code, einheit:"" }, b = bestand(code);
+  const k = (DB.koffer||[]).find(z => z.code === code && z.ort === ort) || {};
+  const fehlt = num(k.fehlt);
+  modal('<h3>' + esc(a.name) + ' · ' + esc(ort) + '</h3>' +
+    '<p class="sub" style="margin-top:-6px">Im Koffer ' + zahl(k.ist) + ' von ' + zahl(k.soll) + ' ' + esc(a.einheit) +
+      ' · in der Werkstatt frei ' + zahl(b ? Math.max(num(b.frei), 0) : 0) + ' ' + esc(a.einheit) + '</p>' +
+    '<div class="feld"><span class="lbl">Menge (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" min="0" step="any" inputmode="decimal" value="' + (fehlt > 0 ? fehlt : '') + '"></div>' +
+    '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>' +
+    '<button class="btn" data-a="kofferMengeRaus" data-x="' + esc(code) + '|' + esc(ort) + '">Zurück in Werkstatt</button>' +
+    '<button class="btn primary" data-a="kofferMengeRein" data-x="' + esc(code) + '|' + esc(ort) + '">In den Koffer</button></div>');
+  setTimeout(() => { const e = $("fMenge"); if(e){ e.focus(); e.select(); } }, 50);
+}
+function kofferUmbuchen(code, von, nach, menge, meldung){
+  return aktion(() => rpc("umbuchen", { p_code:code, p_menge:menge, p_von:von, p_nach:nach, p_bearbeiter:bearbeiter || null }), meldung);
 }
 
 /* ===============================================================
@@ -2973,6 +2995,36 @@ const A = {
   /* Koffer */
   kofferRein: x => { const [c, o] = x.split("|"); if(!genugDa(c, "Werkstatt", 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null })); },
   kofferRaus: x => { const [c, o] = x.split("|"); if(!genugDa(c, o, 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt", p_bearbeiter:bearbeiter || null })); },
+  kofferMenge: x => { const [c, o] = x.split("|"); formKofferMenge(c, o); },
+  kofferMengeRein: x => {
+    const [c, o] = x.split("|"), m = zahlOderNull("fMenge");
+    if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
+    if(!genugDa(c, "Werkstatt", m)) return;
+    kofferUmbuchen(c, "Werkstatt", o, m, zahl(m) + " " + ((artikel(c)||{}).einheit || "") + " eingepackt");
+  },
+  kofferMengeRaus: x => {
+    const [c, o] = x.split("|"), m = zahlOderNull("fMenge");
+    if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
+    if(!genugDa(c, o, m)) return;
+    kofferUmbuchen(c, o, "Werkstatt", m, zahl(m) + " " + ((artikel(c)||{}).einheit || "") + " zurück in die Werkstatt");
+  },
+  kofferAuffuellen: o => {
+    const plan = [], knapp = [];
+    (DB.koffer||[]).filter(k => k.ort === o && num(k.fehlt) > 0).forEach(k => {
+      const b = bestand(k.code), frei = istLeistung(k.code) || !b ? num(k.fehlt) : Math.max(num(b.frei), 0);
+      const m = Math.min(num(k.fehlt), frei);
+      if(m > 0) plan.push({ code:k.code, menge:m });
+      if(m < num(k.fehlt)) knapp.push(k.name + " (" + zahl(m) + " von " + zahl(k.fehlt) + ")");
+    });
+    if(!plan.length){ toast("In der Werkstatt ist nichts davon frei.", true); return; }
+    const text = "Einpacken in " + o + ":\n" + plan.map(p => "• " + zahl(p.menge) + " " + ((artikel(p.code)||{}).einheit || "") + " " + ((artikel(p.code)||{}).name || p.code)).join("\n") +
+                 (knapp.length ? "\n\nNicht genug frei in der Werkstatt:\n" + knapp.map(t => "• " + t).join("\n") : "") + "\n\nUmbuchen?";
+    if(!confirm(text)) return;
+    aktion(async () => {
+      for(const p of plan) await rpc("umbuchen", { p_code:p.code, p_menge:p.menge, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null });
+      return plan.length;
+    }, n => n + (n === 1 ? " Position" : " Positionen") + " eingepackt" + (knapp.length ? " — " + knapp.length + " bleibt offen" : ""));
+  },
   terminNeu: () => {
     if(!wert("tDatum") || !wert("tName")){ toast("Datum und Name fehlen.", true); return; }
     aktion(() => neuIn("termin", { datum:wert("tDatum"), name:wert("tName"), koffer:wert("tKoffer") || null }), "Termin eingetragen");

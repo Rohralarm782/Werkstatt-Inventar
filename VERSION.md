@@ -1,10 +1,10 @@
 # Version
 
-**9.3.0** — 05.10.2026
+**9.4.0** — 05.10.2026
 
-Koffer sind jetzt Unterbereiche des Lagers statt eines eigenen Reiters:
-Lager zeigt Werkstatt und Koffer gemeinsam, je Artikel steht der
-Lagerbestand vorne. Keine Datenbank-Änderung.
+Koffer: beliebige Mengen umbuchen („Menge…“, Vorschlag = was fehlt) und
+„Alles Fehlende einpacken“ für den ganzen Koffer. Einheit wird bei „Ist“
+angezeigt. Keine Datenbank-Änderung.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 9.4.0 | 05.10.2026 | Koffer: Menge frei eingeben, alles Fehlende auf einmal einpacken |
 | 9.3.0 | 05.10.2026 | Koffer als Unterbereiche des Lagers (kein eigener Reiter mehr) |
 | 9.2.0 | 04.10.2026 | Rechnung mit Briefkopf, Verwendungszweck und GiroCode |
 | 9.1.0 | 04.10.2026 | Ticket-Verlauf (erledigte/stornierte Tickets ansehen) |
