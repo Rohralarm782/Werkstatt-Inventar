@@ -1,9 +1,12 @@
 # Version
 
-**9.5.0** — 05.10.2026
+**10.0.0** — 05.10.2026
 
-Neuer Artikel: Bestand direkt beim Anlegen eingeben (wird als Zugang
-gebucht), danach wie gewohnt Etikett drucken. Keine Datenbank-Änderung.
+Unterkategorien je Kategorie (z. B. Laufrad & Reifen → Schlauchreifen,
+Schläuche, Clincher Straße, Clincher Cross). Filter in Lager und Inventar:
+Kategorie antippen → an derselben Stelle die Unterkategorien.
+Datenbank-Änderung: neue Tabelle `unterkategorie`, neue Spalte
+`unterkategorie_id` an `artikel` und `stueck` (Migration nötig).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -12,6 +15,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 10.0.0 | 05.10.2026 | Unterkategorien, Filter Kategorie → Unterkategorie |
 | 9.5.0 | 05.10.2026 | Bestand direkt beim Anlegen eines Artikels |
 | 9.4.1 | 05.10.2026 | Einheit als Auswahl (Stück, Paar, ml) |
 | 9.4.0 | 05.10.2026 | Koffer: Menge frei eingeben, alles Fehlende auf einmal einpacken |

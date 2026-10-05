@@ -146,6 +146,12 @@
     font-family:'Barlow Condensed',sans-serif;font-size:17px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
   .kat-kopf .pfeil{width:14px;display:inline-block;color:var(--ink)}
   .kat-kopf .sub{font-family:inherit;letter-spacing:0;text-transform:none;font-weight:400}
+  /* Kategorie-Filter: immer eine Zeile, seitlich wischbar */
+  .chipzeile{display:flex;gap:6px;margin:0 -16px 10px;padding:0 16px 2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .chipzeile::-webkit-scrollbar{display:none}
+  .chipzeile .btn{flex:0 0 auto;white-space:nowrap}
+  .uk-kopf{font-size:14px;font-weight:600;color:var(--ink-2);margin:4px 2px 6px}
+  .uk-kopf .sub{font-weight:400}
   .btn.link{border:none;background:none;padding:4px 6px;color:var(--ink-2);text-decoration:underline}
   .card.serie .anzahl{font-size:18px;margin-right:2px}
   .card.serie .chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:0}
@@ -286,7 +292,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "9.5.0";
+const APP_VERSION = "10.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -410,14 +416,17 @@ async function ladeAlles(){
     rest("/rechnung?order=id.desc&limit=100"),
     rest("/v_offene_posten?order=zeit"),
     rest("/zaehlung"),
-    rest("/bestellung?erhalten_am=is.null&order=bestellt_am")
+    rest("/bestellung?erhalten_am=is.null&order=bestellt_am"),
+    // Unterkategorien (ab 10.0.0). Fehlt die Tabelle noch (Migration nicht ausgeführt),
+    // läuft die App ohne Unterkategorien weiter — nur Netzfehler brechen ab.
+    rest("/unterkategorie?order=buchstabe,sortierung,name").catch(e => { if(e instanceof NetzFehler) throw e; return null; })
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen] = await Promise.all(q);
+  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen, unterkategorien] = await Promise.all(q);
   // Arbeitsschritte der offenen Tickets — offene und schon abgehakte
   verlaufCache = {};   // Rad-Verlauf beim nächsten Anzeigen neu holen
   ticketVerlauf = undefined;   // Ticket-Verlauf ebenso
   const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
-  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen };
+  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen, unterkategorien };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB })); }catch(e){}
@@ -1135,34 +1144,48 @@ function lagerView(){
   if(view.matFilter === "reserviert") liste = res;
   const q = view.suche.toLowerCase();
   if(q) liste = liste.filter(b => (b.name + " " + b.code).toLowerCase().indexOf(q) >= 0);
+  // Kategorie → Unterkategorie (eine Zeile, siehe katFilterZeile)
+  h += katFilterZeile("l", liste);
+  liste = katFilterAnwenden("l", liste);
   if(!liste.length) return h + '<div class="leer">' + ((DB.bestand||[]).length ? "Nichts in dieser Auswahl." : "Noch keine Artikel. Unter Mehr → Artikel anlegen.") + '</div>';
 
-  h += '<div class="card liste">';
-  liste.forEach(b => {
-    const leistung = b.art === "Pauschale";
-    const imKoffer = num(b.koffer_bahn) + num(b.koffer_strasse);
-    const knapp = !leistung && (num(b.frei) <= 0 || zuBestellen[b.code]);
-    h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span><br>';
-    if(leistung) h += '<span class="sub">Leistung · ' + eur(b.preis) + '</span>';
-    else {
-      h += '<span class="sub"><strong style="color:var(--ink)">' + zahl(b.gesamt) + ' ' + esc(b.einheit) + ' im Lager</strong>';
-      h += ' · <strong style="color:' + (knapp ? "var(--sprint)" : "var(--ok)") + '">' + zahl(b.frei) + ' frei</strong>';
-      if(num(b.reserviert)) h += ' · ' + zahl(b.reserviert) + ' reserviert';
-      h += '</span>';
-      if(imKoffer){
-        const teile = ["Werkstatt " + zahl(b.werkstatt)];
-        KOFFER.forEach(o => { if(num(amOrt(b, o))) teile.push(o + " " + zahl(amOrt(b, o))); });
-        h += '<br><span class="sub" style="font-size:12px">' + esc(teile.join(" · ")) + '</span>' + aufteilungsBalken(b, knapp);
-      }
-      const off = (DB.bestellungen||[]).filter(o => o.code === b.code);
-      if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
-      else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
-    }
-    h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : "Ausgeben") + '</button>';
-    if(!leistung) h += '<button class="btn small" data-a="formZugang" data-x="' + esc(b.code) + '" aria-label="Zugang ' + esc(b.name) + '"' + gesperrt + '>+</button>';
-    h += '</div></div>';
+  // Gegliedert nach Kategorie und Unterkategorie; ohne Filter klappbar wie im Inventar
+  // (ohne „alle zu-/aufklappen“-Links, damit es oben ruhig bleibt — Überschrift antippen reicht)
+  const mitKat = !view.lKat;
+  const eintraege = katSortieren("l", liste, b => b.code).map(b => {
+    const kat = stueckKategorie(b.code);
+    return { kat, uk:ukSchluessel((artikel(b.code) || {}).unterkategorie_id, kat), n:1, html:lagerZeile(b, zuBestellen, gesperrt) };
   });
-  h += '</div><p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang. „frei“ = in der Werkstatt und nicht reserviert; was in Koffern gepackt ist, zählt zum Lager, aber nicht als frei.</p>';
+  h += gegliedert(eintraege, { p:"l", mitKat, mitUk:!view.lUk, klappbar:!q, block:x => '<div class="card liste">' + x + '</div>', einheit:["Artikel", "Artikel"] });
+  h += '<p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang. „frei“ = in der Werkstatt und nicht reserviert; was in Koffern gepackt ist, zählt zum Lager, aber nicht als frei.</p>';
+  return h;
+}
+
+/** Eine Zeile der Lager-Liste */
+function lagerZeile(b, zuBestellen, gesperrt){
+  let h = "";
+  const leistung = b.art === "Pauschale";
+  const imKoffer = num(b.koffer_bahn) + num(b.koffer_strasse);
+  const knapp = !leistung && (num(b.frei) <= 0 || zuBestellen[b.code]);
+  h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span><br>';
+  if(leistung) h += '<span class="sub">Leistung · ' + eur(b.preis) + '</span>';
+  else {
+    h += '<span class="sub"><strong style="color:var(--ink)">' + zahl(b.gesamt) + ' ' + esc(b.einheit) + ' im Lager</strong>';
+    h += ' · <strong style="color:' + (knapp ? "var(--sprint)" : "var(--ok)") + '">' + zahl(b.frei) + ' frei</strong>';
+    if(num(b.reserviert)) h += ' · ' + zahl(b.reserviert) + ' reserviert';
+    h += '</span>';
+    if(imKoffer){
+      const teile = ["Werkstatt " + zahl(b.werkstatt)];
+      KOFFER.forEach(o => { if(num(amOrt(b, o))) teile.push(o + " " + zahl(amOrt(b, o))); });
+      h += '<br><span class="sub" style="font-size:12px">' + esc(teile.join(" · ")) + '</span>' + aufteilungsBalken(b, knapp);
+    }
+    const off = (DB.bestellungen||[]).filter(o => o.code === b.code);
+    if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
+    else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
+  }
+  h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : "Ausgeben") + '</button>';
+  if(!leistung) h += '<button class="btn small" data-a="formZugang" data-x="' + esc(b.code) + '" aria-label="Zugang ' + esc(b.name) + '"' + gesperrt + '>+</button>';
+  h += '</div></div>';
   return h;
 }
 
@@ -1731,7 +1754,115 @@ function kofferUmbuchen(code, von, nach, menge, meldung){
    sich aufklappen. */
 function stueckKategorie(nr){ const m = /^([A-Z]{1,3})-/.exec(nr || ""); return m ? m[1] : "?"; }
 function kategorieName(k){ const b = BUCHSTABEN.find(x => x[0] === k); return b ? b[1] : "Kategorie " + k; }
-function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).join("|"); }
+/** Gleiche Teile = gleicher Typ, Marke, Detail, in derselben Kategorie und Unterkategorie. */
+function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).concat([stueckKategorie(s.nummer), s.unterkategorie_id || ""]).join("|"); }
+
+/* ---------------------------------------------------------------
+   Unterkategorien — je Kategorie-Buchstabe eine eigene Liste.
+   Die Kategorie bleibt der Buchstabe im Code (L-512 → L); die
+   Unterkategorie ist nur eine Zuordnung (unterkategorie_id) und lässt
+   sich jederzeit ändern, ohne neue Nummern oder Etiketten.
+----------------------------------------------------------------*/
+/** Gibt es die Tabelle schon (Migration 10.0.0 ausgeführt)? */
+function ukDa(){ return Array.isArray(DB.unterkategorien); }
+function ukListe(k){
+  return (DB.unterkategorien || []).filter(u => u.buchstabe === k)
+    .sort((a, b) => (a.sortierung - b.sortierung) || a.name.localeCompare(b.name, "de"));
+}
+function ukNachId(id){ return id == null ? null : (DB.unterkategorien || []).find(u => u.id === Number(id)) || null; }
+/** Unterkategorie eines Eintrags — nur, wenn sie zur Kategorie (Buchstabe) passt. */
+function ukVon(id, k){ const u = ukNachId(id); return u && u.buchstabe === k ? u : null; }
+/** Schlüssel für Filter und Gliederung: id als Text oder "ohne". */
+function ukSchluessel(id, k){ const u = ukVon(id, k); return u ? String(u.id) : "ohne"; }
+/** Reihenfolge innerhalb einer Kategorie: wie in der Liste, „ohne“ zuletzt. */
+function ukRang(id, k){ const u = ukVon(id, k); return u ? ukListe(k).indexOf(u) : 1e6; }
+function ukText(schluessel){ return schluessel === "ohne" ? "ohne Unterkategorie" : ((ukNachId(schluessel) || {}).name || "?"); }
+
+/** Zugriff auf Kategorie/Unterkategorie je Liste: Lager (Artikel) und Inventar (Einzelstücke). */
+const KAT_QUELLE = {
+  l:   { kat: b => stueckKategorie(b.code),   uk: b => (artikel(b.code) || {}).unterkategorie_id, zuKey:"wLagerKatZu" },
+  inv: { kat: s => stueckKategorie(s.nummer), uk: s => s.unterkategorie_id,                       zuKey:"wInvKatZu" }
+};
+/** Ordnet nach Kategorie, Unterkategorie, Nummer. */
+function katSortieren(p, liste, nummer){
+  const q = KAT_QUELLE[p];
+  return liste.slice().sort((a, b) => {
+    const ka = q.kat(a), kb = q.kat(b);
+    return ka.localeCompare(kb) || (ukRang(q.uk(a), ka) - ukRang(q.uk(b), kb)) ||
+           nummer(a).localeCompare(nummer(b), "de", { numeric:true });
+  });
+}
+
+/** Filterzeile: ohne Auswahl die Kategorien. Nach Antippen einer Kategorie stehen an
+    derselben Stelle „‹ Kategorie“ (zurück) und deren Unterkategorien — eine Zeile, nicht zwei.
+    Gezählt wird, was nach den übrigen Filtern (Suche, zu bestellen …) übrig ist. */
+function katFilterZeile(p, items){
+  const q = KAT_QUELLE[p], kat = view[p + "Kat"] || "";
+  let h = '<div class="chipzeile">';
+  if(!kat){
+    const c = zaehle(items, q.kat), ks = Object.keys(c).sort();
+    const mitUk = ks.some(k => ukListe(k).length);
+    if(ks.length < 2 && !mitUk) return "";
+    ks.forEach(k => h += '<button class="btn small" data-a="katFilter" data-x="' + p + '|' + esc(k) + '">' + esc(kategorieName(k)) + ' · ' + c[k] + '</button>');
+    return h + '</div>';
+  }
+  // Gewählte Unterkategorie gibt es nicht mehr (gelöscht) → Auswahl aufheben
+  if(view[p + "Uk"] && view[p + "Uk"] !== "ohne" && !ukVon(view[p + "Uk"], kat)) view[p + "Uk"] = "";
+  const uk = view[p + "Uk"] || "";
+  const inKat = items.filter(i => q.kat(i) === kat);
+  h += '<button class="btn small primary" data-a="katFilter" data-x="' + p + '|" aria-label="Kategorie-Filter aufheben">‹ ' + esc(kategorieName(kat)) + ' · ' + inKat.length + '</button>';
+  const c = zaehle(inKat, i => ukSchluessel(q.uk(i), kat));
+  // Unterkategorie gewählt: nur sie (mit ×), die übrigen ausgeblendet — wie eine Ebene tiefer
+  if(uk) return h + '<button class="btn small primary" data-a="ukFilter" data-x="' + p + '|' + esc(uk) + '" aria-label="Unterkategorie-Filter aufheben">' +
+                    esc(uk === "ohne" ? "ohne Unterkategorie" : ukText(uk)) + ' · ' + (c[uk] || 0) + ' ×</button></div>';
+  const chips = ukListe(kat).filter(u => c[u.id]);
+  chips.forEach(u => h += '<button class="btn small" data-a="ukFilter" data-x="' + p + '|' + u.id + '">' + esc(u.name) + ' · ' + c[u.id] + '</button>');
+  if(chips.length && c.ohne) h += '<button class="btn small" data-a="ukFilter" data-x="' + p + '|ohne">ohne · ' + c.ohne + '</button>';
+  if(ukDa() && !ukListe(kat).length) h += '<button class="btn small link" data-a="ukVerwalten" data-x="' + esc(kat) + '">+ Unterkategorien</button>';
+  return h + '</div>';
+}
+function katFilterAnwenden(p, items){
+  const q = KAT_QUELLE[p], kat = view[p + "Kat"] || "", uk = view[p + "Uk"] || "";
+  if(!kat) return items;
+  return items.filter(i => q.kat(i) === kat && (!uk || ukSchluessel(q.uk(i), kat) === uk));
+}
+
+/** Liste gegliedert ausgeben: Kategorie-Überschrift (antippen = ein-/ausklappen),
+    darunter Unterkategorie-Überschriften — die nur, wenn in der Kategorie welche
+    vergeben sind. eintraege: [{ kat, uk, n, html }] in fertiger Reihenfolge.
+    o: { p, mitKat, mitUk, klappbar, block(html), einheit:[eins, mehrere] } */
+function gegliedert(eintraege, o){
+  const zu = o.klappbar ? katZu(KAT_QUELLE[o.p].zuKey) : [];
+  const katN = {}, ukN = {}, ukBenutzt = {};
+  eintraege.forEach(e => {
+    katN[e.kat] = (katN[e.kat] || 0) + e.n;
+    ukN[e.kat + "|" + e.uk] = (ukN[e.kat + "|" + e.uk] || 0) + e.n;
+    if(e.uk !== "ohne") ukBenutzt[e.kat] = true;
+  });
+  const anz = n => n + " " + (n === 1 ? o.einheit[0] : o.einheit[1]);
+  let h = "", puffer = "", katV = null, ukV = null;
+  const raus = () => { if(puffer){ h += o.block(puffer); puffer = ""; } };
+  eintraege.forEach(e => {
+    if(e.kat !== katV){
+      raus(); katV = e.kat; ukV = null;
+      if(o.mitKat){
+        const zuHier = zu.indexOf(e.kat) >= 0;
+        h += o.klappbar
+          ? '<button class="kat-kopf" data-a="katKlapp" data-x="' + o.p + '|' + esc(e.kat) + '" aria-expanded="' + !zuHier + '"><span class="pfeil">' + (zuHier ? "▸" : "▾") + '</span>' +
+            esc(kategorieName(e.kat)) + ' <span class="sub">· ' + anz(katN[e.kat]) + '</span></button>'
+          : '<div class="kat-kopf" style="cursor:default">' + esc(kategorieName(e.kat)) + ' <span class="sub">· ' + anz(katN[e.kat]) + '</span></div>';
+      }
+    }
+    if(o.mitKat && o.klappbar && zu.indexOf(e.kat) >= 0) return;
+    if(o.mitUk && ukBenutzt[e.kat] && e.uk !== ukV){
+      raus(); ukV = e.uk;
+      h += '<div class="uk-kopf">' + esc(ukText(e.uk)) + ' <span class="sub">· ' + ukN[e.kat + "|" + e.uk] + '</span></div>';
+    }
+    puffer += e.html;
+  });
+  raus();
+  return h;
+}
 /** "L-201–L-204, L-207" — aufeinanderfolgende Nummern zusammengefasst. */
 function nummernText(nummern){
   const teile = [];
@@ -1790,6 +1921,7 @@ function serieForm(key){
   modal('<h3>Serie bearbeiten · ' + g.length + '×</h3><p class="sub" style="margin-top:-6px">' + esc(nummernText(g.map(s => s.nummer))) + ' — Änderungen gelten für alle ' + g.length + ' Stück.</p>' +
     '<div class="grid2">' + feld("Typ", "eTyp", s0.typ) + feld("Marke", "eMarke", s0.marke, "text", ' list="markenDL"') + '</div>' + markenDL() +
     feld("Detail", "eDet", s0.detail) +
+    ukBox(stueckKategorie(s0.nummer), s0.unterkategorie_id) +
     kaufFeld("eKauf", kaufVerschieden ? "" : (monate[0] ? monate[0] + "-01" : "")) +
     (kaufVerschieden ? '<p class="sub" style="margin:-4px 0 8px">Die Stücke haben verschiedene Kaufdaten. Leer lassen = unverändert.</p>' : '') +
     feld("Notiz", "eNotiz", gleich("notiz")) +
@@ -1836,9 +1968,9 @@ function stueckTicketForm(nr, zustand){
 }
 let stFahrbereit = true;
 
-/** Zugeklappte Kategorien im Inventar — bleiben auf dem Gerät gespeichert. */
-function katZu(){ try{ return JSON.parse(localStorage.getItem("wInvKatZu") || "[]"); }catch(e){ return []; } }
-function katZuSpeichern(l){ try{ localStorage.setItem("wInvKatZu", JSON.stringify(l)); }catch(e){} }
+/** Zugeklappte Kategorien (Inventar bzw. Lager) — bleiben auf dem Gerät gespeichert. */
+function katZu(key){ try{ return JSON.parse(localStorage.getItem(key || "wInvKatZu") || "[]"); }catch(e){ return []; } }
+function katZuSpeichern(l, key){ try{ localStorage.setItem(key || "wInvKatZu", JSON.stringify(l)); }catch(e){} }
 
 /** Einzelstücke endgültig löschen — gedacht für Fehleingaben. Ausgemusterte Teile besser auf „ausgemustert“ setzen. */
 function stueckeLoeschen(nummern){
@@ -1865,55 +1997,43 @@ function inventarView(){
   const nAus = roh.filter(s => s.ort === "ausgemustert").length;
   // Ausgemusterte nur auf Wunsch — oder wenn genau ihre Nummer gesucht/gescannt wird
   const alle = view.zeigAus ? roh : roh.filter(s => s.ort !== "ausgemustert" || (qRoh && s.nummer.toLowerCase() === qRoh));
-  const kats = zaehle(alle, s => stueckKategorie(s.nummer));
-  const kListe = Object.keys(kats).sort();
-  if(view.invKat && !kats[view.invKat]) view.invKat = "";
-  if(kListe.length > 1){
-    h += '<div class="row wrapr" style="gap:6px;margin-bottom:10px"><button class="btn small' + (!view.invKat ? " primary" : "") + '" data-a="invKat" data-x="">Alle · ' + alle.length + '</button>';
-    kListe.forEach(k => h += '<button class="btn small' + (view.invKat === k ? " primary" : "") + '" data-a="invKat" data-x="' + esc(k) + '">' + esc(kategorieName(k)) + ' · ' + kats[k] + '</button>');
-    h += '</div>';
-  }
-  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer" value="' + esc(view.suche) + '"></div>';
-
+  // Suche zuerst; Kategorie/Unterkategorie filtern danach (die Zahlen an den Knöpfen passen zur Suche)
   const q = view.suche.toLowerCase();
-  const liste = alle.filter(s => (!view.invKat || stueckKategorie(s.nummer) === view.invKat) &&
-    (!q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0));
+  const gesucht = alle.filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "")).toLowerCase().indexOf(q) >= 0);
+  h += katFilterZeile("inv", gesucht);
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer" value="' + esc(view.suche) + '"></div>';
+  const liste = katFilterAnwenden("inv", gesucht);
   const ausKnopf = nAus ? '<p style="text-align:center;margin-top:14px"><button class="btn small link" data-a="zeigAus">' + (view.zeigAus ? "ausgemusterte ausblenden" : "ausgemusterte zeigen (" + nAus + ")") + '</button></p>' : '';
   if(!liste.length) return h + '<div class="leer">' + (alle.length ? "Nichts gefunden." : roh.length ? "Nur ausgemusterte Einzelstücke vorhanden." : "Noch keine Einzelstücke erfasst.") + '</div>' + ausKnopf;
 
-  // Gruppieren, Reihenfolge nach der kleinsten Nummer
+  // Serien bilden — Reihenfolge: Kategorie, Unterkategorie, kleinste Nummer
   const gruppen = {}, reihe = [];
-  liste.slice().sort((a, b) => a.nummer.localeCompare(b.nummer, "de", { numeric:true })).forEach(s => {
+  katSortieren("inv", liste, s => s.nummer).forEach(s => {
     const k = serienSchluessel(s);
     if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); }
     gruppen[k].push(s);
   });
-  // Nach Kategorie gegliedert: Überschrift je Kategorie (antippen = ein-/ausklappen),
-  // darin Serien und Einzelteile nach Nummer. Bei einer Suche ist alles aufgeklappt.
-  const zu = katZu();
+  // Ohne Kategorie-Filter: Überschrift je Kategorie (antippen = ein-/ausklappen),
+  // darin Unterkategorien. Bei einer Suche ist alles aufgeklappt.
+  const mitKat = !view.invKat;
   const katsHier = Array.from(new Set(liste.map(s => stueckKategorie(s.nummer))));
-  if(katsHier.length > 1 && !q){
+  if(mitKat && katsHier.length > 1 && !q){
     h += '<div class="row" style="gap:6px;margin:-2px 0 4px;justify-content:flex-end">' +
-         '<button class="btn small link" data-a="katAlle" data-x="zu">alle zuklappen</button>' +
-         '<button class="btn small link" data-a="katAlle" data-x="auf">alle aufklappen</button></div>';
+         '<button class="btn small link" data-a="katAlle" data-x="inv|zu">alle zuklappen</button>' +
+         '<button class="btn small link" data-a="katAlle" data-x="inv|auf">alle aufklappen</button></div>';
   }
-  let katVorher = null;
-  reihe.forEach(k => {
-    const g = gruppen[k], kat = stueckKategorie(g[0].nummer), geschlossen = !q && zu.indexOf(kat) >= 0;
-    if(kat !== katVorher){
-      const n = liste.filter(s => stueckKategorie(s.nummer) === kat).length;
-      h += '<button class="kat-kopf" data-a="katKlapp" data-x="' + esc(kat) + '" aria-expanded="' + !geschlossen + '">' +
-           '<span class="pfeil">' + (geschlossen ? "▸" : "▾") + '</span>' + esc(kategorieName(kat)) +
-           ' <span class="sub">· ' + n + (n === 1 ? ' Teil' : ' Teile') + '</span></button>';
-      katVorher = kat;
+  const eintraege = reihe.map(k => {
+    const g = gruppen[k], kat = stueckKategorie(g[0].nummer);
+    let html;
+    if(g.length === 1) html = stueckKarte(g[0], gesperrt);
+    else {
+      // Aufgeklappt, wenn gewünscht oder wenn die Suche eine Nummer der Serie trifft (z. B. nach dem Scannen)
+      const offen = !!view.serieOffen[k] || (q && g.some(s => s.nummer.toLowerCase().indexOf(q) >= 0));
+      html = serienKarte(g, offen) + (offen ? '<div class="serie-teile">' + g.map(s => stueckKarte(s, gesperrt)).join("") + '</div>' : '');
     }
-    if(geschlossen) return;
-    if(g.length === 1){ h += stueckKarte(g[0], gesperrt); return; }
-    // Aufgeklappt, wenn gewünscht oder wenn die Suche eine Nummer der Serie trifft (z. B. nach dem Scannen)
-    const offen = !!view.serieOffen[k] || (q && g.some(s => s.nummer.toLowerCase().indexOf(q) >= 0));
-    h += serienKarte(g, offen);
-    if(offen) h += '<div class="serie-teile">' + g.map(s => stueckKarte(s, gesperrt)).join("") + '</div>';
+    return { kat, uk:ukSchluessel(g[0].unterkategorie_id, kat), n:g.length, html };
   });
+  h += gegliedert(eintraege, { p:"inv", mitKat, mitUk:!view.invUk, klappbar:!q, block:x => x, einheit:["Teil", "Teile"] });
   return h + ausKnopf;
 }
 
@@ -2099,6 +2219,7 @@ const MEHR = [
   ["Abrechnung", [["rechnungen", "Rechnungen", () => { const n = new Set((DB.offenePosten||[]).map(p => p.sportler_id)).size, o = (DB.rechnungen||[]).filter(r => r.status === "offen").length; return (n ? n + " mit offenen Posten" : "keine offenen Posten") + (o ? " · " + o + " Rechnung" + (o === 1 ? "" : "en") + " unbezahlt" : ""); }]]],
   ["Stammdaten", [["sportler", "Sportler &amp; Kostenträger", () => "Wer wird berechnet, wer nicht"],
                   ["artikel", "Artikel", () => "Preise, Mindestbestand, Lieferant, Arbeitszeit"],
+                  ["unterkategorien", "Unterkategorien", () => !ukDa() ? "Datenbank noch nicht aktualisiert" : (DB.unterkategorien.length ? DB.unterkategorien.length + " angelegt" : "z. B. Laufrad &amp; Reifen → Schläuche")],
                   ["personen", "Personen", () => "Namen für „wer hat was gemacht“"]]],
   ["Werkzeuge", [["etiketten", "Etiketten &amp; Druckliste", () => { const n = drucklisteAnzahl(); return n ? "Druckliste · " + n + " Etikett" + (n === 1 ? "" : "en") : "QR-Codes für Räder, Teile, Regale"; }],
                  ["termine", "Rennen &amp; Termine", () => { const t = (DB.termine||[])[0]; return t ? t.name + " · " + deLang(t.datum) : "Koffer-Warnung vor Rennen"; }],
@@ -2110,7 +2231,7 @@ function mehrView(){
     let h = '<button class="btn small zurueck" data-a="mehrZu">← Mehr</button><h2 class="sec" style="margin-top:0">' + (titel ? titel[1] : "") + '</h2>';
     if(offline) return h + '<div class="leer">Offline — erst wieder mit Netz.</div>';
     const v = view.mehr;
-    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "personen" ? personenVerw() :
+    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "unterkategorien" ? ukVerw() : v === "personen" ? personenVerw() :
                 v === "etiketten" ? etikettenVerw() : v === "termine" ? termineView() : exportVerw());
   }
   let h = "";
@@ -2147,6 +2268,74 @@ function artikelVerw(){
     h += '<button class="btn small" data-a="artikelBearbeiten" data-x="' + esc(a.code) + '">bearbeiten</button></div>';
   });
   return h + '</div>';
+}
+/** Mehr → Unterkategorien: erst die Kategorien, antippen öffnet deren Liste. */
+function ukVerw(){
+  if(!ukDa()) return '<div class="card"><p style="margin:0">Für Unterkategorien muss die Datenbank einmal aktualisiert werden: <span class="mono">db/migration_10.0.0.sql</span> im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.</p></div>';
+  const k = view.ukKat;
+  if(!k){
+    let h = '<div class="card" style="padding-top:0;padding-bottom:0">';
+    kategorien("artikel").forEach(([b, name]) => {
+      const l = ukListe(b);
+      h += '<button class="zeile-btn" data-a="ukKatAuf" data-x="' + esc(b) + '"><span class="txt"><span class="titel">' + esc(name || "Kategorie " + b) + ' <span class="sub">· ' + esc(b) + '</span></span>' +
+           '<span class="sub">' + (l.length ? esc(l.map(u => u.name).join(", ")) : "keine Unterkategorien") + '</span></span>' + SVG_PFEIL + '</button>';
+    });
+    return h + '</div><p class="sub">Die Kategorie ist der Buchstabe im Code. Unterkategorien sind nur eine Zuordnung — Codes und Etiketten bleiben gleich.</p>';
+  }
+  const l = ukListe(k);
+  const nA = id => (DB.artikel||[]).filter(a => a.unterkategorie_id === id).length;
+  const nS = id => (DB.stueck||[]).filter(s => s.unterkategorie_id === id).length;
+  let h = '<button class="btn small zurueck" data-a="ukKatZu">← alle Kategorien</button>' +
+          '<h3 style="margin:4px 0 10px">' + esc(kategorieName(k)) + ' <span class="sub">· ' + esc(k) + '</span></h3><div class="card"><div class="liste">';
+  if(!l.length) h += '<div class="sub">Noch keine Unterkategorien.</div>';
+  l.forEach((u, i) => {
+    const t = [nA(u.id) ? nA(u.id) + " Artikel" : "", nS(u.id) ? nS(u.id) + " Teile" : ""].filter(Boolean).join(" · ") || "leer";
+    h += '<div class="eintrag"><button class="lzeile" data-a="ukUmbenennen" data-x="' + u.id + '"><strong>' + esc(u.name) + '</strong><br><span class="sub">' + t + '</span></button>' +
+         (i ? '<button class="btn small" data-a="ukHoch" data-x="' + u.id + '" aria-label="' + esc(u.name) + ' nach oben">↑</button>' : '') + '</div>';
+  });
+  h += '</div><p class="sub" style="margin:8px 0 0">Name antippen: umbenennen oder löschen. ↑ ändert die Reihenfolge der Filter.</p>' +
+       '<div class="row" style="gap:8px;margin-top:10px"><input type="text" id="ukNeuName" placeholder="Neue Unterkategorie, z. B. Schläuche" style="flex:1">' +
+       '<button class="btn primary" data-a="ukNeu" data-x="' + esc(k) + '">Hinzufügen</button></div></div>';
+  if(l.length){
+    const ohneA = (DB.artikel||[]).filter(a => a.aktiv && stueckKategorie(a.code) === k && !ukVon(a.unterkategorie_id, k)).length;
+    const ohneS = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert" && stueckKategorie(s.nummer) === k && !ukVon(s.unterkategorie_id, k)).length;
+    h += '<h2 class="sec">Zuordnen</h2><div class="card" style="padding-top:0;padding-bottom:0">' +
+         '<button class="zeile-btn" data-a="ukZuordnen" data-x="artikel|' + esc(k) + '"><span class="txt"><span class="titel">Lager-Artikel</span><span class="sub">' + (ohneA ? ohneA + " ohne Unterkategorie" : "alle zugeordnet") + '</span></span>' + SVG_PFEIL + '</button>' +
+         '<button class="zeile-btn" data-a="ukZuordnen" data-x="stueck|' + esc(k) + '"><span class="txt"><span class="titel">Einzelstücke</span><span class="sub">' + (ohneS ? ohneS + " ohne Unterkategorie" : "alle zugeordnet") + '</span></span>' + SVG_PFEIL + '</button></div>';
+  }
+  return h;
+}
+/** Mehrere Artikel/Einzelstücke einer Kategorie auf einmal einer Unterkategorie zuordnen. */
+function ukZuordnenDialog(x){
+  const [tab, k] = x.split("|"), l = ukListe(k);
+  let zeilen;
+  if(tab === "artikel"){
+    zeilen = katSortieren("l", (DB.bestand||[]).filter(b => b.aktiv && stueckKategorie(b.code) === k), b => b.code).map(b => {
+      const uk = ukVon((artikel(b.code) || {}).unterkategorie_id, k);
+      return { wert:b.code, ohne:!uk, html:'<strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + ' · ' + esc(uk ? uk.name : "ohne") + '</span>' };
+    });
+  } else {
+    // Serien als eine Zeile
+    const gruppen = {}, reihe = [];
+    katSortieren("inv", (DB.stueck||[]).filter(s => s.ort !== "ausgemustert" && stueckKategorie(s.nummer) === k), s => s.nummer).forEach(s => {
+      const key = serienSchluessel(s); if(!gruppen[key]){ gruppen[key] = []; reihe.push(key); } gruppen[key].push(s);
+    });
+    zeilen = reihe.map(key => {
+      const g = gruppen[key], uk = ukVon(g[0].unterkategorie_id, k);
+      return { wert:g.map(s => s.nummer).join(","), ohne:!uk,
+               html:(g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '<strong>' + esc(g[0].nummer) + '</strong> ') + esc(g[0].typ) + (g[0].marke ? ' · ' + esc(g[0].marke) : '') +
+                    ' <span class="sub">' + (g.length > 1 ? esc(nummernText(g.map(s => s.nummer))) + ' · ' : '') + esc(uk ? uk.name : "ohne") + '</span>' };
+    });
+  }
+  if(!zeilen.length){ toast("In " + kategorieName(k) + " gibt es keine " + (tab === "artikel" ? "Artikel." : "Einzelstücke."), true); return; }
+  let h = '<h3>Zuordnen · ' + esc(kategorieName(k)) + '</h3><p class="sub" style="margin-top:-6px">' + (tab === "artikel" ? "Lager-Artikel" : "Einzelstücke") + ' anhaken, Unterkategorie wählen.</p>' +
+          auswahl("Unterkategorie", "uzZiel", l.map(u => [u.id, u.name]).concat([["", "— keine (Zuordnung entfernen) —"]]), l[0].id) +
+          '<div class="row" style="gap:4px;justify-content:flex-end"><button class="btn small link" data-a="uzOhne">nur ohne</button><button class="btn small link" data-a="uzAlle">alle</button><button class="btn small link" data-a="uzKeine">keine</button></div>' +
+          '<div class="liste" style="max-height:50vh;overflow:auto;margin-bottom:10px">';
+  zeilen.forEach(z => h += '<label class="eintrag" style="cursor:pointer"><input type="checkbox" data-uz data-ohne="' + (z.ohne ? 1 : 0) + '" value="' + esc(z.wert) + '" style="width:20px;height:20px">' +
+                           '<div class="txt">' + z.html + '</div></label>');
+  h += '</div><div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="ukZuordnenSpeichern" data-x="' + esc(x) + '">Zuordnen</button></div>';
+  modal(h);
 }
 function personenVerw(){
   let h = '<div class="card"><span class="lbl">Namen für „wer hat was gemacht“</span>';
@@ -2232,6 +2421,38 @@ function nrBuchstabe(){
   const k = wert("nrKat");
   return (k === "_neu" ? wert("nrBuch") : k).toUpperCase();
 }
+/* Feld „Unterkategorie“ in den Formularen. Es zeigt nur die Unterkategorien der
+   gewählten Kategorie und erscheint nur, wenn es dort welche gibt. */
+/** Kategorie-Buchstabe im offenen Formular: beim Bearbeiten fest (aus dem Code),
+    beim Anlegen aus der Kategorie-Auswahl bzw. der eigenen Nummer. */
+function formKat(){
+  const box = $("ukBox"); if(!box) return "";
+  if(box.dataset.kat) return box.dataset.kat;
+  if(!nrForm) return "";
+  if(nrForm.modus === "auto"){ const b = nrBuchstabe(); return /^[A-Z]{1,3}$/.test(b) ? b : ""; }
+  const m = /^([A-Z]{1,3})-/.exec(wert("nrEigenWert").toUpperCase()); return m ? m[1] : "";
+}
+function ukAuswahl(kat, aktuell){
+  const l = kat ? ukListe(kat) : [];
+  if(!l.length) return "";
+  return auswahl("Unterkategorie", "ukWahl", [["", "— keine —"]].concat(l.map(u => [u.id, u.name])), ukVon(aktuell, kat) ? aktuell : "");
+}
+/** kat: fester Buchstabe (Bearbeiten) oder leer (folgt der Nummernwahl). */
+function ukBox(kat, aktuell){
+  if(!ukDa()) return "";
+  return '<div id="ukBox" data-kat="' + esc(kat || "") + '">' + ukAuswahl(kat, aktuell) + '</div>';
+}
+function ukBoxAktualisieren(){
+  const box = $("ukBox"); if(!box || box.dataset.kat) return;
+  const alt = wert("ukWahl");
+  box.innerHTML = ukAuswahl(formKat(), alt ? Number(alt) : null);
+}
+/** Für Speichern: undefined = kein Feld (Spalte nicht anfassen), sonst id oder null. */
+function ukFormWert(){
+  if(!$("ukBox")) return undefined;
+  const v = wert("ukWahl");
+  return v && ukVon(v, formKat()) ? Number(v) : null;
+}
 /** Nummernfeld für neue Artikel/Einzelstücke/Räder: automatisch (Standard) oder eigene Nummer. */
 function nummernWahl(typ, gruppe){
   nrForm = { typ, modus:"auto" };
@@ -2245,7 +2466,7 @@ function nummernWahl(typ, gruppe){
          '<input type="text" id="nrBuch" maxlength="3" autocapitalize="characters" placeholder="1–3 Buchstaben, z. B. S" data-c="nrVorschau"></div>';
   }
   h += '<p class="sub" style="margin:6px 0 0" id="nrVorschau">' + (typ === "rad" ? "" : "Kategorie wählen …") + '</p></div>';
-  h += '<div id="nrEigen" hidden><input type="text" id="nrEigenWert" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : "z. B. B-120") + '"></div>';
+  h += '<div id="nrEigen" hidden><input type="text" id="nrEigenWert" data-c="nrEigen" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : "z. B. B-120") + '"></div>';
   return h + '</div>';
 }
 /** Anzahl im Einzelstück-Formular (1, wenn es das Feld nicht gibt). Bei mehreren Stück gilt die Seriennummer nicht. */
@@ -2308,6 +2529,7 @@ function artikelForm(code){
     ["Stück","Vorrat","Pauschale"].map(x => '<option' + (a.art === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
   modal('<h3>' + (code ? "Artikel bearbeiten · " + esc(code) : "Neuer Artikel") + '</h3>' +
     (code ? artFeld : artFeld + nummernWahl("artikel", 1)) +
+    ukBox(code ? stueckKategorie(code) : "", a.unterkategorie_id) +
     feld("Bezeichnung", "aName", a.name) +
     '<div class="grid2">' + auswahl("Einheit", "aEinheit", einheitenListe(a.einheit), a.einheit || "Stück") + feld("Preis (€)", "aPreis", a.preis, "number", ' step="0.01" min="0"') + '</div>' +
     (code ? '' : '<div id="aBestandBox" class="grid2"' + (a.art === "Pauschale" ? " hidden" : "") + '>' +
@@ -2340,6 +2562,7 @@ function stueckForm(nr){
   if(nr) nrForm = null;
   modal('<h3>' + (nr ? "Einzelstück bearbeiten · " + esc(nr) : "Neues Einzelstück") + '</h3>' +
     (nr ? "" : nummernWahl("stueck", 2)) +
+    ukBox(nr ? stueckKategorie(nr) : "", s.unterkategorie_id) +
     '<div class="grid2">' + feld("Typ", "eTyp", s.typ, "text", ' placeholder="Laufrad Bahn vorne"') + feld("Marke", "eMarke", s.marke, "text", ' list="markenDL" placeholder="z. B. Mavic"') + '</div>' + markenDL() +
     feld("Detail", "eDet", s.detail) +
     (nr ? '' : '<div class="feld"><span class="lbl">Anzahl gleicher Teile</span><input type="number" id="eAnzahl" value="1" min="1" max="50" step="1" inputmode="numeric" data-c="nrVorschau" style="max-width:120px">' +
@@ -2618,8 +2841,13 @@ function download(name, inhalt){
 async function exportiere(was){
   const d = iso(heute());
   try{
-    if(was === "bestand") download("bestand_" + d + ".csv", csv(DB.bestand, ["code","name","einheit","art","werkstatt","koffer_bahn","koffer_strasse","gesamt","reserviert","frei","mindestbestand","status","preis"]));
-    if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(DB.stueck, ["nummer","typ","marke","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
+    // Kategorie und Unterkategorie als lesbare Spalten dazu
+    const mitKat = (zeilen, nr, ukId) => zeilen.map(z => { const k = stueckKategorie(nr(z)), u = ukVon(ukId(z), k);
+      return Object.assign({}, z, { kategorie:kategorieName(k), unterkategorie:u ? u.name : "" }); });
+    if(was === "bestand") download("bestand_" + d + ".csv", csv(mitKat(DB.bestand, z => z.code, z => (artikel(z.code) || {}).unterkategorie_id),
+      ["code","name","kategorie","unterkategorie","einheit","art","werkstatt","koffer_bahn","koffer_strasse","gesamt","reserviert","frei","mindestbestand","status","preis"]));
+    if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(mitKat(DB.stueck, z => z.nummer, z => z.unterkategorie_id),
+      ["nummer","kategorie","unterkategorie","typ","marke","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
     if(was === "buchungen"){
       const b = await rest("/buchung?order=zeit");
       b.forEach(x => { x.artikel = (artikel(x.code)||{}).name || ""; x.sportler = x.sportler_id ? sportlerName(x.sportler_id) : ""; x.zeit = new Date(x.zeit).toLocaleString("de-DE"); });
@@ -2882,10 +3110,10 @@ const A = {
   radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
   radZu: () => { view.rad = null; render(); window.scrollTo(0,0); },
   geheMehr: x => { view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
-  mehrZu: () => { view.mehr = null; render(); window.scrollTo(0,0); },
+  mehrZu: () => { view.mehr = null; view.ukKat = null; render(); window.scrollTo(0,0); },
   ticketRad: x => { modalZu(); ticketFuerRad(x); },
   ticketStueck: x => { modalZu(); neuStart(); view.tab = "neu"; view.ticket = null; neuStueckWaehlen(x); window.scrollTo(0,0); },
-  teilZeigen: x => { modalZu(); view.tab = "raeder"; view.rt = "teile"; view.rad = null; view.invKat = ""; view.suche = x; render(); window.scrollTo(0,0); },
+  teilZeigen: x => { modalZu(); view.tab = "raeder"; view.rt = "teile"; view.rad = null; view.invKat = ""; view.invUk = ""; view.suche = x; render(); window.scrollTo(0,0); },
   teilTausch: x => teilWahl(x),
   teilAb: x => {
     if(!confirm(stueckText(x) + " vom Rad nehmen? Es kommt in die Werkstatt.")) return;
@@ -3052,6 +3280,7 @@ const A = {
     let kauf;
     try{ kauf = kaufWert("eKauf"); }catch(e){ toast(e.message, true); return; }
     const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:kauf, notiz:wert("eNotiz") || null };
+    const uk = ukFormWert(); if(uk !== undefined) d.unterkategorie_id = uk;
     if(!d.typ){ toast("Typ fehlt.", true); return; }
     if(x){ aktion(() => aendern("stueck", "nummer=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
     if(nrForm && nrForm.modus === "auto"){
@@ -3105,6 +3334,7 @@ const A = {
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
                 shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true",
                 dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
+    const uk = ukFormWert(); if(uk !== undefined) d.unterkategorie_id = uk;
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
     if(x){ aktion(() => aendern("artikel", "code=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
     // Anfangsbestand: wird direkt nach dem Anlegen als Zugang gebucht (nicht bei Pauschalen)
@@ -3260,8 +3490,10 @@ const A = {
   zurDruckliste: () => { modalZu(); view.tab = "mehr"; view.mehr = "etiketten"; render(); window.scrollTo(0,0); },
   zeigAus: () => { view.zeigAus = !view.zeigAus; render(); },
 
-  /* Inventar: Kategorie und Serien */
-  invKat: x => { view.invKat = x; render(); },
+  /* Lager/Inventar: Kategorie → Unterkategorie (x = "l|L" bzw. "inv|L"; leer = zurück) */
+  katFilter: x => { const [p, k] = x.split("|"); view[p + "Kat"] = k || ""; view[p + "Uk"] = ""; render(); },
+  ukFilter: x => { const [p, u] = x.split("|"); view[p + "Uk"] = view[p + "Uk"] === u ? "" : u; render(); },
+  ukVerwalten: x => { view.tab = "mehr"; view.mehr = "unterkategorien"; view.ukKat = x || null; view.suche = ""; render(); window.scrollTo(0,0); },
   serieAuf: x => { if(!view.serieOffen) view.serieOffen = {}; view.serieOffen[x] = !view.serieOffen[x]; render(); },
 
   stueckLoeschen: x => stueckeLoeschen([x]),
@@ -3275,8 +3507,69 @@ const A = {
            id => "Ticket " + tnr(id) + " angelegt");
   },
   zumTicket: x => { view.tab = "tickets"; view.ticket = Number(x); view.suche = ""; render(); window.scrollTo(0,0); },
-  katKlapp: x => { const l = katZu(), i = l.indexOf(x); if(i >= 0) l.splice(i, 1); else l.push(x); katZuSpeichern(l); render(); },
-  katAlle: x => { katZuSpeichern(x === "zu" ? Array.from(new Set((DB.stueck||[]).map(s => stueckKategorie(s.nummer)))) : []); render(); },
+  katKlapp: x => {
+    const [p, k] = x.split("|"), key = KAT_QUELLE[p].zuKey, l = katZu(key), i = l.indexOf(k);
+    if(i >= 0) l.splice(i, 1); else l.push(k);
+    katZuSpeichern(l, key); render();
+  },
+  katAlle: x => {
+    const [p, w] = x.split("|"), key = KAT_QUELLE[p].zuKey;
+    const alle = p === "l" ? (DB.bestand||[]).map(b => stueckKategorie(b.code)) : (DB.stueck||[]).map(s => stueckKategorie(s.nummer));
+    katZuSpeichern(w === "zu" ? Array.from(new Set(alle)) : [], key); render();
+  },
+
+  /* Mehr → Unterkategorien */
+  ukKatAuf: x => { view.ukKat = x; render(); window.scrollTo(0,0); },
+  ukKatZu: () => { view.ukKat = null; render(); window.scrollTo(0,0); },
+  ukNeu: x => {
+    const n = wert("ukNeuName");
+    if(!n){ toast("Name fehlt.", true); return; }
+    const l = ukListe(x);
+    if(l.some(u => u.name.toLowerCase() === n.toLowerCase())){ toast(n + " gibt es schon.", true); return; }
+    const sort = l.reduce((m, u) => Math.max(m, u.sortierung), -1) + 1;
+    aktion(() => neuIn("unterkategorie", { buchstabe:x, name:n, sortierung:sort }), n + " angelegt");
+  },
+  ukHoch: x => {
+    const u = ukNachId(x); if(!u) return;
+    const l = ukListe(u.buchstabe), i = l.indexOf(u); if(i <= 0) return;
+    l.splice(i, 1); l.splice(i - 1, 0, u);
+    // Reihenfolge neu durchnummerieren — nur Zeilen schreiben, die sich ändern
+    aktion(async () => { for(let j = 0; j < l.length; j++) if(l[j].sortierung !== j) await aendern("unterkategorie", "id=eq." + l[j].id, { sortierung:j }); });
+  },
+  ukUmbenennen: x => {
+    const u = ukNachId(x); if(!u) return;
+    modal('<h3>Unterkategorie bearbeiten</h3><p class="sub" style="margin-top:-6px">' + esc(kategorieName(u.buchstabe)) + '</p>' + feld("Name", "ukName", u.name) +
+          '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><button class="btn small" data-a="ukLoeschen" data-x="' + u.id + '">Löschen</button>' +
+          '<span class="sp"></span><button class="btn primary" data-a="ukNameSpeichern" data-x="' + u.id + '">Speichern</button></div>');
+  },
+  ukNameSpeichern: x => {
+    const u = ukNachId(x), n = wert("ukName"); if(!u) return;
+    if(!n){ toast("Name fehlt.", true); return; }
+    if(ukListe(u.buchstabe).some(y => y.id !== u.id && y.name.toLowerCase() === n.toLowerCase())){ toast(n + " gibt es schon.", true); return; }
+    aktion(() => aendern("unterkategorie", "id=eq." + u.id, { name:n }), "Umbenannt");
+  },
+  ukLoeschen: x => {
+    const u = ukNachId(x); if(!u) return;
+    const nA = (DB.artikel||[]).filter(a => a.unterkategorie_id === u.id).length, nS = (DB.stueck||[]).filter(s => s.unterkategorie_id === u.id).length;
+    const betr = [nA ? nA + " Artikel" : "", nS ? nS + (nS === 1 ? " Einzelstück" : " Einzelstücke") : ""].filter(Boolean).join(" und ");
+    if(!confirm("„" + u.name + "“ löschen?" + (betr ? "\n\n" + betr + " verlieren nur diese Zuordnung, sonst bleibt alles wie es ist." : ""))) return;
+    if(view.lUk === String(u.id)) view.lUk = "";
+    if(view.invUk === String(u.id)) view.invUk = "";
+    aktion(() => loeschen("unterkategorie", "id=eq." + u.id), u.name + " gelöscht");
+  },
+  ukZuordnen: x => ukZuordnenDialog(x),
+  uzAlle: () => document.querySelectorAll("[data-uz]").forEach(c => c.checked = true),
+  uzOhne: () => document.querySelectorAll("[data-uz]").forEach(c => c.checked = c.dataset.ohne === "1"),
+  uzKeine: () => document.querySelectorAll("[data-uz]").forEach(c => c.checked = false),
+  ukZuordnenSpeichern: x => {
+    const [tab] = x.split("|");
+    const werte = Array.from(document.querySelectorAll("[data-uz]:checked")).flatMap(c => c.value.split(","));
+    if(!werte.length){ toast("Nichts angehakt.", true); return; }
+    const ziel = wert("uzZiel"), feld = tab === "artikel" ? "code" : "nummer";
+    const name = ziel ? (ukNachId(ziel) || {}).name : "keine Unterkategorie";
+    aktion(() => aendern(tab, feld + "=in.(" + werte.map(encodeURIComponent).join(",") + ")", { unterkategorie_id: ziel ? Number(ziel) : null }),
+           werte.length + (tab === "artikel" ? " Artikel" : werte.length === 1 ? " Einzelstück" : " Einzelstücke") + " → " + name);
+  },
   serieBearbeiten: x => serieForm(x),
   serieSpeichern: x => {
     const g = (DB.stueck||[]).filter(s => serienSchluessel(s) === x);
@@ -3288,6 +3581,7 @@ const A = {
     if(kauf){ if(!(monate.length === 1 && monate[0] === kauf.slice(0, 7))) d.kaufdatum = kauf; }   // gleicher Monat: genaue Daten behalten
     else if(monate.length === 1) d.kaufdatum = null;                                               // gemeinsames Datum bewusst geleert
     if(!wert("eNotiz") && new Set(g.map(s => s.notiz || "")).size > 1) delete d.notiz;  // verschiedene Notizen nicht überschreiben
+    const uk = ukFormWert(); if(uk !== undefined) d.unterkategorie_id = uk;
     aktion(() => aendern("stueck", "nummer=in.(" + g.map(s => encodeURIComponent(s.nummer)).join(",") + ")", d), g.length + " Stück geändert");
   },
   serieLoeschen: x => stueckeLoeschen((DB.stueck||[]).filter(s => serienSchluessel(s) === x).map(s => s.nummer)),
@@ -3347,6 +3641,7 @@ const A = {
     el.parentNode.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.x === x)));
     $("nrAuto").hidden = x !== "auto"; $("nrEigen").hidden = x !== "eigen";
     if(x === "auto") vorschauNummer(); else { const e = $("nrEigenWert"); if(e) e.focus(); }
+    ukBoxAktualisieren();
   },
 
   /* Abgelehnte Offline-Tickets */
@@ -3392,7 +3687,8 @@ const C = {
     else { const p = neu.pos[Number(x)]; if(p) p.menge = n; }
     render();
   },
-  nrVorschau: () => vorschauNummer(),
+  nrVorschau: () => { vorschauNummer(); ukBoxAktualisieren(); },
+  nrEigen: () => ukBoxAktualisieren(),
   etVorlage: v => { const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"); if(f) f.hidden = vo.seite !== "A4"; if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; } },
   artGruppe: v => {
     const bb = $("aBestandBox"); if(bb) bb.hidden = v === "Pauschale";
@@ -3406,6 +3702,7 @@ const C = {
     const box = $("nrNeu"); if(box) box.hidden = v !== "_neu";
     if(v === "_neu"){ const e = $("nrBuch"); if(e) e.focus(); }
     vorschauNummer();
+    ukBoxAktualisieren();
   },
   invZahl: (v, x) => invSetzen(x, v),
   fotoDatei: (v, x, el) => {

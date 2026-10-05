@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 9.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 10.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 8.x aus nur db/migration_9.0.0.sql.)
+--   von 9.x aus nur db/migration_10.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -75,6 +75,17 @@ create table sportler (
   aktiv      boolean not null default true
 );
 
+-- Unterkategorien je Kategorie-Buchstabe (L → Schlauchreifen, Schläuche, …).
+-- Die Kategorie selbst ist der Buchstabe im Code; die Unterkategorie nur
+-- eine Zuordnung — Codes und Etiketten bleiben dabei unverändert.
+create table unterkategorie (
+  id          bigint generated always as identity primary key,
+  buchstabe   text not null check (buchstabe ~ '^[A-Z]{1,3}$'),
+  name        text not null check (trim(name) <> ''),
+  sortierung  integer not null default 0,
+  unique (buchstabe, name)
+);
+
 create table artikel (
   code             text primary key check (code ~ '^[A-Z]+-[0-9]+$'),
   name             text not null,
@@ -89,8 +100,10 @@ create table artikel (
   bestellnummer    text,
   shop_link        text,
   aktiv            boolean not null default true,
-  dauer_min        integer check (dauer_min is null or dauer_min >= 0)   -- Arbeitszeit je Stück bzw. Leistung
+  dauer_min        integer check (dauer_min is null or dauer_min >= 0),  -- Arbeitszeit je Stück bzw. Leistung
+  unterkategorie_id bigint references unterkategorie (id) on delete set null
 );
+create index artikel_unterkategorie on artikel (unterkategorie_id);
 
 create table rad (
   id              text primary key,
@@ -131,8 +144,10 @@ create table stueck (
   zustand       text not null default 'frei' check (zustand in ('frei', 'zu prüfen', 'defekt')),
   notiz         text,
   marke         text,
+  unterkategorie_id bigint references unterkategorie (id) on delete set null,
   check ((ort = 'am Rad') = (rad_id is not null))
 );
+create index stueck_unterkategorie on stueck (unterkategorie_id);
 
 -- ---------------------------------------------------------------------
 --  Tickets
@@ -825,7 +840,8 @@ begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_code := naechster_code(p_buchstabe, p_gruppe);
   insert into artikel (code, name, einheit, preis, mindestbestand, lieferzeit_tage, art,
-                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min)
+                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min,
+                       unterkategorie_id)
   values (v_code,
           p_daten ->> 'name',
           coalesce(nullif(p_daten ->> 'einheit', ''), 'Stück'),
@@ -839,7 +855,8 @@ begin
           nullif(p_daten ->> 'bestellnummer', ''),
           nullif(p_daten ->> 'shop_link', ''),
           coalesce((p_daten ->> 'aktiv')::boolean, true),
-          (p_daten ->> 'dauer_min')::integer);
+          (p_daten ->> 'dauer_min')::integer,
+          (p_daten ->> 'unterkategorie_id')::bigint);
   return v_code;
 end $$;
 
@@ -851,7 +868,7 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_nr := naechster_code(p_buchstabe, p_gruppe);
-  insert into stueck (nummer, typ, marke, detail, seriennummer, kaufdatum, wert, notiz)
+  insert into stueck (nummer, typ, marke, detail, seriennummer, kaufdatum, wert, notiz, unterkategorie_id)
   values (v_nr,
           p_daten ->> 'typ',
           nullif(p_daten ->> 'marke', ''),
@@ -859,7 +876,8 @@ begin
           nullif(p_daten ->> 'seriennummer', ''),
           nullif(p_daten ->> 'kaufdatum', '')::date,
           (p_daten ->> 'wert')::numeric,
-          nullif(p_daten ->> 'notiz', ''));
+          nullif(p_daten ->> 'notiz', ''),
+          (p_daten ->> 'unterkategorie_id')::bigint);
   return v_nr;
 end $$;
 
@@ -953,7 +971,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['person', 'sportler', 'artikel', 'rad', 'zuordnung', 'stueck', 'ticket',
+  foreach t in array array['person', 'sportler', 'unterkategorie', 'artikel', 'rad', 'zuordnung', 'stueck', 'ticket',
                            'ticket_position', 'buchung', 'rechnung', 'koffer_soll', 'termin',
                            'zaehlung', 'inventur_lauf', 'foto', 'bestellung'] loop
     execute format('alter table %I enable row level security', t);
@@ -979,7 +997,7 @@ grant execute on all functions in schema public to authenticated;
 --  Zugriff ohne Anmeldung
 --  Die App holt sich einen anonymen Schlüssel von Neon Auth. Damit darf sie
 --  lesen, anlegen und ändern — aber nichts löschen (außer Renntermine,
---  Packlisten-Zeilen, Fotos offener Tickets und Einzelstücke).
+--  Packlisten-Zeilen, Fotos offener Tickets, Einzelstücke und Unterkategorien).
 --  Ins Buchungsjournal kommen von außen nur Zugänge;
 --  alle anderen Buchungen laufen über die Funktionen oben.
 -- ---------------------------------------------------------------------
@@ -987,7 +1005,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['person', 'sportler', 'artikel', 'rad', 'zuordnung', 'stueck',
+  foreach t in array array['person', 'sportler', 'unterkategorie', 'artikel', 'rad', 'zuordnung', 'stueck',
                            'koffer_soll', 'termin'] loop
     execute format('drop policy if exists offen on %I', t);
     execute format('create policy offen on %I for all to anonymous using (true) with check (true)', t);
@@ -1041,16 +1059,16 @@ revoke all on all tables in schema public from anonymous;
 grant usage on schema public to anonymous;
 grant select on all tables in schema public to anonymous;
 revoke select on trainer from anonymous;
-grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person to anonymous;
+grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person, unterkategorie to anonymous;
 grant insert (art, code, menge, ort, notiz, bearbeiter) on buchung to anonymous;
 grant insert (ticket_id, code, menge, titel, dauer_min) on ticket_position to anonymous;
 grant insert (code, menge, bearbeiter) on bestellung to anonymous;
-grant update on stueck, koffer_soll, sportler, rad, artikel, person to anonymous;
+grant update on stueck, koffer_soll, sportler, rad, artikel, person, unterkategorie to anonymous;
 grant update (soll_fertig, naechstmoeglich, anlass, aufwand, fahrbereit, arbeitsort,
               kostentraeger_id, status, uebernommen_von) on ticket to anonymous;
 grant update (menge, status, titel, dauer_min) on ticket_position to anonymous;
 grant update (status) on rechnung to anonymous;
-grant delete on termin, koffer_soll, foto, stueck, bestellung to anonymous;
+grant delete on termin, koffer_soll, foto, stueck, bestellung, unterkategorie to anonymous;
 grant usage, select on all sequences in schema public to anonymous;
 
 revoke execute on all functions in schema public from public, anonymous;
