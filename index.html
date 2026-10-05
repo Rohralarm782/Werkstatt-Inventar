@@ -292,7 +292,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "10.0.0";
+const APP_VERSION = "10.1.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -885,7 +885,11 @@ function schaetzText(sch){
   return "≈ " + dauerText(sch.min) + (sch.schritte > 1 ? " (" + dauerText(sch.arbeit) + " Arbeit + " + (sch.schritte - 1) + " × " + WECHSEL_MIN + " min Wechsel)" : "");
 }
 /** Vormerkbar sind Stück-Artikel und Leistungen — Vorrat (Bremsöl, Fett …) zieht die Leistung selbst ab. */
-function vormerkbar(a){ return a.aktiv && a.art !== "Vorrat"; }
+function vormerkbar(a){ return a.aktiv && a.art !== "Vorrat" && !istWMat(a.code); }
+/** Werkstattmaterial (Kategorie W: Klebeband, Kabelbinder, Stifte …) — nur zum Überblick,
+    wird nicht an Tickets, Räder oder Sportler gebucht und nicht berechnet. */
+const W_MAT = "W";
+function istWMat(code){ return stueckKategorie(code) === W_MAT; }
 
 function ticketKarte(t, steht){
   const p = pufferText(t), pos = positionen(t.id), alle = schritte(t.id), fertig = alle.filter(schrittFertig).length;
@@ -1132,17 +1136,24 @@ function lagerView(){
   bestellBedarf().forEach(x => { if(x.rest > 0) zuBestellen[x.a.code] = x.rest; });
   const aktiv = (DB.bestand||[]).filter(b => b.aktiv);
   const res = aktiv.filter(b => num(b.reserviert) > 0);
+  // Werkstattmaterial (W) steht nicht unter „Alle“, sondern unter einem eigenen Knopf
+  const wMat = aktiv.filter(b => istWMat(b.code)), haupt = aktiv.filter(b => !istWMat(b.code));
+  const imW = view.matFilter === "werkstatt";
   let h = view.suche ? '' : orteBlock();
   h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
   h += '<div class="row wrapr" style="gap:6px;margin-bottom:10px">';
-  [["alle", "Alle · " + aktiv.length], ["bestellen", "zu bestellen · " + Object.keys(zuBestellen).length], ["reserviert", "reserviert · " + res.length]]
-    .forEach(x => h += '<button class="btn small' + (view.matFilter === x[0] ? " primary" : "") + '" data-a="matFilter" data-x="' + x[0] + '">' + x[1] + '</button>');
+  const knoepfe = [["alle", "Alle · " + haupt.length], ["bestellen", "zu bestellen · " + Object.keys(zuBestellen).length], ["reserviert", "reserviert · " + res.length]];
+  if(wMat.length || imW) knoepfe.push(["werkstatt", "Werkstattmaterial · " + wMat.length]);
+  knoepfe.forEach(x => h += '<button class="btn small' + (view.matFilter === x[0] ? " primary" : "") + '" data-a="matFilter" data-x="' + x[0] + '">' + x[1] + '</button>');
   h += '</div>';
+  if(imW) h += '<p class="sub" style="margin:-4px 0 10px">Nur zum Überblick — wird nicht an Sportler oder Räder gebucht und nicht berechnet. „−“ bucht eine Entnahme aus der Werkstatt; aufgefüllt wird über die Inventur.</p>';
 
-  let liste = aktiv;
+  const q = view.suche.toLowerCase();
+  // Bei einer Suche unter „Alle“ wird Werkstattmaterial mit gefunden
+  let liste = q ? aktiv : haupt;
   if(view.matFilter === "bestellen") liste = aktiv.filter(b => zuBestellen[b.code]);
   if(view.matFilter === "reserviert") liste = res;
-  const q = view.suche.toLowerCase();
+  if(imW) liste = wMat;
   if(q) liste = liste.filter(b => (b.name + " " + b.code).toLowerCase().indexOf(q) >= 0);
   // Kategorie → Unterkategorie (eine Zeile, siehe katFilterZeile)
   h += katFilterZeile("l", liste);
@@ -1151,13 +1162,13 @@ function lagerView(){
 
   // Gegliedert nach Kategorie und Unterkategorie; ohne Filter klappbar wie im Inventar
   // (ohne „alle zu-/aufklappen“-Links, damit es oben ruhig bleibt — Überschrift antippen reicht)
-  const mitKat = !view.lKat;
+  const mitKat = !view.lKat && !imW;
   const eintraege = katSortieren("l", liste, b => b.code).map(b => {
     const kat = stueckKategorie(b.code);
     return { kat, uk:ukSchluessel((artikel(b.code) || {}).unterkategorie_id, kat), n:1, html:lagerZeile(b, zuBestellen, gesperrt) };
   });
   h += gegliedert(eintraege, { p:"l", mitKat, mitUk:!view.lUk, klappbar:!q, block:x => '<div class="card liste">' + x + '</div>', einheit:["Artikel", "Artikel"] });
-  h += '<p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang. „frei“ = in der Werkstatt und nicht reserviert; was in Koffern gepackt ist, zählt zum Lager, aber nicht als frei.</p>';
+  if(!imW) h += '<p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang. „frei“ = in der Werkstatt und nicht reserviert; was in Koffern gepackt ist, zählt zum Lager, aber nicht als frei.</p>';
   return h;
 }
 
@@ -1183,6 +1194,8 @@ function lagerZeile(b, zuBestellen, gesperrt){
     if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
     else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
   }
+  if(!leistung && istWMat(b.code))
+    return h + '</button><div class="knoepfe"><button class="btn small" data-a="wEntnahme" data-x="' + esc(b.code) + '" aria-label="Eins entnehmen: ' + esc(b.name) + '"' + gesperrt + ' style="min-width:46px;font-size:20px">−</button></div></div>';
   h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : "Ausgeben") + '</button>';
   if(!leistung) h += '<button class="btn small" data-a="formZugang" data-x="' + esc(b.code) + '" aria-label="Zugang ' + esc(b.name) + '"' + gesperrt + '>+</button>';
   h += '</div></div>';
@@ -1232,9 +1245,16 @@ function artikelMenue(code){
   if(!a) return;
   let h = '<h3>' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(code) + (b && a.art !== "Pauschale" ? ' · ' + zahl(b.gesamt) + ' im Lager · Werkstatt ' + zahl(b.werkstatt) + ' · frei ' + zahl(b.frei) : '') + '</p>';
   h += '<div style="display:grid;gap:8px">';
+  if(istWMat(code) && a.art !== "Pauschale"){
+    h += '<p class="sub" style="margin:0">Werkstattmaterial — nicht für Tickets, Räder oder Abrechnung.</p>';
+    h += '<button class="btn primary" data-a="formEntnahme" data-x="' + esc(code) + '">Entnahme buchen</button>';
+    h += '<button class="btn" data-a="formInventur" data-x="' + esc(code) + '">Inventur / Bestand korrigieren</button>';
+    h += '<button class="btn" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
+  } else {
   if(a.art !== "Pauschale") h += '<button class="btn primary" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
   h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : "An Sportler ausgeben") + '</button>';
   if(a.art !== "Pauschale") h += '<button class="btn" data-a="formInventur" data-x="' + esc(code) + '">Inventur / Bestand korrigieren</button>';
+  }
   h += '<button class="btn" data-a="buchungenArtikel" data-x="' + esc(code) + '">Buchungen · Fehlbuchung stornieren</button>';
   h += '<button class="btn" data-a="artikelEtikett" data-x="' + esc(code) + '">Etikett drucken</button>';
   h += '<button class="btn" data-a="artikelBearbeiten" data-x="' + esc(code) + '">Artikel bearbeiten</button>';
@@ -1261,6 +1281,15 @@ function formAusgabe(code){
     '<div class="feld"><span class="lbl">Aus</span>' + ortSelect("fOrt","Werkstatt") + '</div></div>' +
     '<div class="feld"><span class="lbl">Notiz</span><input type="text" id="fNotiz"></div>' +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="ausgabeBuchen" data-x="' + esc(code) + '">Buchen</button></div>');
+}
+/** Entnahme ohne Sportler (Werkstattmaterial) — wird nicht berechnet */
+function formEntnahme(code){
+  const a = artikel(code);
+  modal('<h3>Entnahme · ' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">Verbrauch in der Werkstatt, wird nicht berechnet.</p>' +
+    '<div class="grid2"><div class="feld"><span class="lbl">Menge (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" value="1" min="0" step="any" inputmode="decimal"></div>' +
+    '<div class="feld"><span class="lbl">Aus</span>' + ortSelect("fOrt","Werkstatt") + '</div></div>' +
+    '<div class="feld"><span class="lbl">Notiz</span><input type="text" id="fNotiz"></div>' +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="entnahmeBuchen" data-x="' + esc(code) + '">Buchen</button></div>');
 }
 function formInventur(code){
   const a = artikel(code), b = bestand(code);
@@ -2394,7 +2423,7 @@ function auswahl(label, id, optionen, wert){
    Die Datenbank vergibt beim Speichern die nächste freie Nummer
    (höchste + 1). Die Vorschau zeigt, was es voraussichtlich wird.
 ----------------------------------------------------------------*/
-const BUCHSTABEN = [["A","Antrieb"],["B","Bremse"],["C","Cockpit & Vorbau"],["L","Laufrad & Reifen"],["R","Rahmen"],["W","Werkstatt & Werkzeug"]];
+const BUCHSTABEN = [["A","Antrieb"],["B","Bremse"],["C","Cockpit & Vorbau"],["L","Laufrad & Reifen"],["R","Rahmen"],["W","Werkstattmaterial"]];
 const GRUPPE_FUER_ART = { "Stück":1, "Vorrat":5, "Pauschale":9 };
 let nrForm = null;      // { typ:"artikel"|"stueck"|"rad", modus:"auto"|"eigen" }
 let nrLauf = 0;
@@ -2629,6 +2658,7 @@ function scanTreffer(ziel, code){
     return;
   }
   if(!a){ piep(false); toast("Kein Artikel: " + code, true); return; }
+  if((ziel === "neuMaterial" || ziel === "ticketMaterial") && istWMat(code)){ piep(false); toast(a.name + " ist Werkstattmaterial — wird nicht an Tickets gebucht.", true); return; }
   if(ziel === "neuMaterial"){ neuMaterial(code); return; }
   if(ziel === "ticketMaterial"){ reservieren(code); return; }
   artikelMenue(code);
@@ -3103,7 +3133,11 @@ const A = {
   verlaufTicket: x => verlaufTicket(Number(x)),
   verlaufRad: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.suche = ""; render(); window.scrollTo(0,0); },
   mat: x => { view.mat = x; view.koffer = null; view.suche = ""; render(); window.scrollTo(0,0); },
-  matFilter: x => { view.matFilter = x; render(); },
+  matFilter: x => {
+    // Wechsel zwischen Werkstattmaterial und dem übrigen Lager: Kategorie-Filter zurücksetzen
+    if((x === "werkstatt") !== (view.matFilter === "werkstatt")){ view.lKat = ""; view.lUk = ""; }
+    view.matFilter = x; render();
+  },
   kofferAuf: x => { modalZu(); view.tab = "material"; view.mat = "lager"; view.koffer = x; view.suche = ""; render(); window.scrollTo(0,0); },
   kofferZu: () => { view.koffer = null; render(); window.scrollTo(0,0); },
   rt: x => { view.rt = x; view.suche = ""; render(); },
@@ -3211,6 +3245,21 @@ const A = {
   formZugang: x => formZugang(x),
   formAusgabe: x => formAusgabe(x),
   formInventur: x => formInventur(x),
+  formEntnahme: x => formEntnahme(x),
+  entnahmeBuchen: x => {
+    const m = zahlOderNull("fMenge");
+    if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
+    if(!genugDa(x, wert("fOrt"), m)) return;
+    const a = artikel(x);
+    aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:m, p_ort:wert("fOrt"), p_notiz:wert("fNotiz") || null, p_bearbeiter:bearbeiter || null }),
+           "Entnahme gebucht · " + zahl(m) + " " + (a ? a.einheit : ""));
+  },
+  wEntnahme: x => {
+    if(!genugDa(x, "Werkstatt", 1)) return;
+    const a = artikel(x);
+    aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:1, p_ort:"Werkstatt", p_bearbeiter:bearbeiter || null }),
+           () => { const b = bestand(x); return "−1 " + (a ? a.name : x) + " · noch " + zahl(b ? b.werkstatt : 0) + " " + (a ? a.einheit : ""); });
+  },
   zugangBuchen: x => {
     const m = zahlOderNull("fMenge");
     if(!m || m <= 0){ toast("Menge fehlt.", true); return; }

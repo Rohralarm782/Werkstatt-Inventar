@@ -1,12 +1,10 @@
 # Version
 
-**10.0.0** — 05.10.2026
+**10.1.0** — 05.10.2026
 
-Unterkategorien je Kategorie (z. B. Laufrad & Reifen → Schlauchreifen,
-Schläuche, Clincher Straße, Clincher Cross). Filter in Lager und Inventar:
-Kategorie antippen → an derselben Stelle die Unterkategorien.
-Datenbank-Änderung: neue Tabelle `unterkategorie`, neue Spalte
-`unterkategorie_id` an `artikel` und `stueck` (Migration nötig).
+Werkstattmaterial (Kategorie W, früher „Werkstatt & Werkzeug“): im Lager
+unter eigenem Knopf statt unter „Alle“, mit „−“ für eine schnelle Entnahme.
+Nicht mehr in Tickets wählbar, wird nicht berechnet. Keine Datenbank-Änderung.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -15,6 +13,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 10.1.0 | 05.10.2026 | Werkstattmaterial: eigener Filter im Lager, „−“ = Entnahme |
 | 10.0.0 | 05.10.2026 | Unterkategorien, Filter Kategorie → Unterkategorie |
 | 9.5.0 | 05.10.2026 | Bestand direkt beim Anlegen eines Artikels |
 | 9.4.1 | 05.10.2026 | Einheit als Auswahl (Stück, Paar, ml) |
