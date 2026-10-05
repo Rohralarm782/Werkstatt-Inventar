@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 12.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 13.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 11.x aus nur db/migration_12.0.0.sql.)
+--   von 12.x aus nur db/migration_13.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -74,6 +74,20 @@ create table sportler (
   abrechnen  boolean not null default true,   -- LV / BSP: false
   aktiv      boolean not null default true
 );
+
+-- Kategorien: der Buchstabe im Code und sein Name (O → Orga).
+create table kategorie (
+  buchstabe  text primary key check (buchstabe ~ '^[A-Z]{1,3}$'),
+  name       text not null unique check (trim(name) <> '')
+);
+
+insert into kategorie (buchstabe, name) values
+  ('A', 'Antrieb'),
+  ('B', 'Bremse'),
+  ('C', 'Cockpit & Vorbau'),
+  ('L', 'Laufrad & Reifen'),
+  ('R', 'Rahmen'),
+  ('W', 'Werkstattmaterial');
 
 -- Tags je Kategorie-Buchstabe (L → Schlauchreifen, Schläuche, …).
 -- Die Kategorie selbst ist der Buchstabe im Code; Tags sind nur eine
@@ -1108,7 +1122,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['person', 'sportler', 'tag', 'artikel', 'artikel_tag', 'rad', 'zuordnung', 'stueck', 'stueck_tag', 'ticket',
+  foreach t in array array['person', 'sportler', 'kategorie', 'tag', 'artikel', 'artikel_tag', 'rad', 'zuordnung', 'stueck', 'stueck_tag', 'ticket',
                            'ticket_stueck', 'ticket_position', 'buchung', 'rechnung', 'koffer_soll', 'termin',
                            'zaehlung', 'inventur_lauf', 'foto', 'bestellung'] loop
     execute format('alter table %I enable row level security', t);
@@ -1142,7 +1156,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['person', 'sportler', 'tag', 'artikel', 'rad', 'zuordnung', 'stueck',
+  foreach t in array array['person', 'sportler', 'kategorie', 'tag', 'artikel', 'rad', 'zuordnung', 'stueck',
                            'koffer_soll', 'termin'] loop
     execute format('drop policy if exists offen on %I', t);
     execute format('create policy offen on %I for all to anonymous using (true) with check (true)', t);
@@ -1203,11 +1217,11 @@ revoke all on all tables in schema public from anonymous;
 grant usage on schema public to anonymous;
 grant select on all tables in schema public to anonymous;
 revoke select on trainer from anonymous;
-grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person, tag to anonymous;
+grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person, tag, kategorie to anonymous;
 grant insert (art, code, menge, ort, notiz, bearbeiter) on buchung to anonymous;
 grant insert (ticket_id, code, menge, titel, dauer_min) on ticket_position to anonymous;
 grant insert (code, menge, bearbeiter) on bestellung to anonymous;
-grant update on stueck, koffer_soll, sportler, rad, artikel, person, tag to anonymous;
+grant update on stueck, koffer_soll, sportler, rad, artikel, person, tag, kategorie to anonymous;
 grant update (soll_fertig, naechstmoeglich, anlass, aufwand, fahrbereit, arbeitsort,
               kostentraeger_id, status, uebernommen_von) on ticket to anonymous;
 grant update (menge, status, titel, dauer_min) on ticket_position to anonymous;
