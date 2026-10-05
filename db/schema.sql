@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 10.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 11.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 9.x aus nur db/migration_10.0.0.sql.)
+--   von 10.x aus nur db/migration_11.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -75,10 +75,11 @@ create table sportler (
   aktiv      boolean not null default true
 );
 
--- Unterkategorien je Kategorie-Buchstabe (L → Schlauchreifen, Schläuche, …).
--- Die Kategorie selbst ist der Buchstabe im Code; die Unterkategorie nur
--- eine Zuordnung — Codes und Etiketten bleiben dabei unverändert.
-create table unterkategorie (
+-- Tags je Kategorie-Buchstabe (L → Schlauchreifen, Schläuche, …).
+-- Die Kategorie selbst ist der Buchstabe im Code; Tags sind nur eine
+-- Zuordnung (mehrere je Artikel/Einzelstück möglich, siehe artikel_tag und
+-- stueck_tag) — Codes und Etiketten bleiben dabei unverändert.
+create table tag (
   id          bigint generated always as identity primary key,
   buchstabe   text not null check (buchstabe ~ '^[A-Z]{1,3}$'),
   name        text not null check (trim(name) <> ''),
@@ -100,10 +101,8 @@ create table artikel (
   bestellnummer    text,
   shop_link        text,
   aktiv            boolean not null default true,
-  dauer_min        integer check (dauer_min is null or dauer_min >= 0),  -- Arbeitszeit je Stück bzw. Leistung
-  unterkategorie_id bigint references unterkategorie (id) on delete set null
+  dauer_min        integer check (dauer_min is null or dauer_min >= 0)  -- Arbeitszeit je Stück bzw. Leistung
 );
-create index artikel_unterkategorie on artikel (unterkategorie_id);
 
 create table rad (
   id              text primary key,
@@ -144,10 +143,24 @@ create table stueck (
   zustand       text not null default 'frei' check (zustand in ('frei', 'zu prüfen', 'defekt')),
   notiz         text,
   marke         text,
-  unterkategorie_id bigint references unterkategorie (id) on delete set null,
   check ((ort = 'am Rad') = (rad_id is not null))
 );
-create index stueck_unterkategorie on stueck (unterkategorie_id);
+
+-- Tags der Artikel und Einzelstücke (nur Tags der eigenen Kategorie;
+-- geändert wird über tags_setzen / tag_zuordnen bzw. beim Anlegen).
+create table artikel_tag (
+  code    text   not null references artikel (code) on update cascade on delete cascade,
+  tag_id  bigint not null references tag (id) on delete cascade,
+  primary key (code, tag_id)
+);
+create index artikel_tag_tag on artikel_tag (tag_id);
+
+create table stueck_tag (
+  nummer  text   not null references stueck (nummer) on update cascade on delete cascade,
+  tag_id  bigint not null references tag (id) on delete cascade,
+  primary key (nummer, tag_id)
+);
+create index stueck_tag_tag on stueck_tag (tag_id);
 
 -- ---------------------------------------------------------------------
 --  Tickets
@@ -840,8 +853,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_code := naechster_code(p_buchstabe, p_gruppe);
   insert into artikel (code, name, einheit, preis, mindestbestand, lieferzeit_tage, art,
-                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min,
-                       unterkategorie_id)
+                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min)
   values (v_code,
           p_daten ->> 'name',
           coalesce(nullif(p_daten ->> 'einheit', ''), 'Stück'),
@@ -855,8 +867,11 @@ begin
           nullif(p_daten ->> 'bestellnummer', ''),
           nullif(p_daten ->> 'shop_link', ''),
           coalesce((p_daten ->> 'aktiv')::boolean, true),
-          (p_daten ->> 'dauer_min')::integer,
-          (p_daten ->> 'unterkategorie_id')::bigint);
+          (p_daten ->> 'dauer_min')::integer);
+  insert into artikel_tag (code, tag_id)
+    select v_code, t.id from tag t
+     where t.buchstabe = p_buchstabe
+       and t.id in (select (x #>> '{}')::bigint from jsonb_array_elements(coalesce(p_daten -> 'tags', '[]'::jsonb)) x);
   return v_code;
 end $$;
 
@@ -868,7 +883,7 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_nr := naechster_code(p_buchstabe, p_gruppe);
-  insert into stueck (nummer, typ, marke, detail, seriennummer, kaufdatum, wert, notiz, unterkategorie_id)
+  insert into stueck (nummer, typ, marke, detail, seriennummer, kaufdatum, wert, notiz)
   values (v_nr,
           p_daten ->> 'typ',
           nullif(p_daten ->> 'marke', ''),
@@ -876,8 +891,11 @@ begin
           nullif(p_daten ->> 'seriennummer', ''),
           nullif(p_daten ->> 'kaufdatum', '')::date,
           (p_daten ->> 'wert')::numeric,
-          nullif(p_daten ->> 'notiz', ''),
-          (p_daten ->> 'unterkategorie_id')::bigint);
+          nullif(p_daten ->> 'notiz', ''));
+  insert into stueck_tag (nummer, tag_id)
+    select v_nr, t.id from tag t
+     where t.buchstabe = p_buchstabe
+       and t.id in (select (x #>> '{}')::bigint from jsonb_array_elements(coalesce(p_daten -> 'tags', '[]'::jsonb)) x);
   return v_nr;
 end $$;
 
@@ -899,6 +917,53 @@ begin
     v_nummern := v_nummern || stueck_anlegen(p_buchstabe, p_gruppe, p_daten);
   end loop;
   return v_nummern;
+end $$;
+
+-- Tags setzen (ganz oder gar nicht)
+create function tags_setzen(p_art text, p_schluessel text[], p_tags bigint[])
+returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if p_art = 'artikel' then
+    delete from artikel_tag where code = any (p_schluessel);
+    insert into artikel_tag (code, tag_id)
+      select a.code, t.id from artikel a join tag t
+        on t.buchstabe = substring(a.code from '^([A-Z]{1,3})-')
+       where a.code = any (p_schluessel) and t.id = any (coalesce(p_tags, '{}'));
+  elsif p_art = 'stueck' then
+    delete from stueck_tag where nummer = any (p_schluessel);
+    insert into stueck_tag (nummer, tag_id)
+      select s.nummer, t.id from stueck s join tag t
+        on t.buchstabe = substring(s.nummer from '^([A-Z]{1,3})-')
+       where s.nummer = any (p_schluessel) and t.id = any (coalesce(p_tags, '{}'));
+  else
+    raise exception 'Unbekannte Art: %', p_art;
+  end if;
+end $$;
+
+create function tag_zuordnen(p_tag bigint, p_art text, p_mit text[], p_ohne text[])
+returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  t tag;
+begin
+  select * into t from tag where id = p_tag;
+  if not found then raise exception 'Unbekannter Tag: %', p_tag; end if;
+  if p_art = 'artikel' then
+    delete from artikel_tag where tag_id = p_tag and code = any (coalesce(p_ohne, '{}'));
+    insert into artikel_tag (code, tag_id)
+      select a.code, p_tag from artikel a
+       where a.code = any (coalesce(p_mit, '{}')) and substring(a.code from '^([A-Z]{1,3})-') = t.buchstabe
+      on conflict do nothing;
+  elsif p_art = 'stueck' then
+    delete from stueck_tag where tag_id = p_tag and nummer = any (coalesce(p_ohne, '{}'));
+    insert into stueck_tag (nummer, tag_id)
+      select s.nummer, p_tag from stueck s
+       where s.nummer = any (coalesce(p_mit, '{}')) and substring(s.nummer from '^([A-Z]{1,3})-') = t.buchstabe
+      on conflict do nothing;
+  else
+    raise exception 'Unbekannte Art: %', p_art;
+  end if;
 end $$;
 
 create function rad_anlegen(p_daten jsonb)
@@ -971,7 +1036,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['person', 'sportler', 'unterkategorie', 'artikel', 'rad', 'zuordnung', 'stueck', 'ticket',
+  foreach t in array array['person', 'sportler', 'tag', 'artikel', 'artikel_tag', 'rad', 'zuordnung', 'stueck', 'stueck_tag', 'ticket',
                            'ticket_position', 'buchung', 'rechnung', 'koffer_soll', 'termin',
                            'zaehlung', 'inventur_lauf', 'foto', 'bestellung'] loop
     execute format('alter table %I enable row level security', t);
@@ -997,7 +1062,7 @@ grant execute on all functions in schema public to authenticated;
 --  Zugriff ohne Anmeldung
 --  Die App holt sich einen anonymen Schlüssel von Neon Auth. Damit darf sie
 --  lesen, anlegen und ändern — aber nichts löschen (außer Renntermine,
---  Packlisten-Zeilen, Fotos offener Tickets, Einzelstücke und Unterkategorien).
+--  Packlisten-Zeilen, Fotos offener Tickets, Einzelstücke und Tags).
 --  Ins Buchungsjournal kommen von außen nur Zugänge;
 --  alle anderen Buchungen laufen über die Funktionen oben.
 -- ---------------------------------------------------------------------
@@ -1005,7 +1070,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['person', 'sportler', 'unterkategorie', 'artikel', 'rad', 'zuordnung', 'stueck',
+  foreach t in array array['person', 'sportler', 'tag', 'artikel', 'rad', 'zuordnung', 'stueck',
                            'koffer_soll', 'termin'] loop
     execute format('drop policy if exists offen on %I', t);
     execute format('create policy offen on %I for all to anonymous using (true) with check (true)', t);
@@ -1050,6 +1115,10 @@ create policy offen_lesen    on foto for select to anonymous using (true);
 create policy offen_loeschen on foto for delete to anonymous
   using (exists (select 1 from ticket t where t.id = ticket_id and t.status in ('offen', 'angenommen')));
 
+-- Tag-Zuordnungen: lesen; geändert wird über tags_setzen / tag_zuordnen.
+create policy offen_lesen on artikel_tag for select to anonymous using (true);
+create policy offen_lesen on stueck_tag  for select to anonymous using (true);
+
 -- Journal: lesen; von außen nur Zugänge mit positiver Menge.
 create policy offen_lesen  on buchung for select to anonymous using (true);
 create policy offen_zugang on buchung for insert to anonymous
@@ -1059,16 +1128,16 @@ revoke all on all tables in schema public from anonymous;
 grant usage on schema public to anonymous;
 grant select on all tables in schema public to anonymous;
 revoke select on trainer from anonymous;
-grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person, unterkategorie to anonymous;
+grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, person, tag to anonymous;
 grant insert (art, code, menge, ort, notiz, bearbeiter) on buchung to anonymous;
 grant insert (ticket_id, code, menge, titel, dauer_min) on ticket_position to anonymous;
 grant insert (code, menge, bearbeiter) on bestellung to anonymous;
-grant update on stueck, koffer_soll, sportler, rad, artikel, person, unterkategorie to anonymous;
+grant update on stueck, koffer_soll, sportler, rad, artikel, person, tag to anonymous;
 grant update (soll_fertig, naechstmoeglich, anlass, aufwand, fahrbereit, arbeitsort,
               kostentraeger_id, status, uebernommen_von) on ticket to anonymous;
 grant update (menge, status, titel, dauer_min) on ticket_position to anonymous;
 grant update (status) on rechnung to anonymous;
-grant delete on termin, koffer_soll, foto, stueck, bestellung, unterkategorie to anonymous;
+grant delete on termin, koffer_soll, foto, stueck, bestellung, tag to anonymous;
 grant usage, select on all sequences in schema public to anonymous;
 
 revoke execute on all functions in schema public from public, anonymous;
@@ -1092,6 +1161,8 @@ grant execute on function
   artikel_anlegen(text, integer, jsonb),
   stueck_anlegen(text, integer, jsonb),
   stueck_serie_anlegen(text, integer, jsonb, integer),
+  tags_setzen(text, text[], bigint[]),
+  tag_zuordnen(bigint, text, text[], text[]),
   rad_anlegen(jsonb),
   foto_hochladen(bigint, text, text, text, text, uuid)
 to anonymous;

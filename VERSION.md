@@ -1,10 +1,12 @@
 # Version
 
-**10.1.0** — 05.10.2026
+**11.0.0** — 05.10.2026
 
-Werkstattmaterial (Kategorie W, früher „Werkstatt & Werkzeug“): im Lager
-unter eigenem Knopf statt unter „Alle“, mit „−“ für eine schnelle Entnahme.
-Nicht mehr in Tickets wählbar, wird nicht berechnet. Keine Datenbank-Änderung.
+Tags statt Unterkategorien: Tags gehören weiter zu einer Kategorie, ein
+Artikel oder Einzelstück kann aber mehrere Tags seiner Kategorie haben
+(z. B. Kettenblattschrauben unter „Kurbel“ und „Kleinteile“). Bedienung wie
+bisher: Kategorie antippen → ihre Tags. Bisherige Unterkategorien werden
+als Tags übernommen. Datenbank-Änderung (Migration nötig).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +15,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 11.0.0 | 05.10.2026 | Tags statt Unterkategorien (mehrere je Artikel/Teil) |
 | 10.1.0 | 05.10.2026 | Werkstattmaterial: eigener Filter im Lager, „−“ = Entnahme |
 | 10.0.0 | 05.10.2026 | Unterkategorien, Filter Kategorie → Unterkategorie |
 | 9.5.0 | 05.10.2026 | Bestand direkt beim Anlegen eines Artikels |
