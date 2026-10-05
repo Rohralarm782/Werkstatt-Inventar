@@ -286,7 +286,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "9.4.0";
+const APP_VERSION = "9.4.1";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -2293,6 +2293,13 @@ function marke(v){
   return markenListe().find(x => x.toLowerCase() === v.toLowerCase()) || v;
 }
 
+/** Einheiten zur Auswahl: Stück, Paar, ml – plus Einheiten, die bei Artikeln schon vorkommen (gehen beim Bearbeiten nicht verloren). */
+const EINHEITEN = ["Stück","Paar","ml"];
+function einheitenListe(aktuell){
+  const l = EINHEITEN.slice();
+  (DB.artikel||[]).map(x => x.einheit).concat([aktuell]).forEach(e => { if(e && !l.includes(e)) l.push(e); });
+  return l;
+}
 function artikelForm(code){
   const a = code ? artikel(code) : { code:"", name:"", einheit:"Stück", preis:0, mindestbestand:0, lieferzeit_tage:0, art:"Stück", aktiv:true };
   const verbrauch = [["","—"]].concat((DB.artikel||[]).filter(x => x.art === "Vorrat").map(x => [x.code, x.name]));
@@ -2302,7 +2309,7 @@ function artikelForm(code){
   modal('<h3>' + (code ? "Artikel bearbeiten · " + esc(code) : "Neuer Artikel") + '</h3>' +
     (code ? artFeld : artFeld + nummernWahl("artikel", 1)) +
     feld("Bezeichnung", "aName", a.name) +
-    '<div class="grid2">' + feld("Einheit", "aEinheit", a.einheit) + feld("Preis (€)", "aPreis", a.preis, "number", ' step="0.01" min="0"') + '</div>' +
+    '<div class="grid2">' + auswahl("Einheit", "aEinheit", einheitenListe(a.einheit), a.einheit || "Stück") + feld("Preis (€)", "aPreis", a.preis, "number", ' step="0.01" min="0"') + '</div>' +
     '<div class="grid2">' + feld("Mindestbestand", "aMin", a.mindestbestand, "number", ' step="any" min="0"') + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + '</div>' +
     feld("Arbeitszeit (min, je Stück bzw. Leistung)", "aDauer", a.dauer_min, "number", ' step="1" min="0" inputmode="numeric" placeholder="z. B. 15 fürs Lenkerband wickeln"') +
     '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
