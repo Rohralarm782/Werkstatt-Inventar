@@ -1,9 +1,9 @@
 # Version
 
-**9.4.1** — 05.10.2026
+**9.5.0** — 05.10.2026
 
-Artikel-Formular: Einheit als Auswahl (Stück, Paar, ml) statt Freitext.
-Keine Datenbank-Änderung.
+Neuer Artikel: Bestand direkt beim Anlegen eingeben (wird als Zugang
+gebucht), danach wie gewohnt Etikett drucken. Keine Datenbank-Änderung.
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -12,6 +12,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 9.5.0 | 05.10.2026 | Bestand direkt beim Anlegen eines Artikels |
 | 9.4.1 | 05.10.2026 | Einheit als Auswahl (Stück, Paar, ml) |
 | 9.4.0 | 05.10.2026 | Koffer: Menge frei eingeben, alles Fehlende auf einmal einpacken |
 | 9.3.0 | 05.10.2026 | Koffer als Unterbereiche des Lagers (kein eigener Reiter mehr) |

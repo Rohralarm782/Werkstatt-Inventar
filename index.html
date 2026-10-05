@@ -286,7 +286,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "9.4.1";
+const APP_VERSION = "9.5.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -2310,6 +2310,9 @@ function artikelForm(code){
     (code ? artFeld : artFeld + nummernWahl("artikel", 1)) +
     feld("Bezeichnung", "aName", a.name) +
     '<div class="grid2">' + auswahl("Einheit", "aEinheit", einheitenListe(a.einheit), a.einheit || "Stück") + feld("Preis (€)", "aPreis", a.preis, "number", ' step="0.01" min="0"') + '</div>' +
+    (code ? '' : '<div id="aBestandBox" class="grid2"' + (a.art === "Pauschale" ? " hidden" : "") + '>' +
+       feld("Bestand jetzt", "aBestand", "", "number", ' step="any" min="0" inputmode="decimal" placeholder="0"') +
+       '<div class="feld"><span class="lbl">liegt in</span>' + ortSelect("aBestandOrt", "Werkstatt") + '</div></div>') +
     '<div class="grid2">' + feld("Mindestbestand", "aMin", a.mindestbestand, "number", ' step="any" min="0"') + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + '</div>' +
     feld("Arbeitszeit (min, je Stück bzw. Leistung)", "aDauer", a.dauer_min, "number", ' step="1" min="0" inputmode="numeric" placeholder="z. B. 15 fürs Lenkerband wickeln"') +
     '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
@@ -3104,17 +3107,26 @@ const A = {
                 dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
     if(x){ aktion(() => aendern("artikel", "code=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
+    // Anfangsbestand: wird direkt nach dem Anlegen als Zugang gebucht (nicht bei Pauschalen)
+    const start = d.art === "Pauschale" ? 0 : (zahlOderNull("aBestand") || 0);
+    if(start < 0){ toast("Bestand darf nicht negativ sein.", true); return; }
+    const startOrt = wert("aBestandOrt") || "Werkstatt";
+    const mitBestand = async c => {
+      if(start > 0) await neuIn("buchung", { art:"zugang", code:c, menge:start, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null });
+      return c;
+    };
+    const meldung = c => c + " angelegt" + (start > 0 ? " · " + zahl(start) + " " + d.einheit + " in " + startOrt : "");
+    const etikett = c => { if(c) etikettDialog([etikettArtikel(artikel(c) || Object.assign({ code:c }, d))], meldung(c) + " — Etikett drucken?", true); };
     if(nrForm && nrForm.modus === "auto"){
       const b = nrBuchstabe();
       if(!/^[A-Z]{1,3}$/.test(b)){ toast(b ? "Neue Kategorie: 1–3 Buchstaben A–Z." : "Bitte eine Kategorie wählen.", true); return; }
-      aktion(() => rpc("artikel_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d }), c => c + " angelegt")
-        .then(c => { if(c) etikettDialog([etikettArtikel(artikel(c) || Object.assign({ code:c }, d))], c + " angelegt — Etikett drucken?", true); });
+      aktion(async () => mitBestand(await rpc("artikel_anlegen", { p_buchstabe:b, p_gruppe:Number(wert("nrGruppe")), p_daten:d })), meldung).then(etikett);
       return;
     }
     const code = wert("nrEigenWert").toUpperCase();
     if(!/^[A-Z]+-[0-9]+$/.test(code)){ toast("Code im Format B-120.", true); return; }
     if(nummerVergeben(code)){ toast(code + " ist schon vergeben.", true); return; }
-    aktion(() => neuIn("artikel", Object.assign({ code }, d)), code + " angelegt");
+    aktion(async () => { await neuIn("artikel", Object.assign({ code }, d)); return mitBestand(code); }, meldung).then(etikett);
   },
   personNeu: () => { const n = wert("pName"); if(!n){ toast("Name fehlt.", true); return; } aktion(() => neuIn("person", { name:n }), n + " hinzugefügt"); },
   personAktiv: x => { const p = DB.personen.find(y => y.id === Number(x)); aktion(() => aendern("person", "id=eq." + x, { aktiv:!p.aktiv })); },
@@ -3383,6 +3395,7 @@ const C = {
   nrVorschau: () => vorschauNummer(),
   etVorlage: v => { const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"); if(f) f.hidden = vo.seite !== "A4"; if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; } },
   artGruppe: v => {
+    const bb = $("aBestandBox"); if(bb) bb.hidden = v === "Pauschale";
     const g = $("nrGruppe"), k = $("nrKat");
     if(!g || !GRUPPE_FUER_ART[v]) return;
     g.value = String(GRUPPE_FUER_ART[v]);
