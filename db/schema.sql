@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt RSZ MV — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 11.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 12.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 10.x aus nur db/migration_11.0.0.sql.)
+--   von 11.x aus nur db/migration_12.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen.
 --  Danach: Data API → "Refresh schema cache".
@@ -168,7 +168,7 @@ create index stueck_tag_tag on stueck_tag (tag_id);
 create table ticket (
   id                bigint generated always as identity primary key,
   angelegt          timestamptz not null default now(),
-  rad_id            text references rad (id),       -- Rad und/oder Einzelstück (siehe Prüfung unten)
+  rad_id            text references rad (id),       -- Rad und/oder Einzelstücke (ticket_stueck); geprüft in den Funktionen
   fahrer_id         bigint references sportler (id),   -- Stand beim Anlegen, bleibt stehen
   problem           text not null,
   fahrbereit        boolean not null default true,
@@ -187,11 +187,17 @@ create table ticket (
   erledigt_von      text,
   client_id         uuid unique,      -- Kennung vom Gerät, verhindert doppelte Tickets
   storniert_am      timestamptz,
-  storniert_von     text,
-  stueck_nummer     text references stueck (nummer),
-  constraint ticket_rad_oder_stueck check (rad_id is not null or stueck_nummer is not null)
+  storniert_von     text
 );
-create index ticket_stueck on ticket (stueck_nummer);
+
+-- Einzelstücke eines Tickets (beliebig viele, z. B. Rad + Laufräder nach
+-- einem Sturz). Geändert wird über ticket_anlegen / ticket_stuecke_aendern.
+create table ticket_stueck (
+  ticket_id  bigint not null references ticket (id) on delete cascade,
+  nummer     text   not null references stueck (nummer) on update cascade,
+  primary key (ticket_id, nummer)
+);
+create index ticket_stueck_nummer on ticket_stueck (nummer);
 
 -- Arbeitsschritte eines Tickets: mit Material (code) oder als reiner Text (titel).
 -- Jeder Schritt lässt sich einzeln abhaken (position_erledigen).
@@ -456,21 +462,25 @@ end $$;
 
 -- Ticket anlegen samt vorgemerktem Material, in einem Schritt. Kommt dieselbe
 -- Kennung vom Gerät ein zweites Mal (Nachsenden nach Funkloch), gibt es kein
--- zweites Ticket.
+-- zweites Ticket. Einzelstücke: p_stuecke (Liste) und/oder p_stueck (eines,
+-- für ältere App-Stände).
 create function ticket_anlegen(
   p_rad text, p_problem text, p_fahrbereit boolean,
   p_soll_fertig date default null, p_naechstmoeglich boolean default false,
   p_anlass text default null, p_arbeitsort text default 'Werkstatt',
   p_positionen jsonb default '[]'::jsonb, p_bearbeiter text default null,
-  p_client_id uuid default null, p_stueck text default null
+  p_client_id uuid default null, p_stueck text default null, p_stuecke text[] default null
 ) returns bigint
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_id      bigint;
-  v_rad     text := nullif(trim(coalesce(p_rad, '')), '');
-  v_fahrer  bigint;
-  v_kt      bigint;
-  v_pos     jsonb;
+  v_id       bigint;
+  v_rad      text := nullif(trim(coalesce(p_rad, '')), '');
+  v_fahrer   bigint;
+  v_kt       bigint;
+  v_pos      jsonb;
+  v_stuecke  text[];
+  v_fehlt    text;
+  v_raeder   text[];
 begin
   if p_client_id is not null then
     select id into v_id from ticket where client_id = p_client_id;
@@ -479,11 +489,23 @@ begin
 
   if coalesce(trim(p_problem), '') = '' then raise exception 'Problem fehlt'; end if;
 
-  if p_stueck is not null then
-    if not exists (select 1 from stueck where nummer = p_stueck) then raise exception 'Unbekanntes Einzelstück: %', p_stueck; end if;
-    if v_rad is null then select rad_id into v_rad from stueck where nummer = p_stueck; end if;
+  -- Einzelstücke: beide Angaben zusammen, ohne Leere und Doppelte, Reihenfolge bleibt
+  select coalesce(array_agg(n order by i), '{}') into v_stuecke
+    from (select n, min(i) as i
+            from unnest(coalesce(p_stuecke, '{}') || array[p_stueck]) with ordinality as x(n, i)
+           where nullif(trim(n), '') is not null
+           group by n) y;
+
+  select string_agg(n, ', ') into v_fehlt
+    from unnest(v_stuecke) as n where not exists (select 1 from stueck where nummer = n);
+  if v_fehlt is not null then raise exception 'Unbekanntes Einzelstück: %', v_fehlt; end if;
+
+  -- Ohne Rad: stecken die Teile an genau einem Rad, gilt das Ticket für dieses Rad
+  if v_rad is null and cardinality(v_stuecke) > 0 then
+    select array_agg(distinct rad_id) into v_raeder from stueck where nummer = any (v_stuecke) and rad_id is not null;
+    if cardinality(v_raeder) = 1 then v_rad := v_raeder[1]; end if;
   end if;
-  if v_rad is null and p_stueck is null then raise exception 'Rad oder Einzelstück fehlt'; end if;
+  if v_rad is null and cardinality(v_stuecke) = 0 then raise exception 'Rad oder Einzelstück fehlt'; end if;
 
   if v_rad is not null then
     select sportler_id into v_fahrer from zuordnung where rad_id = v_rad and gueltig_bis is null;
@@ -491,9 +513,9 @@ begin
     if not found then raise exception 'Unbekanntes Rad: %', v_rad; end if;
   end if;
 
-  insert into ticket (rad_id, stueck_nummer, fahrer_id, problem, fahrbereit, soll_fertig, naechstmoeglich,
+  insert into ticket (rad_id, fahrer_id, problem, fahrbereit, soll_fertig, naechstmoeglich,
                       anlass, kostentraeger_id, arbeitsort, angelegt_von, client_id)
-  values (v_rad, p_stueck, v_fahrer, trim(p_problem), coalesce(p_fahrbereit, true), p_soll_fertig, coalesce(p_naechstmoeglich, false),
+  values (v_rad, v_fahrer, trim(p_problem), coalesce(p_fahrbereit, true), p_soll_fertig, coalesce(p_naechstmoeglich, false),
           nullif(trim(p_anlass), ''), v_kt, p_arbeitsort, p_bearbeiter, p_client_id)
   on conflict (client_id) do nothing
   returning id into v_id;
@@ -504,6 +526,8 @@ begin
     return v_id;
   end if;
 
+  insert into ticket_stueck (ticket_id, nummer) select v_id, n from unnest(v_stuecke) as n;
+
   -- Schritte: {"code":"A-104","menge":1} oder {"titel":"Laufrad zentrieren","dauer_min":20}
   for v_pos in select * from jsonb_array_elements(coalesce(p_positionen, '[]'::jsonb)) loop
     insert into ticket_position (ticket_id, code, titel, menge, dauer_min)
@@ -511,17 +535,16 @@ begin
             coalesce((v_pos ->> 'menge')::numeric, 1), (v_pos ->> 'dauer_min')::integer);
   end loop;
 
-  -- Einzelstück mit Ticket muss geprüft werden: „frei“ wird zu „zu prüfen“
+  -- Einzelstücke mit Ticket müssen geprüft werden: „frei“ wird zu „zu prüfen“
   -- („defekt“ bleibt „defekt“).
-  if p_stueck is not null then
-    update stueck set zustand = 'zu prüfen' where nummer = p_stueck and zustand = 'frei';
-  end if;
+  update stueck set zustand = 'zu prüfen' where nummer = any (v_stuecke) and zustand = 'frei';
 
   return v_id;
 end $$;
 
 -- Ticket abschließen: alle noch offenen Schritte auf einmal (Material wird zur
--- Entnahme am Arbeitsort). Blockiert, solange ein Einzelstück "zu prüfen" ist.
+-- Entnahme am Arbeitsort). Blockiert, solange ein Teil am Rad oder ein
+-- Einzelstück des Tickets "zu prüfen" ist.
 create function ticket_abschliessen(p_ticket bigint, p_bearbeiter text default null) returns numeric
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -535,8 +558,10 @@ begin
   if not found then raise exception 'Ticket % nicht gefunden', p_ticket; end if;
   if t.status in ('erledigt', 'storniert') then raise exception 'Ticket ist bereits abgeschlossen'; end if;
 
-  select string_agg(nummer, ', ') into v_offen
-    from stueck where (rad_id = t.rad_id or nummer = t.stueck_nummer) and zustand = 'zu prüfen';
+  select string_agg(nummer, ', ' order by nummer) into v_offen
+    from stueck
+   where (rad_id = t.rad_id or nummer in (select nummer from ticket_stueck where ticket_id = p_ticket))
+     and zustand = 'zu prüfen';
   if v_offen is not null then raise exception 'Erst prüfen und freigeben: %', v_offen; end if;
 
   for p in select * from ticket_position
@@ -567,6 +592,53 @@ begin
 
   update ticket_position set status = 'storniert' where ticket_id = p_ticket and status = 'reserviert';
   update ticket set status = 'storniert', storniert_am = now(), storniert_von = p_bearbeiter where id = p_ticket;
+end $$;
+
+-- ---------------------------------------------------------------------
+--  Einzelstücke eines offenen Tickets nachtragen (p_mit) oder
+--  herausnehmen (p_ohne). Nachgetragene „freie“ Teile werden „zu prüfen“;
+--  ein herausgenommenes Teil, das auf „zu prüfen“ steht und an keinem
+--  anderen offenen Ticket hängt, wird wieder „frei“. Ein Ticket ohne Rad
+--  behält mindestens ein Einzelstück.
+-- ---------------------------------------------------------------------
+create function ticket_stuecke_aendern(p_ticket bigint, p_mit text[] default null, p_ohne text[] default null) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  t        ticket;
+  v_fehlt  text;
+  v_neu    text[];
+  v_weg    text[];
+begin
+  select * into t from ticket where id = p_ticket for update;
+  if not found then raise exception 'Ticket % nicht gefunden', p_ticket; end if;
+  if t.status not in ('offen', 'angenommen') then raise exception 'Ticket ist bereits abgeschlossen'; end if;
+
+  select string_agg(n, ', ') into v_fehlt
+    from unnest(coalesce(p_mit, '{}')) as n where not exists (select 1 from stueck where nummer = n);
+  if v_fehlt is not null then raise exception 'Unbekanntes Einzelstück: %', v_fehlt; end if;
+
+  with neu as (
+    insert into ticket_stueck (ticket_id, nummer)
+      select p_ticket, n from unnest(coalesce(p_mit, '{}')) as n
+       where not (n = any (coalesce(p_ohne, '{}')))
+      on conflict do nothing
+      returning nummer
+  ) select coalesce(array_agg(nummer), '{}') into v_neu from neu;
+  update stueck set zustand = 'zu prüfen' where nummer = any (v_neu) and zustand = 'frei';
+
+  with weg as (
+    delete from ticket_stueck where ticket_id = p_ticket and nummer = any (coalesce(p_ohne, '{}'))
+      returning nummer
+  ) select coalesce(array_agg(nummer), '{}') into v_weg from weg;
+  update stueck s set zustand = 'frei'
+   where s.nummer = any (v_weg) and s.zustand = 'zu prüfen'
+     and not exists (select 1 from ticket_stueck ts join ticket x on x.id = ts.ticket_id
+                      where ts.nummer = s.nummer and x.status in ('offen', 'angenommen'))
+     and not exists (select 1 from ticket x where x.rad_id = s.rad_id and x.status in ('offen', 'angenommen'));
+
+  if t.rad_id is null and not exists (select 1 from ticket_stueck where ticket_id = p_ticket) then
+    raise exception 'Ein Ticket ohne Rad braucht mindestens ein Einzelstück';
+  end if;
 end $$;
 
 -- ---------------------------------------------------------------------
@@ -1037,7 +1109,7 @@ declare
   t text;
 begin
   foreach t in array array['person', 'sportler', 'tag', 'artikel', 'artikel_tag', 'rad', 'zuordnung', 'stueck', 'stueck_tag', 'ticket',
-                           'ticket_position', 'buchung', 'rechnung', 'koffer_soll', 'termin',
+                           'ticket_stueck', 'ticket_position', 'buchung', 'rechnung', 'koffer_soll', 'termin',
                            'zaehlung', 'inventur_lauf', 'foto', 'bestellung'] loop
     execute format('alter table %I enable row level security', t);
     execute format('create policy nur_trainer on %I for all to authenticated
@@ -1119,6 +1191,9 @@ create policy offen_loeschen on foto for delete to anonymous
 create policy offen_lesen on artikel_tag for select to anonymous using (true);
 create policy offen_lesen on stueck_tag  for select to anonymous using (true);
 
+-- Einzelstücke eines Tickets: lesen; geändert über ticket_anlegen / ticket_stuecke_aendern.
+create policy offen_lesen on ticket_stueck for select to anonymous using (true);
+
 -- Journal: lesen; von außen nur Zugänge mit positiver Menge.
 create policy offen_lesen  on buchung for select to anonymous using (true);
 create policy offen_zugang on buchung for insert to anonymous
@@ -1147,8 +1222,9 @@ grant execute on function
   umbuchen(text, numeric, text, text, text, text),
   inventur(text, text, numeric, text),
   inventur_buchen(text, jsonb, text, uuid),
-  ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid, text),
+  ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid, text, text[]),
   ticket_abschliessen(bigint, text),
+  ticket_stuecke_aendern(bigint, text[], text[]),
   ticket_stornieren(bigint, text),
   position_erledigen(bigint, text),
   position_zuruecknehmen(bigint, text),

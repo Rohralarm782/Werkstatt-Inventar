@@ -170,6 +170,7 @@
   .wahl-zeile .nummern{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .wahl-gewaehlt{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
   .wahl-gewaehlt .txt{flex:1;min-width:0}
+  .wahl-gewaehlt-liste{display:grid;gap:6px}
   #druck{display:none}
   @media print{
     body.drucken > *:not(#druck){display:none !important}
@@ -295,7 +296,7 @@
    Datenquelle: Neon (Postgres) über Data API, anonymer Schlüssel von Neon Auth.
    ===============================================================*/
 
-const APP_VERSION = "11.0.0";
+const APP_VERSION = "12.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -406,6 +407,16 @@ const loeschen = (tab, filter) => rest("/" + tab + "?" + filter, { method:"DELET
 
 /** Für optionale Tabellen: fehlt die Tabelle (Migration noch nicht gelaufen) → null; Netzfehler brechen ab. */
 function ohneTabelle(e){ if(e instanceof NetzFehler) throw e; return null; }
+/** Hängt an jedes Ticket die Liste seiner Einzelstücke (t.stuecke). Gibt zurück,
+    ob die Tabelle ticket_stueck da ist (Migration 12.0.0). */
+async function stueckeAnTickets(tickets){
+  if(!tickets.length){ const z = await rest("/ticket_stueck?limit=1").catch(ohneTabelle); return Array.isArray(z); }
+  const z = await rest("/ticket_stueck?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")").catch(ohneTabelle);
+  if(!Array.isArray(z)){ tickets.forEach(t => t.stuecke = t.stueck_nummer ? [t.stueck_nummer] : []); return false; }
+  const sort = (a, b) => a.localeCompare(b, "de", { numeric:true });
+  tickets.forEach(t => t.stuecke = z.filter(x => x.ticket_id === t.id).map(x => x.nummer).sort(sort));
+  return true;
+}
 async function ladeAlles(){
   const tag = iso(heute());
   const q = [
@@ -433,9 +444,12 @@ async function ladeAlles(){
   verlaufCache = {};   // Rad-Verlauf beim nächsten Anzeigen neu holen
   ticketVerlauf = undefined;   // Ticket-Verlauf ebenso
   const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
+  // Einzelstücke der Tickets (ab 12.0.0 beliebig viele). Fehlt die Tabelle noch
+  // (Migration nicht ausgeführt), gilt das alte Feld stueck_nummer.
+  const tsDa = await stueckeAnTickets(tickets);
   const mitTags = Array.isArray(tags) && Array.isArray(artikelTags) && Array.isArray(stueckTags);
   DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, koffer, termine, personen, rechnungen, offenePosten, zaehlung, bestellungen,
-         tags:mitTags ? tags : null, artikelTags:mitTags ? artikelTags : [], stueckTags:mitTags ? stueckTags : [] };
+         tags:mitTags ? tags : null, artikelTags:mitTags ? artikelTags : [], stueckTags:mitTags ? stueckTags : [], tsDa };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB })); }catch(e){}
@@ -571,7 +585,8 @@ function fehlerZeigen(){
   let h = '<h3>Nicht angelegte Tickets</h3><p class="sub" style="margin-top:-6px">Diese Tickets wurden offline erfasst, beim Nachsenden aber abgelehnt. Sie liegen nur auf diesem Gerät.</p><div class="liste">';
   f.forEach(x => {
     const r = x.op.p_rad ? rad(x.op.p_rad) : null;
-    const name = r ? (r.fahrer || r.bezeichnung) : x.op.p_stueck ? stueckText(x.op.p_stueck) : (x.op.p_rad || "?");
+    const st = x.op.p_stuecke || (x.op.p_stueck ? [x.op.p_stueck] : []);
+    const name = r ? (r.fahrer || r.bezeichnung) : st.length ? stueckeKurz(st) : (x.op.p_rad || "?");
     h += '<div class="eintrag"><div class="txt"><strong>' + esc(name) + '</strong> · ' + esc(x.op.p_problem) +
          '<br><span class="sub" style="color:var(--sprint)">' + esc(x.fehler) + '</span></div>' +
          '<div class="knoepfe"><button class="btn small" data-a="fehlerNochmal" data-x="' + esc(x.op.p_client_id) + '">nochmal senden</button>' +
@@ -609,12 +624,21 @@ function schrittFertig(p){ return p.status === "gebucht" || p.status === "erledi
 function schrittName(p){ return p.code ? ((artikel(p.code) || {}).name || p.code) : (p.titel || "Schritt"); }
 function stueckAm(radId){ return (DB.stueck||[]).filter(s => s.rad_id === radId); }
 function stueckNr(nr){ return (DB.stueck||[]).find(s => s.nummer === nr) || null; }
-/** Einzelstücke, die zu einem Ticket gehören: die am Rad und das Einzelstück des Tickets selbst. */
+/** Nummern der Einzelstücke, die direkt am Ticket hängen (ab 12.0.0 beliebig viele). */
+function tStuecke(t){ return t.stuecke || (t.stueck_nummer ? [t.stueck_nummer] : []); }
+/** Einzelstücke, die zu einem Ticket gehören: die am Rad und die des Tickets selbst. */
 function ticketStuecke(t){
   const l = t.rad_id ? stueckAm(t.rad_id) : [];
-  const s = t.stueck_nummer ? stueckNr(t.stueck_nummer) : null;
-  if(s && l.indexOf(s) < 0) l.push(s);
+  tStuecke(t).forEach(nr => { const s = stueckNr(nr); if(s && l.indexOf(s) < 0) l.push(s); });
   return l;
+}
+/** Mehrere Einzelstücke kurz: „L-209 VR Scheibe · Mavic“ bzw. „3× VR Scheibe · Mavic, L-205 HR Scheibe“. */
+function stueckeKurz(nummern){
+  if(nummern.length === 1) return stueckText(nummern[0]);
+  const gr = {}, reihe = [];
+  nummern.forEach(nr => { const s = stueckNr(nr), k = s ? s.typ + (s.marke ? " · " + s.marke : "") : nr;
+                          if(!gr[k]){ gr[k] = []; reihe.push(k); } gr[k].push(nr); });
+  return reihe.map(k => gr[k].length > 1 ? gr[k].length + "× " + k : stueckText(gr[k][0])).join(", ");
 }
 function pruefOffen(t){ return ticketStuecke(t).filter(s => s.zustand === "zu prüfen"); }
 function stueckText(nr){ const s = stueckNr(nr); return s ? nr + " " + s.typ + (s.marke ? " · " + s.marke : "") : nr; }
@@ -623,18 +647,20 @@ function wer(t){
   if(f) return f;
   const r = t.rad_id ? rad(t.rad_id) : null;
   if(r) return r.fahrer || r.bezeichnung;
-  return t.stueck_nummer ? stueckText(t.stueck_nummer) : (t.rad_id || "");
+  const st = tStuecke(t);
+  return st.length ? stueckeKurz(st) : (t.rad_id || "");
 }
 /** Zweite Zeile eines Tickets: Rad und ggf. Einzelstück. */
 function ticketObjekt(t){
   const teile = [];
   if(t.rad_id) teile.push(radName(t.rad_id));
-  if(t.stueck_nummer && (t.rad_id || t.fahrer_id)) teile.push(stueckText(t.stueck_nummer));
-  if(!t.rad_id && !t.fahrer_id) teile.push("Einzelstück");
+  const st = tStuecke(t);
+  if(st.length && (t.rad_id || t.fahrer_id)) teile.push(st.length === 1 ? stueckText(st[0]) : st.join(", "));
+  if(!t.rad_id && !t.fahrer_id) teile.push(st.length > 1 ? st.join(", ") : "Einzelstück");
   return teile.join(" · ");
 }
 /** Offenes Ticket zu einem Einzelstück (nur offene stehen in DB.tickets). */
-function stueckTicket(nr){ return (DB.tickets||[]).find(t => t.stueck_nummer === nr) || null; }
+function stueckTicket(nr){ return (DB.tickets||[]).find(t => tStuecke(t).indexOf(nr) >= 0) || null; }
 function radName(id){ const r = rad(id); return r ? r.bezeichnung : id; }
 function amOrt(b, ort){ return ort === "Werkstatt" ? num(b.werkstatt) : ort === "Koffer Bahn" ? num(b.koffer_bahn) : num(b.koffer_strasse); }
 
@@ -749,7 +775,7 @@ function boardView(){
   let liste = offeneTickets();
   const q = view.suche.toLowerCase();
   const meins = t => t.status === "angenommen" && !!bearbeiter && t.uebernommen_von === bearbeiter;
-  if(q) liste = liste.filter(t => (wer(t) + " " + ticketObjekt(t) + " " + (t.stueck_nummer || "") + " " + t.problem + " " + schritte(t.id).map(schrittName).join(" ")).toLowerCase().indexOf(q) >= 0);
+  if(q) liste = liste.filter(t => (wer(t) + " " + ticketObjekt(t) + " " + tStuecke(t).join(" ") + " " + t.problem + " " + schritte(t.id).map(schrittName).join(" ")).toLowerCase().indexOf(q) >= 0);
   if(view.filter === "steht") liste = liste.filter(t => !t.fahrbereit);
   if(view.filter === "material") liste = liste.filter(t => fehlend(t).length > 0);
   if(view.filter === "ich") liste = liste.filter(meins);
@@ -790,6 +816,7 @@ async function ladeTicketVerlauf(mehr){
     const t = await rest("/ticket?status=in.(erledigt,storniert)&order=id.desc&limit=" + VERLAUF_SEITE + "&offset=" + (alt ? alt.liste.length : 0));
     const pos = t.length ? await rest("/ticket_position?ticket_id=in.(" + t.map(x => x.id).join(",") + ")&status=in.(gebucht,erledigt)&select=ticket_id,code,titel,menge,dauer_min,erledigt_am,erledigt_von,status&order=id") : [];
     t.forEach(x => x.schritte = pos.filter(p => p.ticket_id === x.id));
+    await stueckeAnTickets(t);
     ticketVerlauf = { liste:(alt ? alt.liste : []).concat(t), ende:t.length < VERLAUF_SEITE };
   }catch(e){ ticketVerlauf = alt ? Object.assign(alt, { laedt:false }) : "fehler"; toast(e.message, true); }
   if(view.tab === "tickets" && view.filter === "verlauf") render();
@@ -819,7 +846,7 @@ function verlaufView(){
 
   const q = view.suche.toLowerCase();
   let liste = v.liste.filter(t => verlaufArt === "alle" || t.status === verlaufArt);
-  if(q) liste = liste.filter(t => (tnr(t.id) + " " + wer(t) + " " + ticketObjekt(t) + " " + (t.stueck_nummer || "") + " " + t.problem + " " +
+  if(q) liste = liste.filter(t => (tnr(t.id) + " " + wer(t) + " " + ticketObjekt(t) + " " + tStuecke(t).join(" ") + " " + t.problem + " " +
                                    (t.erledigt_von || "") + " " + (t.storniert_von || "") + " " + t.schritte.map(verlaufSchritt).join(" ")).toLowerCase().indexOf(q) >= 0);
   if(!liste.length) h += '<div class="leer">' + (v.liste.length ? 'Nichts gefunden.' : 'Noch keine abgeschlossenen Tickets.') + '</div>';
   liste.forEach(t => {
@@ -992,15 +1019,22 @@ function detailView(id){
 
   h += fotoKarte(t);
 
-  const sa = ticketStuecke(t);
-  h += '<div class="card"><span class="lbl">' + (t.rad_id ? "Einzelstücke an diesem Rad" : "Einzelstück") + '</span>';
-  if(!sa.length) h += '<p class="sub" style="margin:0">Kein nummeriertes Teil zugeordnet.</p>';
+  const sa = ticketStuecke(t), eigen = tStuecke(t);
+  h += '<div class="card"><div class="row"><span class="lbl" style="margin:0;flex:1">Einzelstücke' + (t.rad_id ? ' · am Rad und am Ticket' : '') + '</span>' +
+       (DB.tsDa !== false ? '<button class="btn small" data-a="tsDazu"' + gesperrt + '>+ dazu</button>' : '') + '</div>';
+  if(!sa.length) h += '<p class="sub" style="margin:6px 0 0">Kein nummeriertes Teil zugeordnet.</p>';
   else {
-    h += '<div class="liste">';
+    h += '<div class="liste" style="margin-top:6px">';
     sa.forEach(s => {
-      h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.nummer) + '</strong> ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br><span class="sub">' + esc(s.detail || "") + '</span></div>';
+      const amTicket = eigen.indexOf(s.nummer) >= 0, amRad = !!t.rad_id && s.rad_id === t.rad_id;
+      const info = [amRad ? "am Rad" : "", s.detail || ""].filter(Boolean).join(" · ");
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.nummer) + '</strong> ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br><span class="sub">' + esc(info) + '</span></div>';
       h += s.zustand === "frei" ? '<span class="chip ok">frei</span>' : '<span class="chip alarm">' + esc(s.zustand) + '</span>';
-      h += '<button class="btn small" data-a="pruefen" data-x="' + esc(s.nummer) + '"' + gesperrt + '>' + (s.zustand === "frei" ? "prüfen" : "freigeben") + '</button></div>';
+      h += '<div class="knoepfe"><button class="btn small" data-a="pruefen" data-x="' + esc(s.nummer) + '"' + gesperrt + '>' + (s.zustand === "frei" ? "prüfen" : "freigeben") + '</button>';
+      // Herausnehmen nur, was direkt am Ticket hängt — und ohne Rad bleibt mindestens eins
+      if(amTicket && DB.tsDa !== false && (t.rad_id || eigen.length > 1))
+        h += '<button class="btn small" data-a="tsWeg" data-x="' + esc(s.nummer) + '" aria-label="' + esc(s.nummer) + ' aus dem Ticket nehmen"' + gesperrt + '>✕</button>';
+      h += '</div></div>';
     });
     h += '</div>';
     if(pr.length) h += '<p class="sub" style="margin:10px 0 0;color:var(--sprint)">Solange ein Teil auf „zu prüfen“ steht, lässt sich das Ticket nicht abschließen.</p>';
@@ -1016,6 +1050,30 @@ function detailView(id){
   if(fertigMat) h += '<p class="sub" style="margin:4px 0 0">Stornieren gibt nur die offenen Schritte frei — abgehaktes Material bleibt gebucht.</p>';
   h += '</div>';
   return h;
+}
+/** Einzelstücke an ein offenes Ticket nachtragen: Suche + Liste, Serien als eine Zeile. */
+let tsSuche = "";
+function tsDazuForm(){
+  const t = ticket(view.ticket); if(!t) return;
+  modal('<h3>Einzelstück dazunehmen</h3><p class="sub" style="margin-top:-6px">' + esc(tnr(t.id) + " · " + wer(t)) + ' — antippen nimmt es ins Ticket, es wird „zu prüfen“.</p>' +
+        '<input type="search" data-c="tsSuche" placeholder="Nummer, Typ oder Marke" value="' + esc(tsSuche) + '">' +
+        '<div id="tsListe" class="wahl-liste" style="margin-top:8px">' + tsListe(t) + '</div>' +
+        '<button class="btn voll" style="margin-top:12px" data-a="modalZu">Fertig</button>');
+}
+function tsListe(t){
+  const q = tsSuche.trim().toLowerCase(), eigen = tStuecke(t);
+  // nicht: schon dabei, am eigenen Rad (gehört ohnehin dazu), an einem anderen Rad, ausgemustert
+  const frei = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert" && eigen.indexOf(s.nummer) < 0 && !s.rad_id &&
+                                         (!q || [s.nummer, s.typ, s.marke, s.detail].join(" ").toLowerCase().indexOf(q) >= 0))
+    .sort((a, b) => a.nummer.localeCompare(b.nummer, "de", { numeric:true }));
+  if(!frei.length) return '<p class="sub" style="margin:8px 10px">' + (q ? "Nichts gefunden." : "Keine weiteren Einzelstücke ohne Rad.") + '</p>';
+  const gruppen = {}, reihe = [];
+  frei.forEach(s => { const k = serienSchluessel(s); if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); } gruppen[k].push(s); });
+  return reihe.map(k => { const g = gruppen[k], s0 = g[0];
+    return '<div class="wahl-zeile serie"><span class="txt">' + (g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '') + esc(s0.typ) + (s0.marke ? ' · ' + esc(s0.marke) : '') + '</span><span class="nummern">' +
+      g.map(s => '<button class="btn small' + (s.zustand !== "frei" ? " warnwahl" : "") + '" data-a="tsNimm" data-x="' + esc(s.nummer) + '" title="' + esc(s.zustand + " · " + s.ort) + '">' + esc(s.nummer) + (s.zustand !== "frei" ? " !" : "") + '</button>').join("") +
+      (g.length > 1 ? '<button class="btn small" data-a="tsNimm" data-x="' + esc(g.map(s => s.nummer).join(",")) + '">alle</button>' : '') + '</span></div>';
+  }).join("");
 }
 /** Karte „Arbeitsschritte“: Material oder Text, einzeln abhaken. */
 function schritteKarte(t, gesperrt){
@@ -1067,14 +1125,14 @@ function zeile(l, r){ return '<div class="row" style="padding:4px 0"><span>' + l
 /* ===============================================================
    Neues Ticket
    ===============================================================*/
-function neuStart(){ neu = { rad:"", stueck:"", problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[] }; }
+function neuStart(){ neu = { rad:"", stuecke:[], problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[] }; }
 function neuView(){
   if(!neu) neuStart();
   let h = '<button class="btn small" data-a="tab" data-x="tickets" style="margin-bottom:10px">← Alle Tickets</button>';
   h += '<h2 class="sec" style="margin-top:0">Neues Ticket</h2><div class="card">';
-  if(neu.stueck === undefined) neu.stueck = "";
+  if(!Array.isArray(neu.stuecke)) neu.stuecke = [];
   if(neu.wahlSuche === undefined) neu.wahlSuche = "";
-  h += '<div class="feld"><span class="lbl">Rad oder Einzelstück</span>' + wahlFeld() + '</div>';
+  h += '<div class="feld"><span class="lbl">Rad und/oder Einzelstücke</span>' + wahlFeld() + '</div>';
   h += '<div class="feld"><span class="lbl">Was ist passiert?</span><textarea data-c="nProblem" placeholder="Sturz, Lenker verbogen, Rahmen prüfen">' + esc(neu.problem) + '</textarea></div>';
   if(neu.rad){
     h += '<div class="feld"><span class="lbl">Rad noch fahrbereit?</span><div class="seg">';
@@ -2684,12 +2742,12 @@ function scanTreffer(ziel, code){
   if(mRad && ziel !== "neuRad" && ziel !== "neuStueck"){ piep(false); toast("Das ist der QR-Code von Rad " + code + " — oben mit dem Scan-Knopf scannen.", true); return; }
   if(ziel === "neuStueck" || (ziel === "neuRad" && stueckNr(code) && !rad(code))){
     if(!stueckNr(code)){ piep(false); toast("Unbekanntes Einzelstück: " + code, true); return; }
-    neu.rad = ""; neu.wahlSuche = ""; neuStueckWaehlen(code); return;
+    neu.wahlSuche = ""; if(neuStueckWaehlen(code, true)) toast(code + " gewählt"); render(); return;
   }
   if(ziel === "neuRad"){
     const r = rad(code) || (DB.raeder||[]).find(x => x.rahmennummer === code);
     if(!r){ piep(false); toast("Unbekanntes Rad: " + code, true); return; }
-    neu.rad = r.id; neu.stueck = ""; neu.wahlSuche = ""; render(); toast("Rad: " + (r.fahrer || r.bezeichnung)); return;
+    radImNeuen(r.id); neu.wahlSuche = ""; render(); toast("Rad: " + (r.fahrer || r.bezeichnung)); return;
   }
   const a = artikel(code);
   if(ziel === "inventur"){
@@ -2777,28 +2835,35 @@ function tAendern(felder, meldung){
    die Nummern stehen als Knöpfe darin.
 ----------------------------------------------------------------*/
 function wahlFeld(){
-  if(neu.rad || neu.stueck){
-    const r = neu.rad ? rad(neu.rad) : null, st = neu.stueck ? stueckNr(neu.stueck) : null;
-    let h = '<div class="wahl-gewaehlt"><div class="txt">';
-    if(r) h += '<strong>' + esc(r.fahrer || r.bezeichnung) + '</strong>' + (r.fahrer ? ' <span class="sub">' + esc(r.bezeichnung) + '</span>' : '');
-    if(st) h += (r ? '<br>' : '') + '<strong>' + esc(st.nummer) + '</strong> ' + esc(st.typ) + (st.marke ? ' · ' + esc(st.marke) : '') + (r ? '' : ' <span class="sub">· nicht am Rad</span>');
-    h += '</div><button class="btn small" data-a="nWahlReset">ändern</button></div>';
-    // Teile am gewählten Rad: optional als betroffen markieren
+  const r = neu.rad ? rad(neu.rad) : null, st = neu.stuecke;
+  let h = "";
+  if(r || st.length){
     const am = r ? stueckAm(r.id) : [];
+    h += '<div class="wahl-gewaehlt-liste">';
+    if(r) h += '<div class="wahl-gewaehlt"><div class="txt"><strong>' + esc(r.fahrer || r.bezeichnung) + '</strong>' + (r.fahrer ? ' <span class="sub">' + esc(r.bezeichnung) + '</span>' : '') +
+               '</div><button class="btn small" data-a="nRadWeg" aria-label="Rad entfernen">✕</button></div>';
+    st.filter(nr => !am.some(x => x.nummer === nr)).forEach(nr => {
+      const x = stueckNr(nr);
+      h += '<div class="wahl-gewaehlt"><div class="txt"><strong>' + esc(nr) + '</strong> ' + esc(x ? x.typ + (x.marke ? " · " + x.marke : "") : "") + '</div>' +
+           '<button class="btn small" data-a="nWahlStueck" data-x="' + esc(nr) + '" aria-label="' + esc(nr) + ' entfernen">✕</button></div>';
+    });
+    h += '</div>';
+    // Teile am gewählten Rad: einzeln als betroffen markieren
     if(am.length){
-      h += '<div class="row wrapr" style="gap:6px;margin-top:8px"><span class="sub">Betrifft ein Teil am Rad?</span>';
-      am.forEach(x => h += '<button class="btn small' + (neu.stueck === x.nummer ? " primary" : "") + '" data-a="nTeil" data-x="' + esc(x.nummer) + '">' + esc(x.nummer) + ' ' + esc(x.typ) + '</button>');
+      h += '<div class="row wrapr" style="gap:6px;margin-top:8px"><span class="sub">Teile am Rad betroffen?</span>';
+      am.forEach(x => h += '<button class="btn small' + (st.indexOf(x.nummer) >= 0 ? " primary" : "") + '" data-a="nTeil" data-x="' + esc(x.nummer) + '" aria-pressed="' + (st.indexOf(x.nummer) >= 0) + '">' + esc(x.nummer) + ' ' + esc(x.typ) + '</button>');
       h += '</div>';
     }
-    if(st){
-      const tk = stueckTicket(st.nummer);
-      h += '<p class="sub" style="margin:6px 0 0">' + esc(st.nummer) + ' wird beim Anlegen auf „zu prüfen“ gesetzt' + (st.zustand !== "frei" ? ' (steht schon auf „' + esc(st.zustand) + '“)' : '') + '.' +
-           (tk ? ' <strong style="color:var(--warn)">Für dieses Teil gibt es schon ' + tnr(tk.id) + '.</strong>' : '') + '</p>';
+    if(st.length){
+      const schon = st.map(nr => { const tk = stueckTicket(nr); return tk ? nr + " → " + tnr(tk.id) : ""; }).filter(Boolean);
+      h += '<p class="sub" style="margin:6px 0 0">' + esc(st.join(", ")) + (st.length === 1 ? ' wird' : ' werden') + ' beim Anlegen auf „zu prüfen“ gesetzt.' +
+           (schon.length ? ' <strong style="color:var(--warn)">Schon in einem offenen Ticket: ' + esc(schon.join(", ")) + '.</strong>' : '') + '</p>';
     }
-    return h;
+    if(!neu.pickerOffen) return h + '<button class="btn small" style="margin-top:8px" data-a="nPickerAuf">+ ' + (r ? 'Laufrad / Einzelstück dazu' : 'weiteres Einzelstück') + '</button>';
+    h += '<div class="row" style="margin:12px 0 6px"><span class="sub" style="flex:1">Weitere dazu — Nummer antippen wählt sie an oder ab.</span><button class="btn small" data-a="nPickerZu">Liste zu</button></div>';
   }
-  return '<div class="row" style="gap:8px"><button class="btn small" data-a="scan" data-x="neuRad">Scannen</button>' +
-         '<input type="search" data-c="nWahlSuche" placeholder="Fahrer, Rad oder Nummer (z. B. L-203)" value="' + esc(neu.wahlSuche) + '" style="flex:1"></div>' +
+  return h + '<div class="row" style="gap:8px"><button class="btn small" data-a="scan" data-x="neuRad">Scannen</button>' +
+         '<input type="search" data-c="nWahlSuche" placeholder="' + (r ? 'Nummer oder Typ (z. B. L-209)' : 'Fahrer, Rad oder Nummer (z. B. L-203)') + '" value="' + esc(neu.wahlSuche) + '" style="flex:1"></div>' +
          '<div id="wahlListe" class="wahl-liste">' + wahlListe() + '</div>';
 }
 function wahlListe(){
@@ -2806,7 +2871,7 @@ function wahlListe(){
   const passt = t => !q || t.toLowerCase().indexOf(q) >= 0;
   let h = "";
   // Räder
-  const raeder = (DB.raeder||[]).filter(r => r.aktiv && passt([r.fahrer, r.bezeichnung, r.id, r.marke].join(" ")))
+  const raeder = neu.rad ? [] : (DB.raeder||[]).filter(r => r.aktiv && passt([r.fahrer, r.bezeichnung, r.id, r.marke].join(" ")))
     .sort((a,b) => (a.fahrer ? 0 : 1) - (b.fahrer ? 0 : 1) || (a.fahrer || a.bezeichnung).localeCompare(b.fahrer || b.bezeichnung, "de"));
   if(raeder.length){
     h += '<div class="wahl-kopf">Räder</div>';
@@ -2826,7 +2891,8 @@ function wahlListe(){
   // stehen zugeklappt nach Kategorie, damit die Liste kurz bleibt.
   const lose = aktiv.filter(s => !s.rad_id);
   if(lose.length){
-    h += '<button class="wahl-kopf klapp" data-a="nLoseAuf">' + (neu.loseOffen ? "▾" : "▸") + ' Einzelstücke ohne Rad · ' + lose.length + '</button>';
+    h += '<button class="wahl-kopf klapp" data-a="nLoseAuf">' + (neu.loseOffen ? "▾" : "▸") + ' Einzelstücke ohne Rad · ' + lose.length +
+         (neu.stuecke.length ? ' <span class="sub">· ' + neu.stuecke.length + ' gewählt</span>' : '') + '</button>';
     if(neu.loseOffen){
       const kats = {};
       lose.forEach(s => (kats[stueckKategorie(s.nummer)] = kats[stueckKategorie(s.nummer)] || []).push(s));
@@ -2837,7 +2903,7 @@ function wahlListe(){
       });
     }
   }
-  h += '<p class="sub wahl-tipp">Teile an einem Rad: erst das Rad wählen. Nummer tippen oder scannen findet jedes Teil.</p>';
+  if(!neu.rad) h += '<p class="sub wahl-tipp">Teile an einem Rad: erst das Rad wählen. Nummer tippen oder scannen findet jedes Teil. Mehrere Einzelstücke (z. B. Laufräder) einfach nacheinander antippen.</p>';
   return h;
 }
 /** Einzelstücke nach Serie gebündelt: eine Zeile je Serie, Nummern als Knöpfe. */
@@ -2847,37 +2913,64 @@ function wahlSerien(teile){
   let h = "";
   reihe.forEach(k => {
     const g = gruppen[k], s0 = g[0];
+    const alleGew = g.every(s => neu.stuecke.indexOf(s.nummer) >= 0);
     h += '<div class="wahl-zeile serie"><span class="txt">' + (g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '') + esc(s0.typ) + (s0.marke ? ' · ' + esc(s0.marke) : '') + '</span><span class="nummern">';
     g.forEach(s => {
-      const r = s.rad_id ? rad(s.rad_id) : null;
-      h += '<button class="btn small' + (s.zustand !== "frei" ? " warnwahl" : "") + '" data-a="nWahlStueck" data-x="' + esc(s.nummer) + '" title="' +
+      const r = s.rad_id ? rad(s.rad_id) : null, gew = neu.stuecke.indexOf(s.nummer) >= 0;
+      h += '<button class="btn small' + (gew ? " primary" : s.zustand !== "frei" ? " warnwahl" : "") + '" data-a="nWahlStueck" data-x="' + esc(s.nummer) + '" aria-pressed="' + gew + '" title="' +
            esc(s.zustand + (r ? " · an " + (r.fahrer || r.bezeichnung) : " · " + s.ort)) + '">' + esc(s.nummer) + (s.zustand !== "frei" ? " !" : "") +
            (r ? ' <span class="sub">· ' + esc(r.fahrer || r.bezeichnung) + '</span>' : '') + '</button>';
     });
+    if(g.length > 1) h += '<button class="btn small" data-a="nWahlSerie" data-x="' + esc(g.map(s => s.nummer).join(",")) + '">' + (alleGew ? "keins" : "alle") + '</button>';
     h += '</span></div>';
   });
   return h;
 }
 
-/** Einzelstück im neuen Ticket wählen; steckt es an einem Rad, wird das Rad mit übernommen. */
-function neuStueckWaehlen(nr){
-  neu.stueck = nr || "";
-  const s = nr ? stueckNr(nr) : null;
-  if(s && s.rad_id && neu.rad !== s.rad_id){
+/** Rad im neuen Ticket wählen: Teile, die an einem anderen Rad stecken, fallen raus. Die Liste klappt zu. */
+function radImNeuen(id){
+  neu.rad = id;
+  neu.stuecke = neu.stuecke.filter(n => { const x = stueckNr(n); return !x || !x.rad_id || x.rad_id === id; });
+  neu.pickerOffen = false;
+}
+/** Einzelstück im neuen Ticket dazunehmen; steckt es an einem Rad, wird das Rad mit übernommen.
+    Gibt false zurück, wenn es nicht dazu passt. */
+function neuStueckWaehlen(nr, ohneRender){
+  const s = stueckNr(nr); if(!s) return false;
+  if(s.rad_id && neu.rad && neu.rad !== s.rad_id){
+    const r = rad(s.rad_id);
+    toast(nr + " steckt am Rad von " + (r ? (r.fahrer || r.bezeichnung) : s.rad_id) + " — passt nicht zu diesem Ticket.", true);
+    return false;
+  }
+  if(neu.stuecke.indexOf(nr) < 0){
+    if(neu.stuecke.length && DB.tsDa === false){ toast("Mehrere Einzelstücke je Ticket gehen erst nach dem Datenbank-Update 12.0.0.", true); return false; }
+    neu.stuecke.push(nr);
+  }
+  if(s.rad_id && !neu.rad){
     neu.rad = s.rad_id;
     const r = rad(s.rad_id);
     toast("Rad übernommen: " + (r ? (r.fahrer || r.bezeichnung) : s.rad_id));
   }
-  render();
+  if(!ohneRender) render();
+  return true;
+}
+/** Antippen in der Liste: an- oder abwählen. */
+function neuStueckUmschalten(nr){
+  const i = neu.stuecke.indexOf(nr);
+  if(i >= 0){ neu.stuecke.splice(i, 1); render(); }
+  else neuStueckWaehlen(nr);
 }
 async function ticketAnlegen(){
-  if(!neu.rad && !neu.stueck){ toast("Erst ein Rad oder ein Einzelstück wählen oder scannen.", true); return; }
+  if(!neu.rad && !neu.stuecke.length){ toast("Erst ein Rad oder ein Einzelstück wählen oder scannen.", true); return; }
   if(!neu.problem.trim()){ toast("Bitte kurz beschreiben, was ist.", true); return; }
-  const op = { p_rad:neu.rad || null, p_stueck:neu.stueck || null, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
+  const op = { p_rad:neu.rad || null, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
     p_soll_fertig:neu.soll_fertig, p_naechstmoeglich:neu.naechstmoeglich, p_anlass:neu.anlass || null,
     p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos, p_bearbeiter:bearbeiter || null, p_client_id:neueId() };
+  // Ein Teil: p_stueck (geht mit und ohne Migration 12.0.0); mehrere: p_stuecke.
+  if(neu.stuecke.length === 1) op.p_stueck = neu.stuecke[0];
+  else if(neu.stuecke.length > 1) op.p_stuecke = neu.stuecke.slice();
   if(neu.fotos && neu.fotos.length) op._fotos = neu.fotos;
-  const r = neu.rad ? rad(neu.rad) : null, name = r ? (r.fahrer || r.bezeichnung) : (neu.stueck ? stueckText(neu.stueck) : neu.rad);
+  const r = neu.rad ? rad(neu.rad) : null, name = r ? (r.fahrer || r.bezeichnung) : (neu.stuecke.length ? stueckeKurz(neu.stuecke) : neu.rad);
   if(!neu.rad) op.p_fahrbereit = true;   // ohne Rad gibt es kein „Rad steht“
   if(offline){
     const mitFotos = inWarteschlange(op);
@@ -2927,8 +3020,9 @@ async function exportiere(was){
     }
     if(was === "tickets"){
       const t = await rest("/ticket?order=id");
-      t.forEach(x => { x.nr = tnr(x.id); x.fahrer = x.fahrer_id ? sportlerName(x.fahrer_id) : ""; x.kostentraeger = x.kostentraeger_id ? sportlerName(x.kostentraeger_id) : ""; });
-      download("tickets_" + d + ".csv", csv(t, ["nr","angelegt","rad_id","stueck_nummer","fahrer","problem","fahrbereit","aufwand","soll_fertig","naechstmoeglich","anlass","kostentraeger","arbeitsort","status","angelegt_von","uebernommen_von","erledigt_von","erledigt_am","storniert_von","storniert_am"]));
+      await stueckeAnTickets(t);
+      t.forEach(x => { x.einzelstuecke = tStuecke(x).join(", "); x.nr = tnr(x.id); x.fahrer = x.fahrer_id ? sportlerName(x.fahrer_id) : ""; x.kostentraeger = x.kostentraeger_id ? sportlerName(x.kostentraeger_id) : ""; });
+      download("tickets_" + d + ".csv", csv(t, ["nr","angelegt","rad_id","einzelstuecke","fahrer","problem","fahrbereit","aufwand","soll_fertig","naechstmoeglich","anlass","kostentraeger","arbeitsort","status","angelegt_von","uebernommen_von","erledigt_von","erledigt_am","storniert_von","storniert_am"]));
     }
   }catch(e){ toast(e.message, true); }
 }
@@ -3476,12 +3570,20 @@ const A = {
   export: x => exportiere(x),
 
   /* Neues Ticket: Rad oder Einzelstück */
-  nWahlRad: x => { neu.rad = x; neu.stueck = ""; neu.wahlSuche = ""; render(); },
-  nWahlStueck: x => { neu.rad = ""; neu.wahlSuche = ""; neuStueckWaehlen(x); },
-  nWahlReset: () => { neu.rad = ""; neu.stueck = ""; render(); setTimeout(() => { const e = document.querySelector('[data-c="nWahlSuche"]'); if(e) e.focus(); }, 0); },
+  nWahlRad: x => { radImNeuen(x); neu.wahlSuche = ""; render(); },
+  nWahlStueck: x => { if(!neu.rad && !neu.stuecke.length) neu.pickerOffen = true; neuStueckUmschalten(x); },
+  nWahlSerie: x => {
+    const l = x.split(","), alle = l.every(n => neu.stuecke.indexOf(n) >= 0);
+    if(alle) neu.stuecke = neu.stuecke.filter(n => l.indexOf(n) < 0);
+    else l.forEach(n => neuStueckWaehlen(n, true));
+    neu.pickerOffen = true; render();
+  },
+  nRadWeg: () => { const alt = neu.rad; neu.rad = ""; neu.stuecke = neu.stuecke.filter(n => (stueckNr(n) || {}).rad_id !== alt); render(); },
+  nPickerAuf: () => { neu.pickerOffen = true; neu.loseOffen = true; render(); },
+  nPickerZu: () => { neu.pickerOffen = false; neu.wahlSuche = ""; render(); },
   nLoseAuf: () => { neu.loseOffen = !neu.loseOffen; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); },
   nKatAuf: x => { neu.katOffen = neu.katOffen || {}; neu.katOffen[x] = !neu.katOffen[x]; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); },
-  nTeil: x => { neu.stueck = neu.stueck === x ? "" : x; render(); },
+  nTeil: x => neuStueckUmschalten(x),
 
   /* Fotos */
   fotoZeigen: x => fotoZeigen(Number(x)),
@@ -3599,6 +3701,18 @@ const A = {
     aktion(() => rpc("ticket_anlegen", { p_rad:s.rad_id || null, p_stueck:x, p_problem:problem, p_fahrbereit:s.rad_id ? stFahrbereit : true,
                                          p_bearbeiter:bearbeiter || null, p_client_id:neueId() }),
            id => "Ticket " + tnr(id) + " angelegt");
+  },
+  tsDazu: () => { tsSuche = ""; tsDazuForm(); },
+  tsNimm: async x => {
+    const t = ticket(view.ticket); if(!t) return;
+    const l = x.split(",");
+    const r = await aktion(() => rpc("ticket_stuecke_aendern", { p_ticket:t.id, p_mit:l }), l.join(", ") + " im Ticket");
+    if(r !== undefined && ticket(t.id)) tsDazuForm();   // offen lassen, um weitere dazuzunehmen
+  },
+  tsWeg: x => {
+    const t = ticket(view.ticket); if(!t) return;
+    if(!confirm(stueckText(x) + " aus " + tnr(t.id) + " nehmen?")) return;
+    aktion(() => rpc("ticket_stuecke_aendern", { p_ticket:t.id, p_ohne:[x] }), x + " aus dem Ticket genommen");
   },
   zumTicket: x => { view.tab = "tickets"; view.ticket = Number(x); view.suche = ""; render(); window.scrollTo(0,0); },
   katKlapp: x => {
@@ -3885,6 +3999,7 @@ document.addEventListener("input", ev => {
   if(c === "nProblem" || c === "nAnlass") C[c](el.value);
   if(c === "nrVorschau") vorschauNummer();
   if(c === "nWahlSuche"){ neu.wahlSuche = el.value; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); }
+  if(c === "tsSuche"){ tsSuche = el.value; const t = ticket(view.ticket), l = $("tsListe"); if(l && t) l.innerHTML = tsListe(t); }
 });
 /* Inventur: Enter übernimmt die Zahl und springt zur nächsten Zeile. */
 document.addEventListener("keydown", ev => {

@@ -1,12 +1,11 @@
 # Version
 
-**11.0.0** — 05.10.2026
+**12.0.0** — 05.10.2026
 
-Tags statt Unterkategorien: Tags gehören weiter zu einer Kategorie, ein
-Artikel oder Einzelstück kann aber mehrere Tags seiner Kategorie haben
-(z. B. Kettenblattschrauben unter „Kurbel“ und „Kleinteile“). Bedienung wie
-bisher: Kategorie antippen → ihre Tags. Bisherige Unterkategorien werden
-als Tags übernommen. Datenbank-Änderung (Migration nötig).
+Mehrere Einzelstücke je Ticket: z. B. ein Ticket für alle drei Mavic-VR,
+oder nach einem Sturz Rad + Laufräder in einem Ticket. Ein Rad je Ticket
+bleibt (Fahrer, Kostenträger). Teile lassen sich am offenen Ticket
+nachtragen oder herausnehmen. Datenbank-Änderung (Migration nötig).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -15,6 +14,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 12.0.0 | 05.10.2026 | Mehrere Einzelstücke je Ticket (z. B. Rad + Laufräder) |
 | 11.0.0 | 05.10.2026 | Tags statt Unterkategorien (mehrere je Artikel/Teil) |
 | 10.1.0 | 05.10.2026 | Werkstattmaterial: eigener Filter im Lager, „−“ = Entnahme |
 | 10.0.0 | 05.10.2026 | Unterkategorien, Filter Kategorie → Unterkategorie |
