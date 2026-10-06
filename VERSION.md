@@ -1,12 +1,12 @@
 # Version
 
-**15.0.0** — 06.10.2026
+**16.0.0** — 06.10.2026
 
-Lagerorte selbst anlegen: Werkstatt-Manager legen unter Mehr → Lagerorte
-Räume (zählen zum Lager) und Koffer/Werkzeugkästen (Packliste mit
-Soll/Ist) an, benennen sie um, sortieren, deaktivieren oder löschen sie.
-Die Werkstatt bleibt fester Hauptraum. Migration nötig (neue Tabelle,
-Spalten auf text, Sicht v_bestand umgebaut).
+Bekleidung: Artikel mit Größen, Bestand je Größe, Ausleihe an Sportler
+und Rückgabe (nie berechnet), eigener Reiter Material → Bekleidung,
+Lagerort-Art „Bekleidung“. Dazu die Lager-Übersicht als Kacheln (zwei pro
+Reihe, „alle Orte“ oben) und Aufräumen unter Mehr → Lagerorte.
+Migration nötig (neue Spalten, Buchungsarten, Sichten, Funktionen).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -15,6 +15,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 16.0.0 | 06.10.2026 | Bekleidung (Größen, Ausleihe/Rückgabe), Lager-Kacheln, Lagerorte aufgeräumt (enthält die nicht einzeln gelieferte 15.0.1) |
 | 15.0.0 | 06.10.2026 | Lagerorte selbst anlegen (Räume, Koffer/Werkzeugkästen), Raum-Filter im Lager |
 | 14.3.0 | 06.10.2026 | Neues Ticket aufgeräumt, Räder nach Typ klappbar, allgemeine Tickets ohne Rad |
 | 14.2.0 | 06.10.2026 | Höchstens 5 Fotos pro Ticket, Fotos nach 30 Tagen löschen, Sportler: ein offenes Ticket pro Rad |

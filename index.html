@@ -242,6 +242,24 @@
   /* Lager → Orte (Werkstatt, Koffer als Unterbereiche) */
   .orte .zeile-btn{padding:10px 0 10px 28px}
   .orte .kopfzeile{display:flex;align-items:center;gap:10px;padding:2px 0 10px}
+  .orte .gruppe{font-size:12px;color:var(--ink-2);margin:6px 0 6px}
+  .orte .kacheln{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 10px}
+  .orte .kachel{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;padding:10px 12px;border:1px solid var(--line);
+                border-radius:10px;background:var(--card);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+  .orte .kachel .titel{font-weight:600;overflow-wrap:anywhere}
+  .orte .kachel .sub{font-size:12px}
+  .orte .kachel .chip{margin-top:3px}
+  .orte .kachel[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .orte .kachel.fest{cursor:default}
+  table.gr{border-collapse:collapse;font-size:13px;margin:6px 0 2px}
+  table.gr th,table.gr td{padding:4px 8px;text-align:center;border-top:1px solid var(--line);white-space:nowrap}
+  table.gr th{font-weight:600;color:var(--ink-2);border-top:none}
+  table.gr td.knapp{color:var(--sprint);font-weight:700}
+  table.gr td.zl{text-align:left;color:var(--ink-2);font-size:12px;padding-left:0}
+  .grwahl{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  .grwahl button{min-width:52px;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--card);font:inherit;cursor:pointer;padding:4px 8px}
+  .grwahl button small{display:block;font-size:11px;color:var(--ink-2)}
+  .grwahl button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
   .vbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:#EFEDE9;margin-top:6px;max-width:260px}
   .vbar > span{display:block;height:6px}
 
@@ -311,7 +329,7 @@
    Anmeldung mit Name + PIN (Konten in der Datenbank, seit 14.0.0).
    ===============================================================*/
 
-const APP_VERSION = "15.0.0";
+const APP_VERSION = "16.0.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -323,7 +341,7 @@ let DB = null;             // frisch geladene Daten
 let stand = null;          // Zeitpunkt des letzten erfolgreichen Ladens
 let offline = false;       // true = Anzeige zeigt einen alten Stand
 // tab: tickets | neu | material | raeder | mehr
-let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", mat:"lager", koffer:null, lOrt:"", matFilter:"alle", rt:"raeder", rad:null, mehr:null };
+let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", mat:"lager", koffer:null, lOrt:"", kOrt:"", ortAus:false, matFilter:"alle", rt:"raeder", rad:null, mehr:null };
 let neu = null;            // Entwurf neues Ticket
 let jwt = null, jwtExp = 0;
 let bearbeiter = "";       // Name der aktiven Person (aus der Sitzung, siehe Konten)
@@ -487,11 +505,18 @@ async function ladeAlles(){
     rest("/kategorie?order=buchstabe").catch(ohneTabelle),
     // Lagerorte (ab 15.0.0)
     rest("/lagerort?order=reihenfolge,name").catch(ohneTabelle),
-    rest("/v_bestand_ort").catch(ohneTabelle)
+    rest("/v_bestand_ort").catch(ohneTabelle),
+    // Bekleidung (ab 16.0.0)
+    rest("/v_bestand_groesse").catch(ohneTabelle),
+    rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle)
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, standort, rechnungen, offenePosten, zaehlung, bestellungen, tags, artikelTags, stueckTags, kats, lagerorteRoh, bestandOrtRoh] = await Promise.all(q);
+  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, standort, rechnungen, offenePosten, zaehlung, bestellungen, tags, artikelTags, stueckTags, kats, lagerorteRoh, bestandOrtRoh, groesseRoh, ausgeliehen] = await Promise.all(q);
   if(!Array.isArray(lagerorteRoh) || !Array.isArray(bestandOrtRoh))
     throw new Error("Für 15.0.0 muss die Datenbank aktualisiert werden: db/migration_15.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
+  if(!Array.isArray(groesseRoh) || !Array.isArray(ausgeliehen))
+    throw new Error("Für 16.0.0 muss die Datenbank aktualisiert werden: db/migration_16.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
+  const groesseBestand = {};   // { code: { ort: { groesse|"": menge } } }
+  groesseRoh.forEach(z => { const c = groesseBestand[z.code] = groesseBestand[z.code] || {}; (c[z.ort] = c[z.ort] || {})[z.groesse || ""] = num(z.menge); });
   const bestandOrt = {};
   bestandOrtRoh.forEach(z => (bestandOrt[z.code] = bestandOrt[z.code] || {})[z.ort] = num(z.menge));
   const kofferAktiv = lagerorteRoh.filter(o => o.aktiv && o.art === "koffer").map(o => o.name);
@@ -505,7 +530,7 @@ async function ladeAlles(){
   const mitTags = Array.isArray(tags) && Array.isArray(artikelTags) && Array.isArray(stueckTags);
   STANDORT = standort[0] || null;
   DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, termine, rechnungen, offenePosten, zaehlung, bestellungen,
-         koffer:koffer.filter(k => kofferAktiv.indexOf(k.ort) >= 0), lagerorte:lagerorteRoh, bestandOrt,
+         koffer:koffer.filter(k => kofferAktiv.indexOf(k.ort) >= 0), lagerorte:lagerorteRoh, bestandOrt, groesseBestand, ausgeliehen,
          tags:mitTags ? tags : null, artikelTags:mitTags ? artikelTags : [], stueckTags:mitTags ? stueckTags : [], tsDa,
          kategorien:Array.isArray(kats) ? kats : null };
   stand = new Date();
@@ -683,12 +708,14 @@ const ORTE_ALT = [{ id:0, name:"Werkstatt", art:"raum", haupt:true, aktiv:true, 
 /** Lagerorte: Hauptraum, weitere Räume, dann Koffer — je in der eingestellten Reihenfolge. alle = auch deaktivierte. */
 function lagerorte(alle){
   const l = (DB && Array.isArray(DB.lagerorte)) ? DB.lagerorte : ORTE_ALT;
+  const rang = { raum:0, bekleidung:1, koffer:2 };
   return l.filter(o => alle || o.aktiv).slice().sort((a, b) =>
-    (b.haupt ? 1 : 0) - (a.haupt ? 1 : 0) || (a.art === b.art ? 0 : a.art === "raum" ? -1 : 1) ||
+    (b.haupt ? 1 : 0) - (a.haupt ? 1 : 0) || (num(rang[a.art]) - num(rang[b.art])) ||
     num(a.reihenfolge) - num(b.reihenfolge) || a.name.localeCompare(b.name, "de"));
 }
 function orte(){ return lagerorte().map(o => o.name); }
 function raumOrte(){ return lagerorte().filter(o => o.art === "raum").map(o => o.name); }
+function kleiderOrte(){ return lagerorte().filter(o => o.art === "bekleidung").map(o => o.name); }
 function kofferOrte(){ return lagerorte().filter(o => o.art === "koffer").map(o => o.name); }
 function lagerort(name){ return ((DB && Array.isArray(DB.lagerorte)) ? DB.lagerorte : ORTE_ALT).find(o => o.name === name) || null; }
 function istKoffer(name){ const o = lagerort(name); return !!o && o.art === "koffer"; }
@@ -762,6 +789,25 @@ function reserviertAm(code, ort, tid){
   });
   return s;
 }
+/* Bekleidung (ab 16.0.0): Artikel mit Größenliste, Bestand je Größe, Ausleihe an Sportler. */
+function groessen(code){ const a = artikel(code); return a && Array.isArray(a.groessen) && a.groessen.length ? a.groessen : null; }
+function hatGroessen(code){ return !!groessen(code); }
+/** Bestand einer Größe an einem Ort ("" = ohne Größe). */
+function amOrtGr(code, ort, gr){ const z = ((DB.groesseBestand || {})[code] || {})[ort]; return z ? num(z[gr || ""]) : 0; }
+/** Spalten für die Größen-Tabelle: Größenliste + Altbestand ohne/mit entfernter Größe an diesem Ort (oder allen Orten). */
+function groessenSpalten(code, ort){
+  const g = (groessen(code) || []).slice(), c = (DB.groesseBestand || {})[code] || {};
+  (ort ? [ort] : Object.keys(c)).forEach(o => Object.keys(c[o] || {}).forEach(k => { if(num(c[o][k]) !== 0 && g.indexOf(k) < 0) g.push(k); }));
+  return g;
+}
+function grName(gr){ return gr ? gr : "ohne Größe"; }
+/** Ausgeliehen: Summe je Artikel (und Größe), optional für einen Sportler. */
+function verliehen(code, gr, sportlerId){
+  return (DB.ausgeliehen || []).filter(z => z.code === code && (gr === undefined || (z.groesse || "") === gr) &&
+                                            (sportlerId === undefined || z.sportler_id === sportlerId)).reduce((m, z) => m + num(z.menge), 0);
+}
+function ausgeliehenVon(sportlerId){ return (DB.ausgeliehen || []).filter(z => z.sportler_id === sportlerId && num(z.menge) > 0); }
+
 /** Orte, an denen der Artikel liegt, in der Reihenfolge der Lagerorte: [[Ort, Menge], …] */
 function verteilung(b){
   const z = (DB.bestandOrt || {})[b.code] || {}, bekannt = lagerorte(true).map(o => o.name);
@@ -1030,7 +1076,7 @@ function schaetzText(sch){
   return "≈ " + dauerText(sch.min) + (sch.schritte > 1 ? " (" + dauerText(sch.arbeit) + " Arbeit + " + (sch.schritte - 1) + " × " + WECHSEL_MIN + " min Wechsel)" : "");
 }
 /** Vormerkbar sind Stück-Artikel und Leistungen — Vorrat (Bremsöl, Fett …) zieht die Leistung selbst ab. */
-function vormerkbar(a){ return a.aktiv && a.art !== "Vorrat" && !istWMat(a.code); }
+function vormerkbar(a){ return a.aktiv && a.art !== "Vorrat" && !istWMat(a.code) && !(Array.isArray(a.groessen) && a.groessen.length); }
 /** Werkstattmaterial (Kategorie W: Klebeband, Kabelbinder, Stifte …) — nur zum Überblick,
     wird nicht an Tickets, Räder oder Sportler gebucht und nicht berechnet. */
 const W_MAT = "W";
@@ -1312,11 +1358,13 @@ function materialView(){
   const nb = bestellBedarf().filter(x => x.rest > 0).length;
   let h = '<div class="seg" style="margin-bottom:12px">';
   h += segBtn("mat", "lager", "Lager", view.mat);
+  if(kleiderOrte().length || view.mat === "kleidung") h += segBtn("mat", "kleidung", "Bekleidung", view.mat);
   h += segBtn("mat", "bestellen", "Bestellen" + (nb ? " · " + nb : ""), view.mat);
   h += segBtn("mat", "inventur", inv ? "Inventur ●" : "Inventur", view.mat);
   h += '</div>';
   if(view.mat === "bestellen") return h + bestellView();
   if(view.mat === "inventur") return h + (inv ? inventurView() : invStartView());
+  if(view.mat === "kleidung") return h + kleidungView();
   return h + lagerView();
 }
 function lagerView(){
@@ -1331,19 +1379,19 @@ function lagerView(){
   if(view.lOrt && raumOrte().indexOf(view.lOrt) < 0) view.lOrt = "";
   const imOrt = view.lOrt;
   let h = view.suche ? '' : orteBlock();
-  if(imOrt) h += '<div class="banner" style="background:var(--card);border:1px solid var(--line)">Nur <strong>' + esc(imOrt) + '</strong> — Artikel, die dort liegen ' +
+  if(imOrt && view.suche) h += '<div class="banner" style="background:var(--card);border:1px solid var(--line)">Nur <strong>' + esc(imOrt) + '</strong> — Artikel, die dort liegen ' +
                  '<button class="btn small" data-a="ortFilter" data-x="" style="margin-left:6px">alle Orte</button></div>';
   h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
   h += '<div class="row wrapr" style="gap:6px;margin-bottom:10px">';
-  const knoepfe = [["alle", "Alle · " + haupt.length], ["bestellen", "zu bestellen · " + Object.keys(zuBestellen).length], ["reserviert", "reserviert · " + res.length]];
+  const knoepfe = [["alle", "Alle · " + (imOrt ? aktiv.filter(b => amOrt(b, imOrt) !== 0).length : haupt.length)], ["bestellen", "zu bestellen · " + Object.keys(zuBestellen).length], ["reserviert", "reserviert · " + res.length]];
   if(wMat.length || imW) knoepfe.push(["werkstatt", "Werkstattmaterial · " + wMat.length]);
   knoepfe.forEach(x => h += '<button class="btn small' + (view.matFilter === x[0] ? " primary" : "") + '" data-a="matFilter" data-x="' + x[0] + '">' + x[1] + '</button>');
   h += '</div>';
   if(imW) h += '<p class="sub" style="margin:-4px 0 10px">Nur zum Überblick — wird nicht an Sportler oder Räder gebucht und nicht berechnet. „−“ bucht eine Entnahme aus der Werkstatt; aufgefüllt wird über die Inventur.</p>';
 
   const q = view.suche.toLowerCase();
-  // Bei einer Suche unter „Alle“ wird Werkstattmaterial mit gefunden
-  let liste = q ? aktiv : haupt;
+  // Bei einer Suche oder einem gewählten Raum wird unter „Alle“ Werkstattmaterial mit gezeigt
+  let liste = q || imOrt ? aktiv : haupt;
   if(view.matFilter === "bestellen") liste = aktiv.filter(b => zuBestellen[b.code]);
   if(view.matFilter === "reserviert") liste = res;
   if(imW) liste = wMat;
@@ -1384,13 +1432,14 @@ function lagerZeile(b, zuBestellen, gesperrt, imOrt){
     if(vt.length > 1 || (vt.length === 1 && vt[0][0] !== HAUPT)){
       h += '<br><span class="sub" style="font-size:12px">' + esc(vt.map(x => x[0] + " " + zahl(x[1])).join(" · ")) + '</span>' + aufteilungsBalken(b, knapp);
     }
+    if(hatGroessen(b.code) && verliehen(b.code)) h += '<br><span class="sub" style="font-size:12px">' + zahl(verliehen(b.code)) + ' verliehen</span>';
     const off = (DB.bestellungen||[]).filter(o => o.code === b.code);
     if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
     else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
   }
   if(!leistung && istWMat(b.code))
     return h + '</button><div class="knoepfe"><button class="btn small" data-a="wEntnahme" data-x="' + esc(b.code) + '" aria-label="Eins entnehmen: ' + esc(b.name) + '"' + gesperrt + ' style="min-width:46px;font-size:20px">−</button></div></div>';
-  h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : "Ausgeben") + '</button>';
+  h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : hatGroessen(b.code) ? "Ausleihen" : "Ausgeben") + '</button>';
   if(!leistung) h += '<button class="btn small" data-a="formZugang" data-x="' + esc(b.code) + '" aria-label="Zugang ' + esc(b.name) + '"' + gesperrt + '>+</button>';
   h += '</div></div>';
   return h;
@@ -1418,32 +1467,48 @@ function naechsterTermin(ort){
   return (DB.termine||[]).filter(t => t.koffer === ort && tageBis(t.datum) !== null && tageBis(t.datum) >= 0)
     .sort((a, b) => String(a.datum).localeCompare(String(b.datum)))[0] || null;
 }
+/** Lager-Karte: Räume und Koffer als Kacheln, je zwei pro Reihe. Ein Raum antippen
+    filtert die Liste darunter; „alle Orte“ oben rechts hebt den Filter auf. */
 function orteBlock(){
   const aktiv = (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale");
   const raeume = lagerorte().filter(o => o.art === "raum"), koffer = lagerorte().filter(o => o.art === "koffer");
-  const imKoffer = aktiv.filter(b => num(b.koffer) > 0).length;
-  const zwischen = t => '<div class="sub" style="font-size:12px;margin:10px 0 2px">' + t + '</div>';
+  const imKoffer = aktiv.filter(b => num(b.koffer) > 0).length, imOrt = view.lOrt;
   let h = '<div class="card orte" style="padding-bottom:2px"><div class="kopfzeile">' +
     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/></svg>' +
-    '<div style="flex:1"><strong>Lager</strong><br><span class="sub">' + aktiv.length + ' Artikel' + (imKoffer ? ' · ' + imKoffer + ' davon auch in Koffern' : '') + '</span></div></div>';
-  if(raeume.length === 1){
-    h += '<div class="zeile-btn" style="cursor:default"><span class="txt"><span class="titel">' + esc(raeume[0].name) + '</span><span class="sub">Regal — daraus kommt „frei“</span></span></div>';
-  } else {
-    h += zwischen("Räume — antippen zeigt nur, was dort liegt");
-    raeume.forEach(o => {
-      const n = aktiv.filter(b => amOrt(b, o.name) > 0).length, an = view.lOrt === o.name;
-      h += '<button class="zeile-btn" data-a="ortFilter" data-x="' + esc(o.name) + '" aria-pressed="' + an + '"><span class="txt"><span class="titel">' + esc(o.name) + '</span>' +
-           '<span class="sub">' + (o.haupt ? 'Hauptraum · ' : '') + n + ' Artikel</span></span>' + (an ? '<span class="chip ok">gewählt</span>' : '') +
-           '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>';
-    });
-  }
-  if(koffer.length) h += zwischen("Koffer &amp; Werkzeugkästen");
-  koffer.forEach(k => {
-    const o = k.name, t = naechsterTermin(o), tage = t ? tageBis(t.datum) : null;
-    const sub = t ? (tage === 0 ? "Rennen heute" : tage === 1 ? "Rennen morgen" : "Rennen in " + tage + " Tagen") : "Packliste ansehen";
-    h += '<button class="zeile-btn" data-a="kofferAuf" data-x="' + esc(o) + '"><span class="txt"><span class="titel">' + esc(o) + '</span><span class="sub">' + esc(sub) + '</span></span>' +
-         kofferStatus(o) + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>';
+    '<div style="flex:1;min-width:0"><strong>Lager</strong><br><span class="sub">' +
+    (imOrt ? 'Nur ' + esc(imOrt) + ' · ' + aktiv.filter(b => amOrt(b, imOrt) > 0).length + ' Artikel dort'
+           : aktiv.length + ' Artikel' + (imKoffer ? ' · ' + imKoffer + ' davon auch in Koffern' : '')) + '</span></div>' +
+    (imOrt ? '<button class="btn small" data-a="ortFilter" data-x="">alle Orte</button>' : '') + '</div>';
+  const mehrRaeume = raeume.length > 1;
+  h += '<div class="gruppe">' + (mehrRaeume ? 'Räume — antippen zeigt nur, was dort liegt' : 'Raum') + '</div><div class="kacheln">';
+  raeume.forEach(o => {
+    const n = aktiv.filter(b => amOrt(b, o.name) > 0).length, an = imOrt === o.name;
+    const sub = (o.haupt ? 'Hauptraum · ' : '') + n + ' Artikel';
+    h += mehrRaeume
+      ? '<button class="kachel" data-a="ortFilter" data-x="' + esc(o.name) + '" aria-pressed="' + an + '"><span class="titel">' + esc(o.name) + '</span><span class="sub">' + sub + '</span></button>'
+      : '<div class="kachel fest"><span class="titel">' + esc(o.name) + '</span><span class="sub">Regal — daraus kommt „frei“</span></div>';
   });
+  h += '</div>';
+  const kleider = lagerorte().filter(o => o.art === "bekleidung");
+  if(kleider.length){
+    h += '<div class="gruppe">Bekleidung</div><div class="kacheln">';
+    kleider.forEach(o => {
+      const n = aktiv.filter(b => amOrt(b, o.name) > 0).reduce((m, b) => m + amOrt(b, o.name), 0);
+      const v = (DB.ausgeliehen || []).reduce((m, z) => m + num(z.menge), 0);
+      h += '<button class="kachel" data-a="kleidungAuf" data-x="' + esc(o.name) + '"><span class="titel">' + esc(o.name) + '</span><span class="sub">' + zahl(n) + ' Teile im Lager' +
+           (kleider.length === 1 && v ? ' · ' + zahl(v) + ' verliehen' : '') + '</span></button>';
+    });
+    h += '</div>';
+  }
+  if(koffer.length){
+    h += '<div class="gruppe">Koffer &amp; Werkzeugkästen</div><div class="kacheln">';
+    koffer.forEach(k => {
+      const o = k.name, t = naechsterTermin(o), tage = t ? tageBis(t.datum) : null;
+      const sub = t ? (tage === 0 ? "Rennen heute" : tage === 1 ? "Rennen morgen" : "Rennen in " + tage + " Tagen") : "Packliste ansehen";
+      h += '<button class="kachel" data-a="kofferAuf" data-x="' + esc(o) + '"><span class="titel">' + esc(o) + '</span><span class="sub">' + esc(sub) + '</span>' + kofferStatus(o) + '</button>';
+    });
+    h += '</div>';
+  }
   return h + '</div>';
 }
 
@@ -1460,7 +1525,7 @@ function artikelMenue(code){
     h += '<button class="btn" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
   } else {
   if(a.art !== "Pauschale") h += '<button class="btn primary" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
-  h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : "An Sportler ausgeben") + '</button>';
+  h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : hatGroessen(code) ? "An Sportler ausleihen" : "An Sportler ausgeben") + '</button>';
   if(a.art !== "Pauschale") h += '<button class="btn" data-a="formInventur" data-x="' + esc(code) + '">Inventur / Bestand korrigieren</button>';
   }
   h += '<button class="btn" data-a="buchungenArtikel" data-x="' + esc(code) + '">Buchungen · Fehlbuchung stornieren</button>';
@@ -1470,6 +1535,7 @@ function artikelMenue(code){
   modal(h);
 }
 function formZugang(code){
+  if(hatGroessen(code)) return formGroessen(code, "zugang");
   const a = artikel(code);
   modal('<h3>Zugang · ' + esc(a.name) + '</h3>' +
     '<div class="grid2"><div class="feld"><span class="lbl">Menge (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" min="0" step="any" inputmode="decimal"></div>' +
@@ -1479,6 +1545,7 @@ function formZugang(code){
   setTimeout(() => { const e = $("fMenge"); if(e) e.focus(); }, 50);
 }
 function formAusgabe(code){
+  if(hatGroessen(code)) return leihStart(null, code);
   const a = artikel(code);
   let s = '<select id="fSportler"><option value="">— Sportler wählen —</option>';
   (DB.sportler||[]).filter(x => x.aktiv).forEach(x => s += '<option value="' + x.id + '">' + esc(x.name) + (x.abrechnen ? " (wird berechnet)" : "") + '</option>');
@@ -1500,6 +1567,7 @@ function formEntnahme(code){
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="entnahmeBuchen" data-x="' + esc(code) + '">Buchen</button></div>');
 }
 function formInventur(code){
+  if(hatGroessen(code)) return formGroessen(code, "zaehlen");
   const a = artikel(code), b = bestand(code);
   modal('<h3>Inventur · ' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">Gezählten Bestand eintragen — die Differenz wird als Korrektur gebucht.</p>' +
     '<div class="grid2"><div class="feld"><span class="lbl">Ort</span>' + ortSelect("fOrt",standardOrt(),"invOrt",code) + '</div>' +
@@ -1514,10 +1582,11 @@ function ortSelect(id, wert, dataC, dataX){
     Ort, der gerade gewählt ist (z. B. Arbeitsort eines Tickets), bleibt sichtbar. */
 function ortOptionen(wert){
   const opt = o => '<option value="' + esc(o) + '"' + (o === wert ? " selected" : "") + '>' + esc(o) + '</option>';
-  const r = raumOrte(), k = kofferOrte();
+  const r = raumOrte(), b = kleiderOrte(), k = kofferOrte();
   let h = r.length > 1 ? '<optgroup label="Räume">' + r.map(opt).join("") + '</optgroup>' : r.map(opt).join("");
+  if(b.length) h += '<optgroup label="Bekleidung">' + b.map(opt).join("") + '</optgroup>';
   if(k.length) h += '<optgroup label="Koffer &amp; Werkzeugkästen">' + k.map(opt).join("") + '</optgroup>';
-  if(wert && r.indexOf(wert) < 0 && k.indexOf(wert) < 0) h += opt(wert);
+  if(wert && r.indexOf(wert) < 0 && b.indexOf(wert) < 0 && k.indexOf(wert) < 0) h += opt(wert);
   return h;
 }
 
@@ -1536,11 +1605,18 @@ function bestellBedarf(){
   (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale").forEach(a => {
     const b = bestand(a.code), frei = b ? num(b.frei) : 0, mind = num(a.mindestbestand);
     const kofferFehlt = (DB.koffer||[]).filter(k => k.code === a.code).reduce((m, k) => m + num(k.fehlt), 0);
-    const bedarf = Math.max(0, mind + kofferFehlt - frei);
+    // Bekleidung: Mindestbestand gilt je Größe (über alle Lager-Orte)
+    const grFehlt = [];
+    if(hatGroessen(a.code) && mind) groessen(a.code).forEach(g => {
+      const da = orte().filter(o => !istKoffer(o)).reduce((m, o) => m + amOrtGr(a.code, o, g), 0);
+      if(da < mind) grFehlt.push([g, mind - da]);
+    });
+    const bedarf = hatGroessen(a.code) ? grFehlt.reduce((m, x) => m + x[1], 0) : Math.max(0, mind + kofferFehlt - frei);
     const bestellt = (offen[a.code] || []).reduce((m, x) => m + num(x.menge), 0);
     if(bedarf <= 0 && !bestellt) return;
     const gruende = [];
-    if(mind && frei < mind) gruende.push("frei " + zahl(frei) + " von mind. " + zahl(mind));
+    if(grFehlt.length) gruende.push("unter mind. " + zahl(mind) + " je Größe: " + grFehlt.map(x => x[0] + " +" + zahl(x[1])).join(", "));
+    else if(mind && frei < mind && !hatGroessen(a.code)) gruende.push("frei " + zahl(frei) + " von mind. " + zahl(mind));
     else if(frei < 0) gruende.push(zahl(-frei) + " mehr reserviert als da");
     const tk = (DB.tickets||[]).filter(t => fehlend(t).indexOf(a.code) >= 0).map(t => tnr(t.id));
     if(tk.length) gruende.push("fehlt für " + tk.join(", "));
@@ -1784,7 +1860,8 @@ let invAnsicht = { filter:"alle", buchstabe:"" };
 
 const INV_ALLE = "alle";
 function invTitel(){ return inv.ort === INV_ALLE ? "alle Orte" : inv.ort; }
-function invArtikel(){ return (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale"); }
+/** Artikel mit Größen (Bekleidung) werden je Größe gezählt: Material → Bekleidung → „Zählen“. */
+function invArtikel(){ return (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale" && !hatGroessen(b.code)); }
 /** Wo wird dieser Artikel gezählt? Bei „alle“: Werkstatt immer, andere Räume und Koffer nur, wenn dort
     etwas liegt, ein Koffer-Soll besteht oder dort schon gezählt wurde. */
 function invOrteFuer(b){
@@ -1872,6 +1949,7 @@ function invStartView(){
     '<button class="btn primary" data-a="invNeu" data-x="' + INV_ALLE + '"' + g + '>Ganzes Lager (alle Orte)</button>' +
     '<span class="lbl" style="margin:6px 0 0">' + (raumOrte().length > 1 ? 'Einzelner Raum' : 'Nur Werkstatt') + '</span>' +
     raumOrte().map(o => '<button class="btn" data-a="invNeu" data-x="' + esc(o) + '"' + g + '>' + (raumOrte().length > 1 ? esc(o) : 'Nur ' + esc(o)) + '</button>').join("") +
+    (kleiderOrte().length ? '<span class="lbl" style="margin:6px 0 0">Bekleidung</span><p class="sub" style="margin:0">Artikel mit Größen werden unter Material → Bekleidung je Größe gezählt („Zählen“).</p>' : '') +
     (kofferOrte().length ? '<span class="lbl" style="margin:6px 0 0">Einzelner Koffer</span>' : '') +
     kofferOrte().map(o => '<button class="btn" data-a="invNeu" data-x="' + esc(o) + '"' + g + '>' + esc(o) + '</button>').join("") + '</div>' +
     '<p class="sub" style="margin:10px 0 0">Gezählt wird auf diesem Gerät; gebucht wird erst mit „Übernehmen“. Einen einzelnen Artikel korrigieren: Lager → Artikel antippen → Inventur.</p></div>';
@@ -1962,7 +2040,7 @@ function kofferDetail(ort){
     if(offen) h += '<div class="row trenn" style="gap:8px"><button class="btn primary" data-a="kofferAuffuellen" data-x="' + ort + '" style="flex:1"' + gesperrt + '>Alles Fehlende einpacken (' + offen + (offen === 1 ? ' Position' : ' Positionen') + ')</button></div>';
   } else h += '<p class="sub" style="margin:0 0 6px">Noch keine Packliste.</p>';
   h += '<div class="row trenn" style="gap:8px"><select data-c="kofferNeu" data-x="' + ort + '" style="flex:1"' + gesperrt + '><option value="">Artikel zur Packliste…</option>';
-  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
+  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !hatGroessen(a.code) && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
   h += '</select></div></div>';
   const st = (DB.stueck||[]).filter(s => s.ort === ort);
   if(st.length){
@@ -2363,7 +2441,9 @@ function sportlerVerw(){
   h += '<div class="card liste">';
   if(!(DB.sportler||[]).length) h += '<div class="sub">Noch niemand angelegt.</div>';
   (DB.sportler||[]).forEach(s => {
-    h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.name) + '</strong>' + (s.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
+    const leih = ausgeliehenVon(s.id);
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.name) + '</strong>' + (s.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') +
+         (leih.length ? '<br><span class="sub">hat ausgeliehen: ' + esc(leihText(leih)) + '</span>' : '') + '</div>';
     h += '<div class="knoepfe"><button class="btn small" data-a="sportlerAbr" data-x="' + s.id + '">' + (s.abrechnen ? "wird berechnet" : "nicht abrechnen") + '</button>';
     h += '<button class="btn small" data-a="sportlerAktiv" data-x="' + s.id + '">' + (s.aktiv ? "ausblenden" : "einblenden") + '</button>';
     if(darf("manager") && s.abrechnen && s.aktiv) h += '<button class="btn small" data-a="sportlerZugang" data-x="' + s.id + '">Zugang</button>';
@@ -2527,6 +2607,159 @@ function mehrView(){
   return h;
 }
 /* ===============================================================
+   Material → Bekleidung (ab 16.0.0)
+   Artikel mit Größen: Bestand je Größe im Bekleidungslager, Ausleihe an
+   Sportler (Leihgabe, nie berechnet), Rückgabe, Zählen je Größe.
+   ===============================================================*/
+const GROESSEN_VORLAGEN = [["XS–XXL", "XS, S, M, L, XL, XXL"], ["Kinder 116–176", "116, 128, 140, 152, 164, 176"],
+                           ["Schuhe 38–47", "38, 39, 40, 41, 42, 43, 44, 45, 46, 47"], ["One Size", "One Size"]];
+/** Größen aus dem Textfeld; null = keine, false = ungültig (Meldung schon gezeigt). */
+function groessenLesen(t){
+  const l = [];
+  String(t || "").split(/[,;]/).map(x => x.trim()).filter(Boolean).forEach(x => { if(l.indexOf(x) < 0) l.push(x); });
+  if(l.some(x => x.length > 20)){ toast("Eine Größe darf höchstens 20 Zeichen haben.", true); return false; }
+  if(l.length > 40){ toast("Höchstens 40 Größen.", true); return false; }
+  return l.length ? l : null;
+}
+function leihText(liste){ return liste.map(z => zahl(z.menge) + "× " + ((artikel(z.code) || {}).name || z.code) + (z.groesse ? " " + z.groesse : "")).join(", "); }
+/** Artikel, die ins Bekleidungslager gehören: mit Größen, oder dort gebucht. */
+function kleiderArtikel(ort){
+  return (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && (hatGroessen(a.code) || (ort && amOrt({ code:a.code }, ort) !== 0)))
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+function kleidungView(){
+  const ko = kleiderOrte(), g = offline ? " disabled" : "";
+  if(!ko.length) return '<div class="leer">Noch kein Bekleidungslager. ' + (darf("manager") ? 'Unter Mehr → Lagerorte einen Lagerort der Art „Bekleidung“ anlegen.' : 'Das legt der Werkstatt-Manager unter Mehr → Lagerorte an.') + '</div>';
+  if(ko.indexOf(view.kOrt) < 0) view.kOrt = ko[0];
+  const ort = view.kOrt;
+  let h = "";
+  if(ko.length > 1) h += '<div class="seg" style="margin-bottom:10px">' + ko.map(o => segBtn("kOrt", o, o, ort)).join("") + '</div>';
+  h += '<div class="row" style="gap:8px;margin-bottom:12px"><button class="btn primary" style="flex:1" data-a="leihNeu"' + g + '>Ausleihen</button>' +
+       '<button class="btn" style="flex:1" data-a="rueckNeu" data-x=""' + g + '>Rückgabe</button></div>';
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
+  const q = view.suche.toLowerCase();
+  let liste = kleiderArtikel(ort);
+  if(q) liste = liste.filter(a => (a.name + " " + a.code).toLowerCase().indexOf(q) >= 0);
+  if(!liste.length) h += '<div class="leer">' + (q ? "Nichts gefunden." : "Noch keine Bekleidung. Artikel anlegen und unter „Größen“ z. B. XS–XXL eintragen.") + '</div>';
+  else {
+    h += '<div class="card liste">';
+    liste.forEach(a => {
+      const sp = groessenSpalten(a.code, ort), mind = num(a.mindestbestand);
+      const imLager = sp.reduce((m, x) => m + amOrtGr(a.code, ort, x), 0) + (sp.length ? 0 : amOrt({ code:a.code }, ort));
+      h += '<div class="eintrag" style="display:block"><div class="row wrapr" style="gap:8px"><span style="flex:1;min-width:0"><strong>' + esc(a.name) + '</strong> <span class="sub">' + esc(a.code) + '</span><br>' +
+           '<span class="sub">' + zahl(imLager) + ' in ' + esc(ort) + (verliehen(a.code) ? ' · ' + zahl(verliehen(a.code)) + ' verliehen' : '') + (mind ? ' · mind. ' + zahl(mind) + ' je Größe' : '') + '</span></span>' +
+           '<button class="btn small" data-a="grZugang" data-x="' + esc(a.code) + '"' + g + ' aria-label="Zugang ' + esc(a.name) + '">+</button>' +
+           '<button class="btn small" data-a="grZaehlen" data-x="' + esc(a.code) + '"' + g + '>Zählen</button></div>';
+      if(!hatGroessen(a.code)){
+        h += '<p class="sub" style="margin:6px 0 0">Ohne Größen — unter Artikel bearbeiten Größen eintragen, dann wird je Größe gezählt und ausgeliehen.</p></div>';
+        return;
+      }
+      h += '<div class="tabwrap"><table class="gr"><tr><th></th>' + sp.map(x => '<th>' + esc(grName(x)) + '</th>').join("") + '</tr>' +
+           '<tr><td class="zl">Lager</td>' + sp.map(x => { const n = amOrtGr(a.code, ort, x); return '<td class="' + (mind && x && n < mind ? "knapp" : "") + '">' + zahl(n) + '</td>'; }).join("") + '</tr>' +
+           (verliehen(a.code) ? '<tr><td class="zl">verliehen</td>' + sp.map(x => '<td>' + (verliehen(a.code, x) ? zahl(verliehen(a.code, x)) : "–") + '</td>').join("") + '</tr>' : '') +
+           '</table></div></div>';
+    });
+    h += '</div>';
+  }
+  // Wer hat was?
+  const proSportler = {};
+  (DB.ausgeliehen || []).filter(z => num(z.menge) > 0).forEach(z => (proSportler[z.sportler_id] = proSportler[z.sportler_id] || []).push(z));
+  const ids = Object.keys(proSportler).map(Number).sort((x, y) => sportlerName(x).localeCompare(sportlerName(y), "de"));
+  h += '<h2 class="sec">Verliehen' + (ids.length ? ' · ' + ids.length + (ids.length === 1 ? ' Sportler' : ' Sportler') : '') + '</h2>';
+  if(!ids.length) h += '<div class="leer">Gerade ist nichts verliehen.</div>';
+  else {
+    h += '<div class="card liste">';
+    ids.forEach(id => {
+      const l = proSportler[id], seit = l.map(z => z.seit).filter(Boolean).sort()[0];
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(sportlerName(id) || ("Sportler " + id)) + '</strong><br><span class="sub">' + esc(leihText(l)) + (seit ? ' · seit ' + de(seit) : '') + '</span></div>' +
+           '<div class="knoepfe"><button class="btn small" data-a="rueckNeu" data-x="' + id + '"' + g + '>Rückgabe</button></div></div>';
+    });
+    h += '</div>';
+  }
+  h += '<p class="sub">Ausleihen ist eine Leihgabe: Sie wird nie berechnet. Eine falsche Ausleihe lässt sich unter Artikel → Buchungen stornieren (ganz, solange nichts davon zurückgegeben ist).</p>';
+  if(darf("arbeiten")) h += '<button class="btn small link" data-a="artikelNeu">Neuer Bekleidungsartikel</button>';
+  return h;
+}
+
+/* Zugang oder Zählen je Größe — art "zugang" | "zaehlen" */
+let grForm = null;
+function formGroessen(code, art, ort){
+  const a = artikel(code); if(!a) return;
+  const ko = kleiderOrte();
+  ort = ort || (grForm && grForm.code === code && grForm.ort) || (ko.indexOf(view.kOrt) >= 0 ? view.kOrt : ko[0] || standardOrt());
+  grForm = { code, art, ort };
+  const sp = groessenSpalten(code, ort);
+  let h = '<h3>' + (art === "zugang" ? "Zugang" : "Zählen") + ' · ' + esc(a.name) + '</h3>' +
+          '<p class="sub" style="margin-top:-6px">' + (art === "zugang" ? "Menge je Größe eintragen, leer = keine." : "Gezählte Menge je Größe — die Differenz wird als Korrektur gebucht. Leer = nicht gezählt.") + '</p>' +
+          '<div class="feld"><span class="lbl">Ort</span><select id="gOrt" data-c="grOrt">' + ortOptionen(ort) + '</select></div><div class="grid2">';
+  sp.forEach(x => h += '<div class="feld"><span class="lbl">' + esc(grName(x)) + ' · jetzt ' + zahl(amOrtGr(code, ort, x)) + '</span><input type="number" min="0" step="any" inputmode="decimal" data-gr="' + esc(x) + '"></div>');
+  h += '</div>' + (art === "zugang" ? '<div class="feld"><span class="lbl">Notiz (Lieferant, Rechnung …)</span><input type="text" id="gNotiz"></div>' : '') +
+       '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="grSpeichern">' + (art === "zugang" ? "Buchen" : "Übernehmen") + '</button></div>';
+  modal(h);
+}
+
+/* Ausleihen: Sportler, Ort, mehrere Teile mit Größe */
+let leih = null;
+function leihStart(sportlerId, code){
+  const ko = kleiderOrte();
+  leih = { sportler:sportlerId ? String(sportlerId) : "", ort:ko.indexOf(view.kOrt) >= 0 ? view.kOrt : (ko[0] || standardOrt()), code:code || "", posten:[], notiz:"" };
+  leihZeichnen();
+}
+function leihZeichnen(){
+  const ko = kleiderOrte(), l = leih;
+  let h = '<h3>Bekleidung ausleihen</h3><p class="sub" style="margin-top:-6px">Leihgabe an einen Sportler — wird nicht berechnet.</p>';
+  h += '<div class="feld"><span class="lbl">An</span><select data-c="leihSportler"><option value="">— Sportler wählen —</option>' +
+       (DB.sportler||[]).filter(s => s.aktiv).map(s => '<option value="' + s.id + '"' + (String(s.id) === l.sportler ? " selected" : "") + '>' + esc(s.name) + '</option>').join("") + '</select></div>';
+  if(ko.length > 1 || ko.indexOf(l.ort) < 0) h += '<div class="feld"><span class="lbl">Aus</span><select data-c="leihOrt">' + ortOptionen(l.ort) + '</select></div>';
+  if(l.posten.length){
+    h += '<div class="card liste" style="margin-bottom:10px">';
+    l.posten.forEach((p, i) => h += '<div class="eintrag"><div class="txt"><strong>' + zahl(p.menge) + '× ' + esc((artikel(p.code) || {}).name || p.code) + '</strong> ' + esc(grName(p.gr)) + '</div>' +
+      '<div class="knoepfe"><button class="btn small" data-a="leihWeg" data-x="' + i + '" aria-label="Entfernen">✕</button></div></div>');
+    h += '</div>';
+  }
+  h += '<div class="feld"><span class="lbl">' + (l.posten.length ? "Weiteres Teil" : "Teil") + '</span><select data-c="leihArtikel"><option value="">Artikel wählen…</option>' +
+       kleiderArtikel(l.ort).map(a => '<option value="' + esc(a.code) + '"' + (a.code === l.code ? " selected" : "") + '>' + esc(a.name) + '</option>').join("") + '</select>';
+  if(l.code){
+    const sp = hatGroessen(l.code) ? groessenSpalten(l.code, l.ort) : [""];
+    h += '<div class="grwahl">' + sp.map(x => {
+      const im = l.posten.filter(p => p.code === l.code && p.gr === x).reduce((m, p) => m + p.menge, 0);
+      const da = hatGroessen(l.code) ? amOrtGr(l.code, l.ort, x) : amOrt({ code:l.code }, l.ort);
+      return '<button data-a="leihGr" data-x="' + esc(x) + '" aria-pressed="' + (im > 0) + '">' + esc(grName(x)) + (im ? ' · ' + zahl(im) : '') + '<small>' + zahl(da - im) + ' da</small></button>';
+    }).join("") + '</div><p class="sub" style="margin:0">Größe antippen fügt ein Teil hinzu (nochmal = eins mehr).</p>';
+  }
+  h += '</div><div class="feld"><span class="lbl">Notiz (optional)</span><input type="text" data-c="leihNotiz" value="' + esc(l.notiz) + '" placeholder="z. B. Saison 2027"></div>';
+  const n = l.posten.reduce((m, p) => m + p.menge, 0);
+  h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>' +
+       '<button class="btn primary" data-a="leihBuchen"' + (n ? '' : ' disabled') + '>' + (n ? zahl(n) + (n === 1 ? ' Teil' : ' Teile') + ' ausleihen' : 'Ausleihen') + '</button></div>';
+  modal(h);
+}
+
+/* Rückgabe: was ein Sportler hat, Menge je Zeile */
+let rueck = null;
+function rueckStart(sportlerId){
+  const ko = kleiderOrte();
+  rueck = { sportler:sportlerId ? String(sportlerId) : "", ort:ko.indexOf(view.kOrt) >= 0 ? view.kOrt : (ko[0] || standardOrt()) };
+  rueckZeichnen();
+}
+function rueckZeichnen(){
+  const r = rueck, mit = Array.from(new Set((DB.ausgeliehen || []).filter(z => num(z.menge) > 0).map(z => z.sportler_id)));
+  let h = '<h3>Rückgabe</h3><div class="feld"><span class="lbl">Von</span><select data-c="rueckSportler"><option value="">— Sportler wählen —</option>' +
+          mit.sort((x, y) => sportlerName(x).localeCompare(sportlerName(y), "de")).map(id => '<option value="' + id + '"' + (String(id) === r.sportler ? " selected" : "") + '>' + esc(sportlerName(id) || ("Sportler " + id)) + '</option>').join("") + '</select></div>';
+  if(!mit.length) h += '<p class="sub">Gerade ist nichts verliehen.</p>';
+  if(r.sportler){
+    const l = ausgeliehenVon(Number(r.sportler));
+    h += '<div class="feld"><span class="lbl">Zurück nach</span><select id="rOrt">' + ortOptionen(r.ort) + '</select></div>';
+    h += '<div class="card liste" style="margin-bottom:10px">';
+    l.forEach((z, i) => h += '<div class="eintrag"><div class="txt"><strong>' + esc((artikel(z.code) || {}).name || z.code) + '</strong> ' + esc(grName(z.groesse)) +
+      '<br><span class="sub">ausgeliehen ' + zahl(z.menge) + (z.seit ? ' · seit ' + de(z.seit) : '') + '</span></div>' +
+      '<input type="number" min="0" max="' + num(z.menge) + '" step="any" inputmode="decimal" data-rueck="' + i + '" value="' + num(z.menge) + '" style="width:70px" aria-label="Menge zurück"></div>');
+    h += '</div><p class="sub" style="margin-top:-4px">Vorgabe: alles zurück. Was behalten wird, auf 0 setzen.</p>';
+  }
+  h += '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="rueckBuchen"' + (r.sportler ? '' : ' disabled') + '>Zurückbuchen</button></div>';
+  modal(h);
+}
+
+/* ===============================================================
    Mehr → Lagerorte (ab 15.0.0, nur Werkstatt-Manager)
    ===============================================================*/
 function lagerorteVerw(){
@@ -2534,10 +2767,11 @@ function lagerorteVerw(){
   const alle = lagerorte(true);
   let h = "";
   [["raum", "Räume", "Lagerbestand: daraus kommt „frei“, Reservierungen und Nachbestellen."],
+   ["bekleidung", "Bekleidung", "Wie ein Raum, dazu Ausleihe an Sportler mit Größen (Material → Bekleidung)."],
    ["koffer", "Koffer &amp; Werkzeugkästen", "Zum Mitnehmen: Packliste mit Soll/Ist, Warnung vor Rennen."]].forEach(([art, titel, text]) => {
-    const l = alle.filter(o => o.art === art);
+    const l = alle.filter(o => o.art === art && o.aktiv);
     h += '<h2 class="sec">' + titel + '</h2><p class="sub" style="margin-top:-6px">' + text + '</p><div class="card liste">';
-    if(!l.length) h += '<div class="sub">Noch keine angelegt.</div>';
+    if(!l.length) h += '<div class="sub">' + (art === "bekleidung" ? 'Noch kein Bekleidungslager — „Neuer Lagerort“, Art „Bekleidung“.' : 'Noch keine angelegt.') + '</div>';
     l.forEach((o, i) => {
       const n = (DB.bestand||[]).filter(b => amOrt(b, o.name) !== 0).length;
       const st = (DB.stueck||[]).filter(s => s.ort === o.name).length;
@@ -2554,9 +2788,21 @@ function lagerorteVerw(){
     });
     h += '</div>';
   });
-  h += '<button class="btn primary" data-a="ortBearbeiten" data-x=""' + g + ' style="margin-top:12px">Neuer Lagerort</button>';
+  // Deaktivierte Orte: zugeklappt unten (bleiben für alte Buchungen erhalten)
+  const aus = alle.filter(o => !o.aktiv);
+  if(aus.length){
+    h += '<button class="btn small link" data-a="ortAusZeigen" style="margin-top:10px">' + (view.ortAus ? 'Deaktivierte ausblenden' : 'Deaktivierte zeigen · ' + aus.length) + '</button>';
+    if(view.ortAus){
+      h += '<div class="card liste" style="margin-top:8px">';
+      aus.forEach(o => h += '<div class="eintrag"><div class="txt"><strong>' + esc(o.name) + '</strong> <span class="chip grau">deaktiviert</span><br><span class="sub">' +
+                            (o.art === "koffer" ? "Koffer / Werkzeugkasten" : o.art === "bekleidung" ? "Bekleidung" : "Raum") + '</span></div><div class="knoepfe">' +
+                            '<button class="btn small" data-a="ortBearbeiten" data-x="' + o.id + '"' + g + '>bearbeiten</button></div></div>');
+      h += '</div>';
+    }
+  }
+  h += '<button class="btn primary" data-a="ortBearbeiten" data-x=""' + g + ' style="margin-top:12px;display:block">Neuer Lagerort</button>';
   h += '<p class="sub">Die Werkstatt ist an jedem Standort der Hauptraum und bleibt fest. Umbenennen zieht in allen Buchungen, Tickets und Packlisten nach. ' +
-       'Löschen geht nur, solange an einem Ort nie gebucht wurde — sonst deaktivieren (vorher leer räumen). Deaktivierte Orte erscheinen nicht mehr in den Auswahllisten.</p>';
+       'Löschen geht nur, solange an einem Ort nie gebucht wurde (auch eine Buchung, die später zurückgebucht wurde, zählt) — sonst deaktivieren: vorher leer räumen, dann verschwindet der Ort aus allen Listen.</p>';
   return h;
 }
 let ortArtWahl = "raum";
@@ -2567,10 +2813,10 @@ function formLagerort(id){
   const benutzt = id && ((DB.bestand||[]).some(b => amOrt(b, o.name) !== 0) || (DB.stueck||[]).some(s => s.ort === o.name));
   modal('<h3>' + (id ? 'Lagerort bearbeiten' : 'Neuer Lagerort') + '</h3>' +
     '<div class="feld"><span class="lbl">Name</span><input type="text" id="oName" maxlength="40" value="' + esc(o.name) + '" placeholder="z. B. Kleiderkammer, Werkzeugkasten Bahn"></div>' +
-    '<div class="feld"><span class="lbl">Art</span><div class="seg">' + segBtn("ortArt", "raum", "Raum", o.art) + segBtn("ortArt", "koffer", "Koffer / Werkzeugkasten", o.art) + '</div>' +
-    '<p class="sub" style="margin:6px 0 0">Raum: zählt zum Lager („frei“). Koffer: zum Mitnehmen, mit Packliste und Soll/Ist.</p></div>' +
+    '<div class="feld"><span class="lbl">Art</span><div class="seg">' + segBtn("ortArt", "raum", "Raum", o.art) + segBtn("ortArt", "bekleidung", "Bekleidung", o.art) + segBtn("ortArt", "koffer", "Koffer", o.art) + '</div>' +
+    '<p class="sub" style="margin:6px 0 0">Raum: zählt zum Lager („frei“). Bekleidung: wie ein Raum, mit Größen und Ausleihe an Sportler. Koffer/Werkzeugkasten: zum Mitnehmen, mit Packliste und Soll/Ist.</p></div>' +
     (id ? '<label class="row" style="gap:8px;margin-bottom:12px"><input type="checkbox" id="oAktiv"' + (o.aktiv ? ' checked' : '') + ' style="width:20px;height:20px"> aktiv (in Auswahllisten)</label>' +
-          (benutzt ? '<p class="sub" style="margin-top:-6px">Hier liegt noch etwas — zum Deaktivieren erst umbuchen.</p>' : '') : '') +
+          (benutzt ? '<p class="sub" style="margin-top:-6px">Hier liegt noch etwas — zum Deaktivieren erst umbuchen oder per Inventur auf 0 setzen.</p>' : '') : '') +
     '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-a="modalZu">Abbrechen</button>' +
     (id ? '<button class="btn" data-a="ortLoeschen" data-x="' + id + '">Löschen</button>' : '') +
     '<span class="sp"></span><button class="btn primary" data-a="ortSpeichern" data-x="' + (id || "") + '">' + (id ? 'Speichern' : 'Anlegen') + '</button></div>');
@@ -2905,6 +3151,9 @@ function artikelForm(code){
     (code ? '' : '<div id="aBestandBox" class="grid2"' + (a.art === "Pauschale" ? " hidden" : "") + '>' +
        feld("Bestand jetzt", "aBestand", "", "number", ' step="any" min="0" inputmode="decimal" placeholder="0"') +
        '<div class="feld"><span class="lbl">liegt in</span>' + ortSelect("aBestandOrt", standardOrt()) + '</div></div>') +
+    '<div class="feld"><span class="lbl">Größen (Bekleidung, durch Komma getrennt — leer = keine)</span><input type="text" id="aGroessen" value="' + esc((a.groessen || []).join(", ")) + '" placeholder="z. B. XS, S, M, L, XL">' +
+      '<div class="row wrapr" style="gap:6px;margin-top:6px">' + GROESSEN_VORLAGEN.map((v, i) => '<button class="btn small" data-a="grVorlage" data-x="' + i + '">' + esc(v[0]) + '</button>').join("") + '</div>' +
+      '<p class="sub" style="margin:6px 0 0">Mit Größen wird der Bestand je Größe geführt, ausgegeben wird als Leihgabe an Sportler (nie berechnet). Mindestbestand gilt dann je Größe.</p></div>' +
     '<div class="grid2">' + feld("Mindestbestand", "aMin", a.mindestbestand, "number", ' step="any" min="0"') + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + '</div>' +
     feld("Arbeitszeit (min, je Stück bzw. Leistung)", "aDauer", a.dauer_min, "number", ' step="1" min="0" inputmode="numeric" placeholder="z. B. 15 fürs Lenkerband wickeln"') +
     '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
@@ -3552,15 +3801,97 @@ const A = {
     aktion(() => rpc("lagerort_aendern", { p_id:o.id, p_name:name !== o.name ? name : null, p_art:ortArtWahl !== o.art ? ortArtWahl : null,
                                            p_aktiv:aktiv !== o.aktiv ? aktiv : null }), "Gespeichert");
   },
+  ortAusZeigen: () => { view.ortAus = !view.ortAus; render(); },
+  /* Bekleidung */
+  kleidungAuf: x => { view.tab = "material"; view.mat = "kleidung"; view.kOrt = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  kOrt: x => { view.kOrt = x; render(); },
+  grVorlage: x => { const e = $("aGroessen"), v = GROESSEN_VORLAGEN[Number(x)]; if(e && v) e.value = v[1]; },
+  grZugang: x => formGroessen(x, "zugang"),
+  grZaehlen: x => formGroessen(x, "zaehlen"),
+  grSpeichern: () => {
+    const f = grForm; if(!f) return;
+    const ort = wert("gOrt") || f.ort, werte = [];
+    let falsch = false;
+    document.querySelectorAll("#modal [data-gr]").forEach(e => {
+      const t = String(e.value).trim(); if(t === "") return;
+      const n = Number(t.replace(",", "."));
+      if(isNaN(n) || n < 0) falsch = true; else werte.push({ gr:e.dataset.gr, n });
+    });
+    if(falsch){ toast("Ungültige Zahl.", true); return; }
+    if(f.art === "zugang"){
+      const z = werte.filter(w => w.n > 0);
+      if(!z.length){ toast("Keine Menge eingetragen.", true); return; }
+      if(z.some(w => !w.gr)){ toast("Zugang nur mit Größe.", true); return; }
+      const notiz = wert("gNotiz") || null, summe = z.reduce((m, w) => m + w.n, 0);
+      aktion(() => neuIn("buchung", z.map(w => ({ art:"zugang", code:f.code, groesse:w.gr, menge:w.n, ort, notiz, bearbeiter:bearbeiter || null }))),
+             "Zugang gebucht · " + zahl(summe) + " in " + ort);
+    } else {
+      if(!werte.length){ toast("Nichts gezählt.", true); return; }
+      aktion(() => rpc("kleidung_zaehlen", { p_code:f.code, p_ort:ort, p_zaehlung:werte.map(w => ({ groesse:w.gr || null, gezaehlt:w.n })) }),
+             n => n ? n + (n === 1 ? " Größe korrigiert" : " Größen korrigiert") : "Stimmt bereits");
+    }
+  },
+  leihNeu: () => leihStart(null, ""),
+  leihGr: x => {
+    const l = leih; if(!l || !l.code) return;
+    const p = l.posten.find(z => z.code === l.code && z.gr === x);
+    if(p) p.menge += 1; else l.posten.push({ code:l.code, gr:x, menge:1 });
+    leihZeichnen();
+  },
+  leihWeg: x => { if(leih){ leih.posten.splice(Number(x), 1); leihZeichnen(); } },
+  leihBuchen: () => {
+    const l = leih; if(!l) return;
+    if(!l.sportler){ toast("Bitte Sportler wählen.", true); return; }
+    if(!l.posten.length){ toast("Noch kein Teil gewählt.", true); return; }
+    const knapp = [];
+    const sum = {};
+    l.posten.forEach(p => { const k = p.code + "|" + p.gr; sum[k] = (sum[k] || 0) + p.menge; });
+    Object.keys(sum).forEach(k => { const [c, g] = [k.slice(0, k.lastIndexOf("|")), k.slice(k.lastIndexOf("|") + 1)];
+      const da = hatGroessen(c) ? amOrtGr(c, l.ort, g) : amOrt({ code:c }, l.ort);
+      if(sum[k] > da) knapp.push(((artikel(c) || {}).name || c) + " " + grName(g) + " (da: " + zahl(da) + ")"); });
+    if(knapp.length && !confirm("Nicht genug im Lager:\n• " + knapp.join("\n• ") + "\n\nTrotzdem ausleihen? Der Bestand wird dann negativ.")) return;
+    const n = l.posten.reduce((m, p) => m + p.menge, 0), name = sportlerName(Number(l.sportler));
+    aktion(() => rpc("kleidung_ausleihen", { p_sportler:Number(l.sportler), p_ort:l.ort,
+                                              p_posten:l.posten.map(p => ({ code:p.code, groesse:p.gr || null, menge:p.menge })), p_notiz:l.notiz || null }),
+           zahl(n) + (n === 1 ? " Teil" : " Teile") + " an " + name + " ausgeliehen").then(r => { if(r !== undefined) leih = null; });
+  },
+  rueckNeu: x => rueckStart(x ? Number(x) : null),
+  rueckBuchen: () => {
+    const r = rueck; if(!r || !r.sportler) return;
+    const l = ausgeliehenVon(Number(r.sportler)), posten = [];
+    let falsch = false;
+    document.querySelectorAll("#modal [data-rueck]").forEach(e => {
+      const z = l[Number(e.dataset.rueck)], n = Number(String(e.value).replace(",", "."));
+      if(!z) return;
+      if(isNaN(n) || n < 0 || n > num(z.menge)) falsch = true;
+      else if(n > 0) posten.push({ code:z.code, groesse:z.groesse || null, menge:n });
+    });
+    if(falsch){ toast("Menge prüfen — höchstens so viel, wie ausgeliehen ist.", true); return; }
+    if(!posten.length){ toast("Nichts zurückzubuchen.", true); return; }
+    const ort = wert("rOrt") || r.ort, n = posten.reduce((m, p) => m + p.menge, 0);
+    aktion(() => rpc("kleidung_rueckgabe", { p_sportler:Number(r.sportler), p_ort:ort, p_posten:posten }),
+           zahl(n) + (n === 1 ? " Teil" : " Teile") + " zurück in " + ort);
+  },
   ortLoeschen: x => {
     const o = (DB.lagerorte||[]).find(z => z.id === Number(x)); if(!o) return;
+    // Liegt dort etwas, gibt es Buchungen — dann geht nur Deaktivieren (nach dem Leerräumen)
+    const da = (DB.bestand||[]).filter(b => amOrt(b, o.name) !== 0).map(b => b.name);
+    const st = (DB.stueck||[]).filter(s => s.ort === o.name).map(s => s.nummer);
+    if(da.length || st.length){
+      alert(o.name + " lässt sich nicht löschen: Dort " + (da.length ? "liegt " + da.slice(0, 3).join(", ") + (da.length > 3 ? " u. a." : "") : "") +
+            (da.length && st.length ? " und " : "") + (st.length ? "liegen Einzelstücke (" + st.slice(0, 3).join(", ") + ")" : "") +
+            ".\n\nGebuchte Orte bleiben für die Buchungsgeschichte erhalten. Zum Aufräumen: Bestand umbuchen oder per Inventur auf 0 setzen, Einzelstücke umlagern, dann „aktiv“ ausschalten — der Ort verschwindet aus allen Listen.");
+      return;
+    }
     if(!confirm(o.name + " löschen?" + (o.art === "koffer" ? " Packliste und Termin-Zuordnung gehen mit." : ""))) return;
     aktion(() => rpc("lagerort_loeschen", { p_id:o.id }), o.name + " gelöscht");
   },
   ortHoch: x => {
-    const l = lagerorte(true), i = l.findIndex(o => o.id === Number(x));
+    // nur unter den aktiven Orten tauschen (so wie sie angezeigt werden), deaktivierte hinten anhängen
+    const l = lagerorte(), i = l.findIndex(o => o.id === Number(x));
     if(i <= 0) return;
     const ids = l.map(o => o.id); [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
+    lagerorte(true).filter(o => !o.aktiv).forEach(o => ids.push(o.id));
     aktion(() => rpc("lagerorte_sortieren", { p_ids:ids }));
   },
   rt: x => { view.rt = x; view.suche = ""; render(); },
@@ -3810,12 +4141,15 @@ const A = {
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
                 shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true",
                 dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
+    const gr = groessenLesen(wert("aGroessen"));
+    if(gr === false) return;
+    d.groessen = gr;
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const tagsSetzen = c => tags === undefined ? null : rpc("tags_setzen", { p_art:"artikel", p_schluessel:[c], p_tags:tags });
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
     if(x){ aktion(async () => { await aendern("artikel", "code=eq." + encodeURIComponent(x), d); await tagsSetzen(x); }, "Gespeichert"); return; }
     // Anfangsbestand: wird direkt nach dem Anlegen als Zugang gebucht (nicht bei Pauschalen)
-    const start = d.art === "Pauschale" ? 0 : (zahlOderNull("aBestand") || 0);
+    const start = d.art === "Pauschale" || d.groessen ? 0 : (zahlOderNull("aBestand") || 0);
     if(start < 0){ toast("Bestand darf nicht negativ sein.", true); return; }
     const startOrt = wert("aBestandOrt") || "Werkstatt";
     const mitBestand = async c => {
@@ -4265,6 +4599,12 @@ const C = {
     render();
   },
   nOrtWahl: v => { neu.arbeitsort = v; render(); },
+  grOrt: v => { if(grForm) formGroessen(grForm.code, grForm.art, v); },
+  leihSportler: v => { if(leih) leih.sportler = v; },
+  leihOrt: v => { if(leih){ leih.ort = v; leihZeichnen(); } },
+  leihArtikel: v => { if(leih){ leih.code = v; leihZeichnen(); } },
+  leihNotiz: v => { if(leih) leih.notiz = v; },
+  rueckSportler: v => { if(rueck){ rueck.sportler = v; rueckZeichnen(); } },
   invOrt: (v, x) => { const e = $("fMenge"), b = bestand(x); if(e) e.placeholder = "bisher " + zahl(b ? amOrt(b, v) : 0); },
   kofferSoll: (v, x) => {
     const [c, o] = x.split("|"), s = Number(String(v).replace(",", "."));
@@ -4720,6 +5060,7 @@ async function ladeSportler(){
     rest("/v_rad?order=id"), rest("/ticket?order=id.desc&limit=50"), rest("/rechnung?order=id.desc&limit=50"),
     rest("/sportler"), rest("/stueck?order=nummer"), rest("/artikel?order=code"), rest("/standort?select=" + STANDORT_SPALTEN)
   ]);
+  const ausgeliehen = (await rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle)) || [];
   const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
   const tsDa = await stueckeAnTickets(tickets);
   // Anzahl Fotos der offenen Tickets (für „Fotos ergänzen“, höchstens FOTOS_PRO_TICKET)
@@ -4729,7 +5070,7 @@ async function ladeSportler(){
   fotoIds.forEach(x => fotoAnzahl[x.ticket_id] = (fotoAnzahl[x.ticket_id] || 0) + 1);
   STANDORT = standort[0] || null;
   DB = { bestand:[], artikel, raeder, sportler, stueck, tickets, positionen, koffer:[], termine:[], rechnungen, offenePosten:[], zaehlung:[], bestellungen:[],
-         tags:null, artikelTags:[], stueckTags:[], tsDa, kategorien:null, fotoAnzahl };
+         tags:null, artikelTags:[], stueckTags:[], tsDa, kategorien:null, fotoAnzahl, ausgeliehen };
   stand = new Date();
   offline = false;
 }
@@ -4746,6 +5087,13 @@ function sportlerView(){
          '<button class="btn voll ' + (t.length ? "" : "rot") + '" style="margin-top:10px" data-a="spProblem" data-x="' + esc(r.id) + '">' +
          (t.length ? tnr(t[0].id) + ' ansehen · Fotos ergänzen' : 'Problem melden') + '</button></div>';
   });
+  const leih = (DB.ausgeliehen || []).filter(z => num(z.menge) > 0);
+  if(leih.length){
+    h += '<h2 class="sec">Ausgeliehene Bekleidung</h2><div class="card liste">';
+    leih.forEach(z => h += '<div class="eintrag"><div class="txt"><strong>' + esc((artikel(z.code) || {}).name || z.code) + '</strong> ' + esc(grName(z.groesse)) +
+                           '<br><span class="sub">' + zahl(z.menge) + ' Stück' + (z.seit ? ' · seit ' + de(z.seit) : '') + '</span></div></div>');
+    h += '</div><p class="sub">Leihgabe — bitte zurückgeben, wenn du sie nicht mehr brauchst.</p>';
+  }
   const tl = (DB.tickets||[]).slice().sort((a, b) => (offen(b) - offen(a)) || (b.id - a.id));
   h += '<h2 class="sec">Meine Tickets</h2>';
   if(!tl.length) h += '<div class="leer">Noch keine Tickets.</div>';

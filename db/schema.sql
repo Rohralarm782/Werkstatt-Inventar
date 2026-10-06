@@ -1,11 +1,11 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 15.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 16.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
---   db/migration_14.3.0.sql und db/migration_15.0.0.sql.)
+--   db/migration_14.3.0.sql, db/migration_15.0.0.sql und db/migration_16.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -53,7 +53,8 @@ create table standort (
   fuss_logo          text check (fuss_logo is null or length(fuss_logo) <= 400000)
 );
 
--- Lagerorte je Standort (ab 15.0.0): Räume und Koffer/Werkzeugkästen.
+-- Lagerorte je Standort (ab 15.0.0): Räume, Koffer/Werkzeugkästen und
+-- (ab 16.0.0) Bekleidungslager — zählt wie ein Raum zum Lager.
 -- Der Hauptraum „Werkstatt“ gibt es an jedem Standort genau einmal; er
 -- lässt sich nicht umbenennen, deaktivieren oder löschen. Buchungen,
 -- Tickets, Packlisten, Termine und Inventur verweisen über (Standort, Name)
@@ -63,7 +64,7 @@ create table lagerort (
   standort_id  bigint not null references standort (id),
   name         text not null check (name = trim(name) and name <> '' and length(name) <= 40
                                     and name not in ('am Rad', 'ausgemustert', 'alle') and position('|' in name) = 0),
-  art          text not null check (art in ('raum', 'koffer')),
+  art          text not null check (art in ('raum', 'koffer', 'bekleidung')),   -- bekleidung ab 16.0.0
   haupt        boolean not null default false,
   aktiv        boolean not null default true,
   reihenfolge  integer not null default 0,
@@ -129,7 +130,8 @@ create table artikel (
   shop_link        text,
   aktiv            boolean not null default true,
   dauer_min        integer check (dauer_min is null or dauer_min >= 0),  -- Arbeitszeit je Stück bzw. Leistung
-  standort_id  bigint not null references standort (id)
+  standort_id  bigint not null references standort (id),
+  groessen  text[] check (groessen is null or cardinality(groessen) between 1 and 40)   -- Bekleidung: Größen (ab 16.0.0), sonst leer
 );
 create index artikel_standort on artikel (standort_id);
 
@@ -275,7 +277,7 @@ create table rechnung (
 create table buchung (
   id           bigint generated always as identity primary key,
   zeit         timestamptz not null default now(),
-  art          text not null check (art in ('zugang', 'entnahme', 'umbuchung', 'korrektur', 'storno')),
+  art          text not null check (art in ('zugang', 'entnahme', 'umbuchung', 'korrektur', 'storno', 'ausleihe', 'rueckgabe')),
   code         text not null references artikel (code) on update cascade,
   menge        numeric not null check (menge <> 0),
   ort          text not null,
@@ -290,6 +292,7 @@ create table buchung (
   bearbeiter   text,
   storno_von   bigint unique references buchung (id),  -- Gegenbuchung zu dieser Zeile
   standort_id  bigint not null references standort (id),
+  groesse  text check (groesse is null or (groesse = trim(groesse) and groesse <> '' and length(groesse) <= 20)),   -- Bekleidung (ab 16.0.0)
   constraint buchung_ort_fkey foreign key (standort_id, ort) references lagerort (standort_id, name) on update cascade
 );
 create index buchung_standort on buchung (standort_id);
@@ -425,9 +428,9 @@ create index fehlversuch_zeit on fehlversuch (zeit);
 -- ---------------------------------------------------------------------
 create view v_bestand with (security_invoker = true) as
 with b as (
-  -- Räume zusammen = Lager („frei“ kommt daraus); Koffer zählen zum Bestand, aber nicht als frei
+  -- Räume und Bekleidungslager zusammen = Lager („frei“ kommt daraus); Koffer zählen zum Bestand, aber nicht als frei
   select bu.code,
-         sum(bu.menge) filter (where l.art = 'raum')   as lager,
+         sum(bu.menge) filter (where l.art in ('raum', 'bekleidung')) as lager,
          sum(bu.menge) filter (where l.art = 'koffer') as koffer
   from buchung bu
   join lagerort l on l.standort_id = bu.standort_id and l.name = bu.ort
@@ -465,6 +468,23 @@ select code, ort, sum(menge) as menge
 from buchung
 group by code, ort
 having sum(menge) <> 0;
+
+-- Bestand je Artikel, Größe und Ort (ab 16.0.0; groesse null = ohne Größe)
+create view v_bestand_groesse with (security_invoker = true) as
+select code, groesse, ort, sum(menge) as menge
+from buchung
+group by code, groesse, ort
+having sum(menge) <> 0;
+
+-- Ausgeliehene Bekleidung je Sportler: Ausleihen minus Rückgaben, Stornos eingerechnet
+create view v_ausgeliehen with (security_invoker = true) as
+select b.sportler_id, b.code, b.groesse, -sum(b.menge) as menge,
+       max(b.zeit) filter (where b.art = 'ausleihe') as seit
+from buchung b
+left join buchung o on o.id = b.storno_von
+where coalesce(o.art, b.art) in ('ausleihe', 'rueckgabe') and b.sportler_id is not null
+group by b.sportler_id, b.code, b.groesse
+having sum(b.menge) <> 0;
 
 create view v_rad with (security_invoker = true) as
 select r.id, r.bezeichnung, r.typ, r.rahmennummer, r.groesse, r.eigentuemer_id, r.aktiv, r.notiz,
@@ -1730,9 +1750,14 @@ begin
     if exists (select 1 from buchung where storno_von = z.id) then
       raise exception 'Bereits storniert';
     end if;
-    insert into buchung (art, code, menge, ort, sportler_id, ticket_id, einzelpreis, abrechnen,
+    if z.art = 'ausleihe' and coalesce((select sum(menge) from v_ausgeliehen
+                                         where sportler_id = z.sportler_id and code = z.code
+                                           and groesse is not distinct from z.groesse), 0) < -z.menge then
+      raise exception 'Von dieser Ausleihe wurde schon etwas zurückgegeben – erst die Rückgabe stornieren';
+    end if;
+    insert into buchung (art, code, groesse, menge, ort, sportler_id, ticket_id, einzelpreis, abrechnen,
                          gruppe, notiz, bearbeiter, storno_von, standort_id)
-    values ('storno', z.code, -z.menge, z.ort, z.sportler_id, z.ticket_id, z.einzelpreis, false,
+    values ('storno', z.code, z.groesse, -z.menge, z.ort, z.sportler_id, z.ticket_id, z.einzelpreis, false,
             z.gruppe, 'Storno: ' || trim(p_grund), p_bearbeiter, z.id, v_st);
     v_anzahl := v_anzahl + 1;
   end loop;
@@ -1841,7 +1866,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_code := naechster_code(p_buchstabe, p_gruppe);
   insert into artikel (code, name, einheit, preis, mindestbestand, lieferzeit_tage, art,
-                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min, standort_id)
+                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min, standort_id, groessen)
   values (v_code,
           p_daten ->> 'name',
           coalesce(nullif(p_daten ->> 'einheit', ''), 'Stück'),
@@ -1856,7 +1881,9 @@ begin
           nullif(p_daten ->> 'shop_link', ''),
           coalesce((p_daten ->> 'aktiv')::boolean, true),
           (p_daten ->> 'dauer_min')::integer,
-          v_st);
+          v_st,
+          case when jsonb_typeof(p_daten -> 'groessen') = 'array' and jsonb_array_length(p_daten -> 'groessen') > 0
+               then array(select jsonb_array_elements_text(p_daten -> 'groessen')) end);
   insert into artikel_tag (code, tag_id)
     select v_code, t.id from tag t
      where t.buchstabe = p_buchstabe and t.standort_id = v_st
@@ -2132,7 +2159,7 @@ declare
   v_name text;
   v_id   bigint;
 begin
-  if p_art is null or p_art not in ('raum', 'koffer') then raise exception 'Art fehlt: Raum oder Koffer'; end if;
+  if p_art is null or p_art not in ('raum', 'koffer', 'bekleidung') then raise exception 'Art fehlt: Raum, Koffer oder Bekleidung'; end if;
   v_name := lagerort_name_pruefen(v_st, p_name, null);
   insert into lagerort (standort_id, name, art, reihenfolge)
   values (v_st, v_name, p_art, coalesce((select max(reihenfolge) from lagerort where standort_id = v_st), 0) + 1)
@@ -2158,10 +2185,10 @@ begin
   end if;
 
   if p_art is not null and p_art <> l.art then
-    if p_art not in ('raum', 'koffer') then raise exception 'Art: Raum oder Koffer'; end if;
-    if p_art = 'raum' and (exists (select 1 from koffer_soll where standort_id = v_st and ort = l.name)
+    if p_art not in ('raum', 'koffer', 'bekleidung') then raise exception 'Art: Raum, Koffer oder Bekleidung'; end if;
+    if l.art = 'koffer' and (exists (select 1 from koffer_soll where standort_id = v_st and ort = l.name)
                            or exists (select 1 from termin where standort_id = v_st and koffer = l.name)) then
-      raise exception 'Erst Packliste und Termine von % entfernen, dann zum Raum machen', l.name;
+      raise exception 'Erst Packliste und Termine von % entfernen, dann umstellen', l.name;
     end if;
     update lagerort set art = p_art where id = l.id;
   end if;
@@ -2246,6 +2273,127 @@ begin
   return new;
 end $$;
 
+-- ---------------------------------------------------------------------
+--  Bekleidung (ab 16.0.0): Bestand je Größe, Ausleihe an Sportler und
+--  Rückgabe. Wird nie abgerechnet.
+-- ---------------------------------------------------------------------
+-- Größe beim Buchen prüfen: nur Größen des Artikels; bei Artikeln mit
+-- Größen brauchen Zugang, Ausleihe und Rückgabe eine Größe.
+create or replace function groesse_pruefen() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_gr text[];
+begin
+  select groessen into v_gr from artikel where code = new.code;
+  if new.groesse is not null and new.art not in ('storno', 'korrektur')
+     and (v_gr is null or not (new.groesse = any (v_gr))) then
+    raise exception 'Größe % gibt es bei % nicht', new.groesse, new.code;
+  end if;
+  if new.groesse is null and v_gr is not null and new.art in ('zugang', 'ausleihe', 'rueckgabe') then
+    raise exception 'Bitte eine Größe angeben (%)', new.code;
+  end if;
+  if new.art in ('ausleihe', 'rueckgabe') and new.sportler_id is null then
+    raise exception 'Sportler fehlt';
+  end if;
+  return new;
+end $$;
+
+-- Mehrere Teile an einen Sportler ausleihen (eine Gruppe → zusammen stornierbar).
+-- p_posten: [{"code": "...", "groesse": "M", "menge": 1}, …]
+create or replace function kleidung_ausleihen(p_sportler bigint, p_ort text, p_posten jsonb, p_notiz text default null)
+returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_st  bigint := recht_arbeiten();
+  v_grp uuid   := gen_random_uuid();
+  v_p   jsonb;
+  v_m   numeric;
+  v_n   integer := 0;
+begin
+  perform ort_pruefen(v_st, p_ort);
+  if not exists (select 1 from sportler where id = p_sportler and standort_id = v_st and aktiv) then
+    raise exception 'Unbekannter Sportler';
+  end if;
+  for v_p in select * from jsonb_array_elements(coalesce(p_posten, '[]'::jsonb)) loop
+    v_m := (v_p ->> 'menge')::numeric;
+    if v_m is null or v_m <= 0 then raise exception 'Menge fehlt'; end if;
+    if not exists (select 1 from artikel where code = v_p ->> 'code' and standort_id = v_st) then
+      raise exception 'Unbekannter Artikel: %', v_p ->> 'code';
+    end if;
+    insert into buchung (art, code, groesse, menge, ort, sportler_id, abrechnen, gruppe, notiz, bearbeiter, standort_id)
+    values ('ausleihe', v_p ->> 'code', nullif(v_p ->> 'groesse', ''), -v_m, p_ort, p_sportler, false, v_grp,
+            nullif(trim(p_notiz), ''), ich_name(), v_st);
+    v_n := v_n + 1;
+  end loop;
+  if v_n = 0 then raise exception 'Keine Teile gewählt'; end if;
+  return v_n;
+end $$;
+
+-- Rückgabe in einen Lagerort; höchstens so viel, wie der Sportler hat.
+create or replace function kleidung_rueckgabe(p_sportler bigint, p_ort text, p_posten jsonb, p_notiz text default null)
+returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_st  bigint := recht_arbeiten();
+  v_grp uuid   := gen_random_uuid();
+  v_p   jsonb;
+  v_m   numeric;
+  v_hat numeric;
+  v_gr  text;
+  v_n   integer := 0;
+begin
+  perform ort_pruefen(v_st, p_ort);
+  if not exists (select 1 from sportler where id = p_sportler and standort_id = v_st) then raise exception 'Unbekannter Sportler'; end if;
+  for v_p in select * from jsonb_array_elements(coalesce(p_posten, '[]'::jsonb)) loop
+    v_m  := (v_p ->> 'menge')::numeric;
+    v_gr := nullif(v_p ->> 'groesse', '');
+    if v_m is null or v_m <= 0 then raise exception 'Menge fehlt'; end if;
+    select coalesce(sum(menge), 0) into v_hat from v_ausgeliehen
+     where sportler_id = p_sportler and code = v_p ->> 'code' and groesse is not distinct from v_gr;
+    if v_m > v_hat then
+      raise exception 'Zurück % % %, ausgeliehen sind nur %', v_m, v_p ->> 'code', coalesce(v_gr, ''), v_hat;
+    end if;
+    insert into buchung (art, code, groesse, menge, ort, sportler_id, abrechnen, gruppe, notiz, bearbeiter, standort_id)
+    values ('rueckgabe', v_p ->> 'code', v_gr, v_m, p_ort, p_sportler, false, v_grp, nullif(trim(p_notiz), ''), ich_name(), v_st);
+    v_n := v_n + 1;
+  end loop;
+  if v_n = 0 then raise exception 'Keine Teile gewählt'; end if;
+  return v_n;
+end $$;
+
+-- Zählen je Größe an einem Ort; die Differenz wird je Größe korrigiert.
+-- p_zaehlung: [{"groesse": "M", "gezaehlt": 3}, …] (groesse null = ohne Größe)
+create or replace function kleidung_zaehlen(p_code text, p_ort text, p_zaehlung jsonb)
+returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_st  bigint := recht_arbeiten();
+  v_z   jsonb;
+  v_gr  text;
+  v_g   numeric;
+  v_ist numeric;
+  v_n   integer := 0;
+begin
+  if not exists (select 1 from artikel where code = p_code and standort_id = v_st) then raise exception 'Unbekannter Artikel: %', p_code; end if;
+  perform ort_pruefen(v_st, p_ort);
+  for v_z in select * from jsonb_array_elements(coalesce(p_zaehlung, '[]'::jsonb)) loop
+    v_gr := nullif(v_z ->> 'groesse', '');
+    v_g  := (v_z ->> 'gezaehlt')::numeric;
+    if v_g is null or v_g < 0 then raise exception 'Ungültige Zählung für Größe %', coalesce(v_gr, '–'); end if;
+    select coalesce(sum(menge), 0) into v_ist from buchung
+     where code = p_code and ort = p_ort and groesse is not distinct from v_gr and standort_id = v_st;
+    if v_g <> v_ist then
+      insert into buchung (art, code, groesse, menge, ort, notiz, bearbeiter, standort_id)
+      values ('korrektur', p_code, v_gr, v_g - v_ist, p_ort,
+              'Inventur' || coalesce(' ' || v_gr, '') || ': gezählt ' || v_g || ', vorher ' || v_ist, ich_name(), v_st);
+      v_n := v_n + 1;
+    end if;
+  end loop;
+  insert into zaehlung (code, ort, bearbeiter, standort_id) values (p_code, p_ort, ich_name(), v_st)
+  on conflict (code, ort) do update set gezaehlt_am = now(), bearbeiter = excluded.bearbeiter;
+  return v_n;
+end $$;
+
 -- Neue Zeilen gehören zum gewählten Standort (Kopfzeile X-Standort).
 alter table sportler alter column standort_id set default akt_standort();
 alter table kategorie alter column standort_id set default akt_standort();
@@ -2276,6 +2424,7 @@ create trigger artikel_verbrauch     before insert or update on artikel for each
 create trigger sportler_konto        after update on sportler    for each row execute function sportler_konto_abgleich();
 create trigger koffer_soll_ort       before insert or update on koffer_soll for each row execute function koffer_pruefen();
 create trigger termin_koffer         before insert or update on termin      for each row execute function koffer_pruefen();
+create trigger buchung_groesse       before insert on buchung    for each row execute function groesse_pruefen();
 create trigger stueck_ort            before insert or update of ort, standort_id on stueck for each row execute function stueck_ort_pruefen();
 
 -- ---------------------------------------------------------------------
@@ -2486,11 +2635,11 @@ revoke all on all tables in schema public from anonymous;
 grant usage on schema public to anonymous;
 grant select on standort, sportler, kategorie, tag, artikel, artikel_tag, rad, zuordnung, stueck, stueck_tag,
                 ticket, ticket_stueck, ticket_position, rechnung, buchung, koffer_soll, termin, zaehlung,
-                inventur_lauf, bestellung, foto, lagerort, v_bestand, v_bestand_ort, v_rad, v_koffer, v_offene_posten to anonymous;
+                inventur_lauf, bestellung, foto, lagerort, v_bestand, v_bestand_ort, v_bestand_groesse, v_ausgeliehen, v_rad, v_koffer, v_offene_posten to anonymous;
 grant update (name, rg_empfaenger, rg_absender, rg_kopf, rg_fuss, rg_text, iban, bic, bank,
               zahlungsziel_tage, logo, fuss_logo) on standort to anonymous;
 grant insert on stueck, termin, koffer_soll, sportler, rad, artikel, tag, kategorie to anonymous;
-grant insert (art, code, menge, ort, notiz, bearbeiter) on buchung to anonymous;
+grant insert (art, code, menge, ort, notiz, bearbeiter, groesse) on buchung to anonymous;
 grant insert (ticket_id, code, menge, titel, dauer_min) on ticket_position to anonymous;
 grant insert (code, menge, bearbeiter) on bestellung to anonymous;
 grant update on stueck, koffer_soll, sportler, rad, artikel, tag, kategorie to anonymous;
@@ -2543,7 +2692,10 @@ grant execute on function
   lagerort_anlegen(text, text),
   lagerort_aendern(bigint, text, text, boolean),
   lagerort_loeschen(bigint),
-  lagerorte_sortieren(bigint[])
+  lagerorte_sortieren(bigint[]),
+  kleidung_ausleihen(bigint, text, jsonb, text),
+  kleidung_rueckgabe(bigint, text, jsonb, text),
+  kleidung_zaehlen(text, text, jsonb)
 to anonymous;
 
 -- ---------------------------------------------------------------------
