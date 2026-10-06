@@ -1,10 +1,10 @@
 # Version
 
-**17.0.1** — 06.10.2026
+**17.1.0** — 06.10.2026
 
-Lager-Karte kompakter: Raum nur bei mehreren Räumen, Bekleidung nicht
-mehr in der Karte (dafür Reiter Material → Bekleidung), keine
-Erklärtexte und Teile-Summen mehr. Keine Datenbankänderung.
+Artikelformular getrennt nach „Werkstatt“ und „Bekleidung“: Es zeigt nur
+noch die Felder, die zur Variante und zur Art passen. Neue Bekleidung
+bekommt den Anfangsbestand gleich je Größe. Keine Datenbankänderung.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -15,6 +15,7 @@ damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 17.1.0 | 06.10.2026 | Artikelformular: Werkstatt / Bekleidung getrennt, Anfangsbestand je Größe |
 | 17.0.1 | 06.10.2026 | Lager-Karte kompakter (ein Raum ausgeblendet, Bekleidung raus, keine Erklärtexte) |
 | 17.0.0 | 06.10.2026 | index.html aufgeteilt (css/, lib/, js/ nach Bereichen), keine Funktionsänderung |
 | 16.0.0 | 06.10.2026 | Bekleidung (Größen, Ausleihe/Rückgabe), Lager-Kacheln, Lagerorte aufgeräumt (enthält die nicht einzeln gelieferte 15.0.1) |

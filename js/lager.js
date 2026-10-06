@@ -225,9 +225,9 @@ function ortSelect(id, wert, dataC, dataX){
 }
 /** Räume zuerst (Werkstatt oben), die Koffer als Gruppe darunter. Ein deaktivierter
     Ort, der gerade gewählt ist (z. B. Arbeitsort eines Tickets), bleibt sichtbar. */
-function ortOptionen(wert){
+function ortOptionen(wert, ohneKleidung){
   const opt = o => '<option value="' + esc(o) + '"' + (o === wert ? " selected" : "") + '>' + esc(o) + '</option>';
-  const r = raumOrte(), b = kleiderOrte(), k = kofferOrte();
+  const r = raumOrte(), b = ohneKleidung ? [] : kleiderOrte(), k = kofferOrte();
   let h = r.length > 1 ? '<optgroup label="Räume">' + r.map(opt).join("") + '</optgroup>' : r.map(opt).join("");
   if(b.length) h += '<optgroup label="Bekleidung">' + b.map(opt).join("") + '</optgroup>';
   if(k.length) h += '<optgroup label="Koffer &amp; Werkzeugkästen">' + k.map(opt).join("") + '</optgroup>';
@@ -447,7 +447,7 @@ function kleidungView(){
     h += '</div>';
   }
   h += '<p class="sub">Ausleihen ist eine Leihgabe: Sie wird nie berechnet. Eine falsche Ausleihe lässt sich unter Artikel → Buchungen stornieren (ganz, solange nichts davon zurückgegeben ist).</p>';
-  if(darf("arbeiten")) h += '<button class="btn small link" data-a="artikelNeu">Neuer Bekleidungsartikel</button>';
+  if(darf("arbeiten")) h += '<button class="btn small link" data-a="artikelNeu" data-x="kleidung">Neuer Bekleidungsartikel</button>';
   return h;
 }
 

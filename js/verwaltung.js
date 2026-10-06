@@ -597,30 +597,79 @@ function einheitenListe(aktuell){
   (DB.artikel||[]).map(x => x.einheit).concat([aktuell]).forEach(e => { if(e && !l.includes(e)) l.push(e); });
   return l;
 }
-function artikelForm(code){
+/* Artikelformular (ab 17.1.0) in zwei Varianten: „Werkstatt“ (Teile, Vorräte,
+   Leistungen) und „Bekleidung“ (Artikel mit Größen). Gezeigt wird nur, was zur
+   Variante und zur Art passt; ausgeblendete Felder behalten ihren Wert.
+   Steuerung über data-zeig="W K L P A" (eines davon muss zutreffen):
+   W = Werkstatt, K = Bekleidung, L = mit Bestand (Bekleidung oder kein Pauschale),
+   P = Pauschale (Werkstatt), A = Arbeitszeit (Werkstatt, Stück oder Pauschale). */
+let artZweck = "werkstatt";
+function artikelSichtbar(){
+  const k = artZweck === "kleidung", art = wert("aArt") || "Stück";
+  const an = { W:!k, K:k, L:k || art !== "Pauschale", P:!k && art === "Pauschale", A:!k && art !== "Vorrat" };
+  document.querySelectorAll("#modal [data-zeig]").forEach(e => { e.hidden = !e.dataset.zeig.split(" ").some(t => an[t]); });
+  const m = $("aMinLbl"); if(m) m.textContent = k ? "Mindestbestand je Größe" : "Mindestbestand";
+}
+/** Anfangsbestand je Größe (nur neue Bekleidung): ein Feld je Größe aus dem Größen-Feld, Eingaben bleiben erhalten. */
+function grBestandFelder(){
+  const box = $("aGrBestand"); if(!box) return;
+  const alt = {};
+  box.querySelectorAll("[data-agr]").forEach(e => { alt[e.dataset.agr] = e.value; });
+  const gr = groessenLesenStill(wert("aGroessen"));
+  box.innerHTML = gr.length
+    ? gr.map(x => '<div class="feld"><span class="lbl">' + esc(x) + '</span><input type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-agr="' + esc(x) + '" value="' + esc(alt[x] || "") + '"></div>').join("")
+    : '<p class="sub" style="margin:0">Erst Größen eintragen.</p>';
+}
+function groessenLesenStill(t){
+  const l = [];
+  String(t || "").split(/[,;]/).map(x => x.trim()).filter(x => x && x.length <= 20).forEach(x => { if(l.indexOf(x) < 0) l.push(x); });
+  return l.slice(0, 40);
+}
+function artikelForm(code, zweck){
   const a = code ? artikel(code) : { code:"", name:"", einheit:"Stück", preis:0, mindestbestand:0, lieferzeit_tage:0, art:"Stück", aktiv:true };
   const verbrauch = [["","—"]].concat((DB.artikel||[]).filter(x => x.art === "Vorrat").map(x => [x.code, x.name]));
   if(code) nrForm = null;
-  const artFeld = '<div class="feld"><span class="lbl">Art</span><select id="aArt" data-c="artGruppe">' +
+  const ko = kleiderOrte();
+  artZweck = code ? (hatGroessen(code) ? "kleidung" : "werkstatt") : (zweck === "kleidung" && ko.length ? "kleidung" : "werkstatt");
+  const wahl = ko.length || artZweck === "kleidung";
+  const preisGesperrt = code && !darf("manager");
+  const bestellOffen = !!(a.lieferant || a.bestellnummer || a.shop_link || num(a.lieferzeit_tage));
+  const artFeld = '<div class="feld" data-zeig="W"><span class="lbl">Art</span><select id="aArt" data-c="artGruppe">' +
     ["Stück","Vorrat","Pauschale"].map(x => '<option' + (a.art === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
   modal('<h3>' + (code ? "Artikel bearbeiten · " + esc(code) : "Neuer Artikel") + '</h3>' +
-    (code ? artFeld : artFeld + nummernWahl("artikel", 1)) +
+    (wahl ? '<div class="feld"><div class="seg">' + segBtn("aZweck", "werkstatt", "Werkstatt", artZweck) + segBtn("aZweck", "kleidung", "Bekleidung", artZweck) + '</div></div>' : '') +
+    artFeld + (code ? '' : nummernWahl("artikel", 1)) +
     ukBox(code ? stueckKategorie(code) : "", code ? tagsVon("artikel", code) : []) +
     feld("Bezeichnung", "aName", a.name) +
-    '<div class="grid2">' + auswahl("Einheit", "aEinheit", einheitenListe(a.einheit), a.einheit || "Stück") + feld("Preis (€)" + (code && !darf("manager") ? " · ändert der Manager" : ""), "aPreis", a.preis, "number", ' step="0.01" min="0"' + (code && !darf("manager") ? " disabled" : "")) + '</div>' +
-    (code ? '' : '<div id="aBestandBox" class="grid2"' + (a.art === "Pauschale" ? " hidden" : "") + '>' +
-       feld("Bestand jetzt", "aBestand", "", "number", ' step="any" min="0" inputmode="decimal" placeholder="0"') +
-       '<div class="feld"><span class="lbl">liegt in</span>' + ortSelect("aBestandOrt", standardOrt()) + '</div></div>') +
-    '<div class="feld"><span class="lbl">Größen (Bekleidung, durch Komma getrennt — leer = keine)</span><input type="text" id="aGroessen" value="' + esc((a.groessen || []).join(", ")) + '" placeholder="z. B. XS, S, M, L, XL">' +
-      '<div class="row wrapr" style="gap:6px;margin-top:6px">' + GROESSEN_VORLAGEN.map((v, i) => '<button class="btn small" data-a="grVorlage" data-x="' + i + '">' + esc(v[0]) + '</button>').join("") + '</div>' +
-      '<p class="sub" style="margin:6px 0 0">Mit Größen wird der Bestand je Größe geführt, ausgegeben wird als Leihgabe an Sportler (nie berechnet). Mindestbestand gilt dann je Größe.</p></div>' +
-    '<div class="grid2">' + feld("Mindestbestand", "aMin", a.mindestbestand, "number", ' step="any" min="0"') + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + '</div>' +
-    feld("Arbeitszeit (min, je Stück bzw. Leistung)", "aDauer", a.dauer_min, "number", ' step="1" min="0" inputmode="numeric" placeholder="z. B. 15 fürs Lenkerband wickeln"') +
-    '<div class="grid2">' + auswahl("Pauschale verbraucht", "aVerb", verbrauch, a.verbraucht_code) + feld("Verbrauch je Stück", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
-    '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
-    feld("Shop-Link", "aLink", a.shop_link) + auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) +
-    (code ? '' : '<p class="sub">Die Ziffer richtet sich nach der Art: Stück 1xx, Vorrat 5xx, Pauschale 9xx.</p>') +
+    // Bekleidung: Größen
+    '<div class="feld" data-zeig="K"><span class="lbl">Größen (durch Komma getrennt)</span><input type="text" id="aGroessen" data-c="aGroessen" value="' + esc((a.groessen || []).join(", ")) + '" placeholder="z. B. XS, S, M, L, XL">' +
+      '<div class="row wrapr" style="gap:6px;margin-top:6px">' + GROESSEN_VORLAGEN.map((v, i) => '<button class="btn small" data-a="grVorlage" data-x="' + i + '">' + esc(v[0]) + '</button>').join("") + '</div></div>' +
+    // kleine Felder: im Raster rücken ausgeblendete Felder einfach heraus
+    '<div class="grid2">' +
+      auswahl("Einheit", "aEinheit", einheitenListe(a.einheit), a.einheit || "Stück") +
+      feld("Preis (€)" + (preisGesperrt ? " · ändert der Manager" : ""), "aPreis", a.preis, "number", ' step="0.01" min="0"' + (preisGesperrt ? " disabled" : "")) +
+      '<div class="feld" data-zeig="L"><span class="lbl" id="aMinLbl">Mindestbestand</span><input type="number" id="aMin" value="' + esc(a.mindestbestand == null ? "" : a.mindestbestand) + '" step="any" min="0"></div>' +
+      '<div class="feld" data-zeig="A"><span class="lbl">Arbeitszeit (min)</span><input type="number" id="aDauer" value="' + esc(a.dauer_min == null ? "" : a.dauer_min) + '" step="1" min="0" inputmode="numeric" placeholder="z. B. 15"></div>' +
+    '</div>' +
+    // Anfangsbestand (nur neu)
+    (code ? '' :
+      '<div class="grid2" data-zeig="W"><div data-zeig="L">' + feld("Bestand jetzt", "aBestand", "", "number", ' step="any" min="0" inputmode="decimal" placeholder="0"') + '</div>' +
+        '<div class="feld" data-zeig="L"><span class="lbl">liegt in</span><select id="aBestandOrt">' + ortOptionen(standardOrt(), true) + '</select></div></div>' +
+      (ko.length ? '<div class="feld" data-zeig="K"><span class="lbl">Bestand jetzt je Größe' + (ko.length > 1 ? '' : ' · ' + esc(ko[0])) + '</span>' +
+        (ko.length > 1 ? '<select id="aKleidOrt" style="margin-bottom:8px">' + ko.map(o => '<option' + (o === view.kOrt ? " selected" : "") + '>' + esc(o) + '</option>').join("") + '</select>' : '<input type="hidden" id="aKleidOrt" value="' + esc(ko[0]) + '">') +
+        '<div class="grgrid" id="aGrBestand"></div></div>' : '')) +
+    // Pauschale: Verbrauch
+    '<div class="grid2" data-zeig="P">' + auswahl("Verbraucht dabei", "aVerb", verbrauch, a.verbraucht_code) + feld("Menge je Leistung", "aVerbM", a.verbrauch_menge, "number", ' step="any" min="0"') + '</div>' +
+    // Bestellangaben aufklappbar
+    '<details class="mehrfelder" data-zeig="L"' + (bestellOffen ? " open" : "") + '><summary>Bestellangaben' + (a.lieferant ? ' · ' + esc(a.lieferant) : '') + '</summary>' +
+      '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
+      '<div class="grid2">' + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + feld("Shop-Link", "aLink", a.shop_link) + '</div></details>' +
+    (code ? auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) : '<input type="hidden" id="aAktiv" value="true">') +
+    '<p class="sub" data-zeig="K">Bestand wird je Größe geführt; ausgegeben wird als Leihgabe an Sportler (nie berechnet).</p>' +
+    (code ? '' : '<p class="sub" data-zeig="W">Die Ziffer richtet sich nach der Art: Stück 1xx, Vorrat 5xx, Pauschale 9xx.</p>') +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="artikelSpeichern" data-x="' + esc(code || "") + '">Speichern</button></div>');
+  artikelSichtbar();
+  grBestandFelder();
 }
 function radForm(id){
   const r = id ? rad(id) : { id:"", bezeichnung:"", typ:"Bahn", marke:"", rahmennummer:"", groesse:"", eigentuemer_id:null, aktiv:true, notiz:"" };

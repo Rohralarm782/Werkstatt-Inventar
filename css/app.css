@@ -84,6 +84,13 @@
   textarea{min-height:88px;line-height:1.45;resize:vertical}
   .feld{margin-bottom:12px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  /* aufklappbare Zusatzfelder im Formular (z. B. Bestellangaben) */
+  /* Anfangsbestand je Größe: kleine Felder nebeneinander */
+  .grgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}
+  .grgrid .feld{margin:0}
+  .grgrid input{text-align:center}
+  .mehrfelder{margin:0 0 12px;border-top:1px solid #E7E3DD;padding-top:10px}
+  .mehrfelder>summary{cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);font-weight:600;margin-bottom:8px;list-style-position:inside}
   @media (max-width:480px){ .grid2{grid-template-columns:1fr} }
   /* Unteroptionen und Auswahlen: heller Umschalter auf grauer Spur */
   .seg{display:flex;gap:4px;flex-wrap:wrap;background:#E7E3DD;padding:4px;border-radius:12px}

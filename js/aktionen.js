@@ -83,7 +83,16 @@ const A = {
   /* Bekleidung */
   kleidungAuf: x => { view.tab = "material"; view.mat = "kleidung"; view.kOrt = x; view.suche = ""; render(); window.scrollTo(0,0); },
   kOrt: x => { view.kOrt = x; render(); },
-  grVorlage: x => { const e = $("aGroessen"), v = GROESSEN_VORLAGEN[Number(x)]; if(e && v) e.value = v[1]; },
+  grVorlage: x => { const e = $("aGroessen"), v = GROESSEN_VORLAGEN[Number(x)]; if(e && v) e.value = v[1]; grBestandFelder(); },
+  /* Artikelformular: Werkstatt oder Bekleidung (ab 17.1.0) */
+  aZweck: x => {
+    artZweck = x === "kleidung" ? "kleidung" : "werkstatt";
+    document.querySelectorAll('#modal [data-a="aZweck"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.x === artZweck)));
+    // Bekleidung ist immer Art „Stück“ (Codegruppe 1xx)
+    const art = $("aArt");
+    if(artZweck === "kleidung" && art && art.value !== "Stück"){ art.value = "Stück"; C.artGruppe("Stück"); }
+    artikelSichtbar();
+  },
   grZugang: x => formGroessen(x, "zugang"),
   grZaehlen: x => formGroessen(x, "zaehlen"),
   grSpeichern: () => {
@@ -411,27 +420,43 @@ const A = {
     if(rad(id)){ toast(id + " ist schon vergeben.", true); return; }
     aktion(() => neuIn("rad", Object.assign({ id }, d)), d.bezeichnung + " angelegt");
   },
-  artikelNeu: () => artikelForm(null),
+  artikelNeu: x => artikelForm(null, x),
   artikelBearbeiten: x => artikelForm(x),
   artikelSpeichern: x => {
+    const kleid = artZweck === "kleidung";
     const d = { name:wert("aName"), einheit:wert("aEinheit") || "Stück", preis:zahlOderNull("aPreis") || 0, mindestbestand:zahlOderNull("aMin") || 0,
-                lieferzeit_tage: Math.round(zahlOderNull("aLz") || 0), art:wert("aArt"), verbraucht_code:wert("aVerb") || null,
+                lieferzeit_tage: Math.round(zahlOderNull("aLz") || 0), art:kleid ? "Stück" : wert("aArt"), verbraucht_code:wert("aVerb") || null,
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
                 shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true",
                 dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
-    const gr = groessenLesen(wert("aGroessen"));
-    if(gr === false) return;
+    // Werkstatt-Artikel haben keine Größen; Bekleidung braucht welche
+    let gr = null;
+    if(kleid){
+      gr = groessenLesen(wert("aGroessen"));
+      if(gr === false) return;
+      if(!gr){ toast("Bitte Größen eintragen (oder „One Size“).", true); return; }
+    } else if(x && hatGroessen(x) && !confirm("Als Werkstatt-Artikel speichern? Die Größen (" + groessen(x).join(", ") + ") werden entfernt.")) return;
     d.groessen = gr;
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const tagsSetzen = c => tags === undefined ? null : rpc("tags_setzen", { p_art:"artikel", p_schluessel:[c], p_tags:tags });
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
     if(x){ aktion(async () => { await aendern("artikel", "code=eq." + encodeURIComponent(x), d); await tagsSetzen(x); }, "Gespeichert"); return; }
-    // Anfangsbestand: wird direkt nach dem Anlegen als Zugang gebucht (nicht bei Pauschalen)
-    const start = d.art === "Pauschale" || d.groessen ? 0 : (zahlOderNull("aBestand") || 0);
+    // Anfangsbestand: wird direkt nach dem Anlegen als Zugang gebucht (nicht bei Pauschalen).
+    // Bekleidung: je Größe ins gewählte Bekleidungslager.
+    const startGr = [];
+    let falsch = false;
+    if(kleid) document.querySelectorAll("#modal [data-agr]").forEach(e => {
+      const t = String(e.value).trim(); if(t === "") return;
+      const n = Number(t.replace(",", "."));
+      if(isNaN(n) || n < 0) falsch = true; else if(n > 0 && gr.indexOf(e.dataset.agr) >= 0) startGr.push({ gr:e.dataset.agr, n });
+    });
+    if(falsch){ toast("Bestand: ungültige Zahl.", true); return; }
+    const start = kleid ? startGr.reduce((m, w) => m + w.n, 0) : d.art === "Pauschale" ? 0 : (zahlOderNull("aBestand") || 0);
     if(start < 0){ toast("Bestand darf nicht negativ sein.", true); return; }
-    const startOrt = wert("aBestandOrt") || "Werkstatt";
+    const startOrt = (kleid ? wert("aKleidOrt") : wert("aBestandOrt")) || "Werkstatt";
     const mitBestand = async c => {
-      if(start > 0) await neuIn("buchung", { art:"zugang", code:c, menge:start, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null });
+      if(kleid && startGr.length) await neuIn("buchung", startGr.map(w => ({ art:"zugang", code:c, groesse:w.gr, menge:w.n, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null })));
+      else if(!kleid && start > 0) await neuIn("buchung", { art:"zugang", code:c, menge:start, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null });
       return c;
     };
     const meldung = c => c + " angelegt" + (start > 0 ? " · " + zahl(start) + " " + d.einheit + " in " + startOrt : "");
@@ -837,7 +862,7 @@ const C = {
   nrEigen: () => ukBoxAktualisieren(),
   etVorlage: v => { const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"); if(f) f.hidden = vo.seite !== "A4"; if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; } },
   artGruppe: v => {
-    const bb = $("aBestandBox"); if(bb) bb.hidden = v === "Pauschale";
+    artikelSichtbar();
     const g = $("nrGruppe"), k = $("nrKat");
     if(!g || !GRUPPE_FUER_ART[v]) return;
     g.value = String(GRUPPE_FUER_ART[v]);
