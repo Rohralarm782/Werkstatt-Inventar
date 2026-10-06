@@ -1,9 +1,9 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 14.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 14.1.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 13.x aus nur db/migration_14.0.0.sql.)
+--   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -502,23 +502,23 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce((select gesamt_admin from konto where id = ich_id()), false);
 $$;
 
--- Der Standort aus X-Standort — nur, wenn das Konto dort eine Rolle hat
--- (der Gesamt-Admin darf überall hin).
+-- Der Standort aus X-Standort — nur, wenn das Konto dort eine Rolle hat.
+-- Auch der Gesamt-Admin kommt nur in Standorte, in denen er eine Rolle hat;
+-- die anderen verwaltet er über standorte_verwaltung, ohne ihre Daten zu sehen.
 create or replace function akt_standort() returns bigint
 language sql stable security definer set search_path = public, pg_temp as $$
   select st.id
     from standort st
    where st.aktiv
      and st.id = (select case when kopfzeile('x-standort') ~ '^[0-9]{1,18}$' then kopfzeile('x-standort')::bigint end)
-     and (ist_admin() or exists (select 1 from konto_rolle r where r.konto_id = ich_id() and r.standort_id = st.id));
+     and exists (select 1 from konto_rolle r where r.konto_id = ich_id() and r.standort_id = st.id);
 $$;
 
--- admin | manager | trainer | geschaeftsstelle | sportler | null
+-- manager | trainer | geschaeftsstelle | sportler | null (Rolle am gewählten Standort)
 create or replace function meine_rolle() returns text
 language sql stable security definer set search_path = public, pg_temp as $$
   select case
            when akt_standort() is null then null
-           when ist_admin() then 'admin'
            else (select r.rolle from konto_rolle r where r.konto_id = ich_id() and r.standort_id = akt_standort())
          end;
 $$;
@@ -682,10 +682,10 @@ language sql stable security definer set search_path = public, pg_temp as $$
            'pin_laenge', pin_laenge(k.id),
            'standorte', coalesce((
              select jsonb_agg(jsonb_build_object('id', st.id, 'name', st.name, 'kuerzel', st.kuerzel,
-                                                 'rolle', coalesce(r.rolle, 'admin')) order by st.name)
+                                                 'rolle', r.rolle) order by st.name)
                from standort st
-               left join konto_rolle r on r.standort_id = st.id and r.konto_id = k.id
-              where st.aktiv and (k.gesamt_admin or r.konto_id is not null)), '[]'::jsonb))
+               join konto_rolle r on r.standort_id = st.id and r.konto_id = k.id
+              where st.aktiv and r.konto_id is not null), '[]'::jsonb))
     from konto k where k.id = p_konto;
 $$;
 
@@ -725,18 +725,18 @@ begin
     select count(*) into n
       from konto x
      where x.aktiv and lower(trim(x.name)) = lower(trim(coalesce(p_name, '')))
-       and (x.gesamt_admin or exists (select 1 from konto_rolle r where r.konto_id = x.id and r.standort_id = p_standort));
+       and exists (select 1 from konto_rolle r where r.konto_id = x.id and r.standort_id = p_standort);
     if n > 1 then
       return jsonb_build_object('ok', false, 'fehler', 'Den Namen gibt es mehrfach – bitte den Werkstatt-Manager fragen.');
     end if;
     select * into k
       from konto x
      where x.aktiv and lower(trim(x.name)) = lower(trim(coalesce(p_name, '')))
-       and (x.gesamt_admin or exists (select 1 from konto_rolle r where r.konto_id = x.id and r.standort_id = p_standort));
+       and exists (select 1 from konto_rolle r where r.konto_id = x.id and r.standort_id = p_standort);
   end if;
 
   if k.id is null
-     or not (k.gesamt_admin or exists (select 1 from konto_rolle r where r.konto_id = k.id and r.standort_id = p_standort)) then
+     or not exists (select 1 from konto_rolle r where r.konto_id = k.id and r.standort_id = p_standort) then
     return jsonb_build_object('ok', false, 'fehler', 'Name oder PIN falsch.');
   end if;
   if k.gesperrt_bis is not null and k.gesperrt_bis > now() then
@@ -995,6 +995,78 @@ begin
   insert into standort (name, kuerzel) values (trim(p_name), upper(trim(p_kuerzel))) returning id into v_id;
   perform standard_kategorien(v_id);
   return v_id;
+end $$;
+
+-- Übersicht aller Standorte für den Gesamt-Admin: nur Name, Kürzel und die
+-- Werkstatt-Manager — keine Daten der Standorte.
+create or replace function standorte_verwaltung() returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  if ich_id() is null then raise exception 'Nicht angemeldet – bitte neu anmelden' using errcode = '28000'; end if;
+  if not ist_admin() then raise exception 'Nur für den Gesamt-Admin'; end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'id', st.id, 'name', st.name, 'kuerzel', st.kuerzel, 'angelegt', st.angelegt,
+             'meine_rolle', (select r.rolle from konto_rolle r where r.konto_id = ich_id() and r.standort_id = st.id),
+             'manager', coalesce((
+               select jsonb_agg(jsonb_build_object('id', k.id, 'name', k.name, 'aktiv', k.aktiv,
+                                                   'pin_gesetzt', k.pin_hash is not null, 'einladung_bis', e.gueltig_bis,
+                                                   'zuletzt', k.zuletzt, 'gesperrt', coalesce(k.gesperrt_bis > now(), false))
+                                order by lower(k.name))
+                 from konto k
+                 join konto_rolle r on r.konto_id = k.id and r.standort_id = st.id and r.rolle = 'manager'
+                 left join einladung e on e.konto_id = k.id
+                where not k.gesamt_admin), '[]'::jsonb))
+           order by st.name)
+      from standort st where st.aktiv), '[]'::jsonb);
+end $$;
+
+-- Gesamt-Admin lädt einen Werkstatt-Manager für einen Standort ein,
+-- ohne selbst Zugriff auf den Standort zu haben.
+create or replace function standort_manager_einladen(p_standort bigint, p_name text) returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare
+  v_name  text := trim(coalesce(p_name, ''));
+  v_id    bigint;
+begin
+  if ich_id() is null then raise exception 'Nicht angemeldet – bitte neu anmelden' using errcode = '28000'; end if;
+  if not ist_admin() then raise exception 'Nur für den Gesamt-Admin'; end if;
+  if not exists (select 1 from standort where id = p_standort and aktiv) then raise exception 'Unbekannter Standort'; end if;
+  if v_name = '' then raise exception 'Name fehlt'; end if;
+  if name_vergeben(p_standort, v_name) then raise exception 'Den Namen gibt es an diesem Standort schon'; end if;
+  insert into konto (name) values (v_name) returning id into v_id;
+  insert into konto_rolle (konto_id, standort_id, rolle) values (v_id, p_standort, 'manager');
+  return jsonb_build_object('konto_id', v_id, 'name', v_name) || einladung_erzeugen(v_id);
+end $$;
+
+-- Werkstatt-Manager eines beliebigen Standorts: neuer Code (PIN vergessen)
+-- oder (de)aktivieren — nur Gesamt-Admin.
+create or replace function manager_pruefen(p_konto bigint) returns void
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  if ich_id() is null then raise exception 'Nicht angemeldet – bitte neu anmelden' using errcode = '28000'; end if;
+  if not ist_admin() then raise exception 'Nur für den Gesamt-Admin'; end if;
+  if not exists (select 1 from konto k join konto_rolle r on r.konto_id = k.id
+                  where k.id = p_konto and r.rolle = 'manager' and not k.gesamt_admin) then
+    raise exception 'Kein Werkstatt-Manager';
+  end if;
+end $$;
+
+create or replace function manager_neuer_code(p_konto bigint) returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+begin
+  perform manager_pruefen(p_konto);
+  update konto set pin_hash = null, fehlversuche = 0, gesperrt_bis = null, aktiv = true where id = p_konto;
+  delete from sitzung where konto_id = p_konto;
+  return jsonb_build_object('konto_id', p_konto, 'name', (select name from konto where id = p_konto)) || einladung_erzeugen(p_konto);
+end $$;
+
+create or replace function manager_aktiv(p_konto bigint, p_aktiv boolean) returns void
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+begin
+  perform manager_pruefen(p_konto);
+  update konto set aktiv = coalesce(p_aktiv, true) where id = p_konto;
+  if not coalesce(p_aktiv, true) then delete from sitzung where konto_id = p_konto; end if;
 end $$;
 
 -- Nur im Neon SQL-Editor (keine Freigabe für die App): neuer Einladungscode
@@ -2129,6 +2201,7 @@ grant execute on function
   ich(), abmelden(), pin_aendern(text, text),
   konten_liste(), konto_anlegen(text, text, bigint), konto_neuer_code(bigint),
   konto_aendern(bigint, text, text, boolean), sportler_zugang(bigint), standort_anlegen(text, text),
+  standorte_verwaltung(), standort_manager_einladen(bigint, text), manager_neuer_code(bigint), manager_aktiv(bigint, boolean),
   -- Werkstatt
   rad_zuordnen(text, bigint),
   material_ausgeben(text, numeric, text, bigint, bigint, text, text),

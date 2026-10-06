@@ -307,7 +307,7 @@
    Anmeldung mit Name + PIN (Konten in der Datenbank, seit 14.0.0).
    ===============================================================*/
 
-const APP_VERSION = "14.0.0";
+const APP_VERSION = "14.1.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -2414,7 +2414,7 @@ function mehrGruppen(){
   ];
   if(darf("manager")) g[2][1].push(["konten", "Konten &amp; Rollen", () => "Personen einladen, PIN zurücksetzen"]);
   if(darf("rechnen")) g[2][1].push(["briefkopf", "Briefkopf &amp; Bank", () => (STANDORT && STANDORT.iban) ? "für die Rechnungen" : "IBAN noch nicht eingetragen"]);
-  if(darf("admin")) g[2][1].push(["standorte", "Standorte", () => ((aktiveSitzung() || {}).standorte || []).length + " Standort(e) · Gesamt-Admin"]);
+  if(darf("admin")) g[2][1].push(["standorte", "Standorte", () => "Übersicht, Werkstatt-Manager einladen · Gesamt-Admin"]);
   return g.filter(x => x[1].length);
 }
 function mehrView(){
@@ -3380,7 +3380,7 @@ const A = {
   rt: x => { view.rt = x; view.suche = ""; render(); },
   radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
   radZu: () => { view.rad = null; render(); window.scrollTo(0,0); },
-  geheMehr: x => { view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  geheMehr: x => { if(x === "standorte") standorteCache = undefined; if(x === "konten") kontenCache = undefined; view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
   mehrZu: () => { view.mehr = null; view.ukKat = null; render(); window.scrollTo(0,0); },
   ticketRad: x => { modalZu(); ticketFuerRad(x); },
   ticketStueck: x => { modalZu(); neuStart(); view.tab = "neu"; view.ticket = null; neuStueckWaehlen(x); window.scrollTo(0,0); },
@@ -4123,14 +4123,14 @@ function sitzungFuer(kontoId){ return sitzungen().find(s => s.konto_id === konto
 function sitzungEntfernen(kontoId){ SITZUNGEN = SITZUNGEN.filter(s => s.konto_id !== kontoId); merkeSitzungen(); }
 function rolle(){ return ICH ? ICH.rolle : null; }
 const ROLLEN_TEXT = { admin:"Gesamt-Admin", manager:"Werkstatt-Manager", trainer:"Trainer/Mechaniker", geschaeftsstelle:"Geschäftsstelle", sportler:"Sportler" };
-function rolleAm(s, st){ const x = ((s && s.standorte) || []).find(y => y.id === st); return x ? x.rolle : (s && s.gesamt_admin ? "admin" : ""); }
+function rolleAm(s, st){ const x = ((s && s.standorte) || []).find(y => y.id === st); return x ? x.rolle : ""; }
 /** arbeiten: buchen, Tickets, Stammdaten · manager: löschen, Kategorien, Tags, Preise, Konten · rechnen: Rechnungen, Briefkopf */
 function darf(was){
   const r = rolle();
   if(was === "arbeiten") return r === "admin" || r === "manager" || r === "trainer";
   if(was === "manager")  return r === "admin" || r === "manager";
   if(was === "rechnen")  return r === "admin" || r === "manager" || r === "geschaeftsstelle";
-  if(was === "admin")    return r === "admin";
+  if(was === "admin")    return !!(ICH && ICH.gesamt_admin);   // Gesamt-Admin: Standorte verwalten, nicht in fremde Daten
   return false;
 }
 /** Eingetragene Personen am Werkstatt-Laptop (ohne Sportler) */
@@ -4155,6 +4155,7 @@ const IMMER_OK = ["anmWahl","anmName","anmNameOk","anmCode","anmCodeOk","anmCode
   "kontoMenue","kontoAktiv","kontoAustragen","kontoAlleAus","personEintragen","standortWechseln","standortWahl","pinAendern","pinAendernOk","abmelden",
   "geraetEinstellen","geraetModus","werWahl","werWahlAbbrechen","codeKopieren","codeTeilen",
   "kontNeu","kontNeuOk","kontBearbeiten","kontSpeichern","kontCode","kontAktiv","sportlerZugang","standortNeu","standortNeuOk","standortHin",
+  "stManagerNeu","stManagerNeuOk","stManagerCode","stManagerAktiv",
   "briefkopfSpeichern","logoWeg","spProblem","spProblemOk","spTicket","modalZu","modalHintergrund"];
 const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlaufTicket","verlaufRad","mat","matFilter","kofferAuf","kofferZu","rt","radAuf","radZu",
   "geheMehr","mehrZu","teilZeigen","oeffnen","zurueck","scan","drucken","artikelMenue","export","rechnungZeigen","rechnungDrucken","postenZeigen","fotoZeigen",
@@ -4247,6 +4248,8 @@ function anmeldungHtml(){
     h += '<div class="card"><span class="lbl">Standort dieses Geräts</span>';
     if(!a.standorte){ h += a.laedtFehler ? '<button class="btn voll" data-a="anmZurueck">Nochmal versuchen</button>' : '<div class="sub">Lädt…</div>'; }
     else h += '<div style="display:grid;gap:8px">' + a.standorte.map(s => '<button class="btn" data-a="anmStandort" data-x="' + s.id + '">' + esc(s.name) + '</button>').join("") + '</div>';
+    h += '</div><div class="card"><span class="lbl">Neu hier?</span><button class="btn voll" data-a="anmCode">Einladungscode eingeben</button>' +
+         '<p class="sub" style="margin:8px 0 0">Mit dem Code wird der Standort automatisch gewählt.</p>';
     return h + '</div>' + (a.imModal || a.wechseln ? '<button class="btn voll" data-a="anmAbbrechen">Abbrechen</button>' : '');
   }
   if(a.schritt === "wer"){
@@ -4414,7 +4417,7 @@ function kontenVerw(){
          (k.rolle === "admin" ? '' : '<button class="btn small" data-a="kontBearbeiten" data-x="' + k.id + '">bearbeiten</button>') + '</div>';
   });
   h += '</div><p class="sub">Neue Personen bekommen einen Einladungscode (7 Tage gültig, einmal). Damit wählen sie ihre PIN. PIN vergessen? Unter „bearbeiten“ einen neuen Code erzeugen — die alte PIN gilt dann nicht mehr. ' +
-       'Sportler-Zugänge gibt es auch auf der Seite Sportler.' + (darf("admin") ? ' Werkstatt-Manager anderer Standorte: erst unter Mehr → Standorte zum Standort wechseln, dann hier einladen.' : '') + '</p>';
+       'Sportler-Zugänge gibt es auch auf der Seite Sportler.' + (darf("admin") ? ' Werkstatt-Manager anderer Standorte lädst du unter Mehr → Standorte ein.' : '') + '</p>';
   return h;
 }
 function rollenOptionen(wert, mitSportler){
@@ -4443,19 +4446,39 @@ async function kontoRpc(fn, args, nachher){
 }
 
 /* ---------- Standorte (Gesamt-Admin) ---------- */
+let standorteCache;   // undefined | "laedt" | "fehler" | [...]
+async function ladeStandorte(){
+  if(standorteCache === "laedt") return;
+  standorteCache = "laedt";
+  try{ standorteCache = await rpc("standorte_verwaltung"); }catch(e){ standorteCache = "fehler"; toast(e.message, true); }
+  render();
+}
+/** Gesamt-Admin: alle Standorte mit ihren Werkstatt-Managern — ohne Zugriff auf deren Daten. */
 function standorteVerw(){
-  const s = aktiveSitzung(), l = (s && s.standorte) || [];
-  let h = '<div class="card liste">';
-  l.forEach(x => h += '<div class="eintrag"><div class="txt"><strong>' + esc(x.name) + '</strong> <span class="sub">· ' + esc(x.kuerzel || "") + '</span>' + (x.id === GERAET.standort ? ' <span class="chip ok">hier</span>' : '') + '</div>' +
-                      (x.id === GERAET.standort ? '' : '<button class="btn small" data-a="standortHin" data-x="' + x.id + '">wechseln</button>') + '</div>');
-  h += '</div><button class="btn primary" data-a="standortNeu">+ Neuer Standort</button>' +
-       '<p class="sub">Ein neuer Standort bekommt die Standard-Kategorien (A, B, C, L, R, W) und sonst leere Daten. Danach zum Standort wechseln und unter Mehr → Konten den Werkstatt-Manager einladen. ' +
-       'Jeder Code beginnt mit dem Kürzel des Standorts (SN-B-101, SN-BR-01) — so landet ein Etikett nie im falschen Lager.</p>';
+  if(standorteCache === undefined){ ladeStandorte(); return '<div class="leer">Lädt…</div>'; }
+  if(standorteCache === "laedt") return '<div class="leer">Lädt…</div>';
+  if(standorteCache === "fehler") return '<div class="leer">Konnte nicht geladen werden. <button class="btn small" data-a="geheMehr" data-x="standorte">nochmal</button></div>';
+  let h = '<button class="btn primary" data-a="standortNeu" style="margin-bottom:10px">+ Neuer Standort</button>';
+  standorteCache.forEach(st => {
+    h += '<div class="card"><div class="row" style="gap:8px"><span class="big" style="flex:1">' + esc(st.name) + '</span><span class="chip grau">' + esc(st.kuerzel) + '</span>' +
+         (st.id === GERAET.standort ? '<span class="chip ok">hier</span>' : st.meine_rolle ? '<button class="btn small" data-a="standortHin" data-x="' + st.id + '">wechseln</button>' : '') + '</div>' +
+         '<span class="lbl" style="margin-top:10px">Werkstatt-Manager</span><div class="liste">';
+    if(!st.manager.length) h += '<div class="sub">noch keiner</div>';
+    st.manager.forEach(k => {
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(k.name) + '</strong><br>' + kontoStatus(k) + (k.zuletzt ? ' <span class="sub">zuletzt ' + de(k.zuletzt) + '</span>' : '') + '</div><div class="knoepfe">' +
+           '<button class="btn small" data-a="stManagerCode" data-x="' + k.id + '">' + (k.pin_gesetzt ? "PIN zurücksetzen" : "neuer Code") + '</button>' +
+           '<button class="btn small" data-a="stManagerAktiv" data-x="' + k.id + '">' + (k.aktiv ? "deaktivieren" : "aktivieren") + '</button></div></div>';
+    });
+    h += '</div><button class="btn small" style="margin-top:8px" data-a="stManagerNeu" data-x="' + st.id + '">+ Manager einladen</button></div>';
+  });
+  h += '<p class="sub">Die Standorte sind getrennt: Du siehst hier nur Name, Kürzel und die Werkstatt-Manager. In die Daten eines Standorts kommst du nur, wenn du dort selbst eine Rolle hast. ' +
+       'Jeder Code beginnt mit dem Kürzel des Standorts (SN-B-101) — so landet ein Etikett nie im falschen Lager.</p>';
   return h;
 }
+function stManager(id){ for(const st of (Array.isArray(standorteCache) ? standorteCache : [])){ const k = st.manager.find(x => x.id === id); if(k) return k; } return null; }
 function standortSetzen(id, name){
   GERAET.standort = id; GERAET.standortName = name || ""; merkeGeraet();
-  DB = null; ICH = null; kontenCache = undefined; view.mehr = null; view.tab = "tickets"; view.ticket = null;
+  DB = null; ICH = null; kontenCache = undefined; standorteCache = undefined; view.mehr = null; view.tab = "tickets"; view.ticket = null;
   try{ localStorage.removeItem("wSnap"); }catch(e){}
   modalZu(); app.innerHTML = '<div class="leer">Lädt…</div>';
   frischLaden();
@@ -4714,16 +4737,38 @@ Object.assign(A, {
   },
   standortNeu: () => modal('<h3>Neuer Standort</h3>' + feld("Name", "snName", "", "text", ' placeholder="z. B. Greifswald"') +
     feld("Kürzel (2–3 Buchstaben, steht vor jedem Code)", "snKz", "", "text", ' maxlength="3" autocapitalize="characters" placeholder="z. B. HGW"') +
-    '<p class="sub">Das Kürzel steht auf allen Etiketten (HGW-B-101, HGW-BR-01) und lässt sich später nicht mehr ändern.</p>' +
+    feld("Name des Werkstatt-Managers (optional)", "snManager", "") +
+    '<p class="sub">Das Kürzel steht auf allen Etiketten (HGW-B-101, HGW-BR-01) und lässt sich später nicht mehr ändern. Der neue Standort bekommt die Standard-Kategorien; du selbst hast dort keinen Zugriff.</p>' +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="standortNeuOk">Anlegen</button></div>'),
   standortNeuOk: async () => {
-    const n = wert("snName"), kz = wert("snKz").toUpperCase(); if(!n){ toast("Name fehlt.", true); return; }
+    const n = wert("snName"), kz = wert("snKz").toUpperCase(), m = wert("snManager");
+    if(!n){ toast("Name fehlt.", true); return; }
     if(!/^[A-Z]{2,3}$/.test(kz)){ toast("Kürzel: 2 bis 3 Buchstaben A–Z.", true); return; }
     const id = await kontoRpc("standort_anlegen", { p_name:n, p_kuerzel:kz }, () => {});
     if(!id) return;
-    modalZu();
-    await frischLaden();
-    if(confirm("Standort „" + n + "“ angelegt. Jetzt dorthin wechseln, um den Werkstatt-Manager einzuladen?")) standortSetzen(id, n);
+    standorteCache = undefined;
+    if(m) await kontoRpc("standort_manager_einladen", { p_standort:id, p_name:m }, r => { codeZeigen(r); });
+    else { modalZu(); toast("Standort „" + n + "“ angelegt"); }
+    render();
+  },
+  stManagerNeu: x => {
+    const st = (standorteCache || []).find(y => y.id === Number(x)); if(!st) return;
+    modal('<h3>Werkstatt-Manager für ' + esc(st.name) + '</h3>' + feld("Name", "smName", "") +
+      '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="stManagerNeuOk" data-x="' + st.id + '">Einladung erzeugen</button></div>');
+  },
+  stManagerNeuOk: x => {
+    const n = wert("smName"); if(!n){ toast("Name fehlt.", true); return; }
+    kontoRpc("standort_manager_einladen", { p_standort:Number(x), p_name:n }, r => { standorteCache = undefined; codeZeigen(r); render(); });
+  },
+  stManagerCode: x => {
+    const k = stManager(Number(x)); if(!k) return;
+    if(k.pin_gesetzt && !confirm("PIN von " + k.name + " zurücksetzen? Die alte PIN gilt sofort nicht mehr, alle Geräte werden abgemeldet.")) return;
+    kontoRpc("manager_neuer_code", { p_konto:k.id }, r => { standorteCache = undefined; codeZeigen(r); render(); });
+  },
+  stManagerAktiv: x => {
+    const k = stManager(Number(x)); if(!k) return;
+    if(k.aktiv && !confirm(k.name + " deaktivieren? Er wird überall abgemeldet und kann sich nicht mehr anmelden.")) return;
+    kontoRpc("manager_aktiv", { p_konto:k.id, p_aktiv:!k.aktiv }, () => { standorteCache = undefined; modalZu(); render(); });
   },
   briefkopfSpeichern: () => {
     const d = {};
