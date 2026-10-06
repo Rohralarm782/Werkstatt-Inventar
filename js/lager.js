@@ -121,35 +121,27 @@ function naechsterTermin(ort){
     .sort((a, b) => String(a.datum).localeCompare(String(b.datum)))[0] || null;
 }
 /** Lager-Karte: Räume und Koffer als Kacheln, je zwei pro Reihe. Ein Raum antippen
-    filtert die Liste darunter; „alle Orte“ oben rechts hebt den Filter auf. */
+    filtert die Liste darunter; „alle Orte“ oben rechts hebt den Filter auf.
+    Kompakt gehalten: Räume nur, wenn es mehr als einen gibt (sonst gibt es nichts
+    auszuwählen); Bekleidung steht nicht hier, sondern im Reiter Material → Bekleidung
+    (keine Teile-Summe – sagt nichts darüber, ob die richtigen Teile da sind).
+    Gibt es weder mehrere Räume noch Koffer, entfällt die Karte ganz. */
 function orteBlock(){
   const aktiv = (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale");
   const raeume = lagerorte().filter(o => o.art === "raum"), koffer = lagerorte().filter(o => o.art === "koffer");
-  const imKoffer = aktiv.filter(b => num(b.koffer) > 0).length, imOrt = view.lOrt;
+  const mehrRaeume = raeume.length > 1, imOrt = view.lOrt;
+  if(!mehrRaeume && !koffer.length && !imOrt) return "";
   let h = '<div class="card orte" style="padding-bottom:2px"><div class="kopfzeile">' +
     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/></svg>' +
-    '<div style="flex:1;min-width:0"><strong>Lager</strong><br><span class="sub">' +
-    (imOrt ? 'Nur ' + esc(imOrt) + ' · ' + aktiv.filter(b => amOrt(b, imOrt) > 0).length + ' Artikel dort'
-           : aktiv.length + ' Artikel' + (imKoffer ? ' · ' + imKoffer + ' davon auch in Koffern' : '')) + '</span></div>' +
+    '<div style="flex:1;min-width:0"><strong>Lager</strong> <span class="sub">· ' +
+    (imOrt ? 'nur ' + esc(imOrt) + ' · ' + aktiv.filter(b => amOrt(b, imOrt) > 0).length + ' Artikel'
+           : aktiv.length + ' Artikel') + '</span></div>' +
     (imOrt ? '<button class="btn small" data-a="ortFilter" data-x="">alle Orte</button>' : '') + '</div>';
-  const mehrRaeume = raeume.length > 1;
-  h += '<div class="gruppe">' + (mehrRaeume ? 'Räume — antippen zeigt nur, was dort liegt' : 'Raum') + '</div><div class="kacheln">';
-  raeume.forEach(o => {
-    const n = aktiv.filter(b => amOrt(b, o.name) > 0).length, an = imOrt === o.name;
-    const sub = (o.haupt ? 'Hauptraum · ' : '') + n + ' Artikel';
-    h += mehrRaeume
-      ? '<button class="kachel" data-a="ortFilter" data-x="' + esc(o.name) + '" aria-pressed="' + an + '"><span class="titel">' + esc(o.name) + '</span><span class="sub">' + sub + '</span></button>'
-      : '<div class="kachel fest"><span class="titel">' + esc(o.name) + '</span><span class="sub">Regal — daraus kommt „frei“</span></div>';
-  });
-  h += '</div>';
-  const kleider = lagerorte().filter(o => o.art === "bekleidung");
-  if(kleider.length){
-    h += '<div class="gruppe">Bekleidung</div><div class="kacheln">';
-    kleider.forEach(o => {
-      const n = aktiv.filter(b => amOrt(b, o.name) > 0).reduce((m, b) => m + amOrt(b, o.name), 0);
-      const v = (DB.ausgeliehen || []).reduce((m, z) => m + num(z.menge), 0);
-      h += '<button class="kachel" data-a="kleidungAuf" data-x="' + esc(o.name) + '"><span class="titel">' + esc(o.name) + '</span><span class="sub">' + zahl(n) + ' Teile im Lager' +
-           (kleider.length === 1 && v ? ' · ' + zahl(v) + ' verliehen' : '') + '</span></button>';
+  if(mehrRaeume){
+    h += '<div class="gruppe">Räume</div><div class="kacheln">';
+    raeume.forEach(o => {
+      const n = aktiv.filter(b => amOrt(b, o.name) > 0).length, an = imOrt === o.name;
+      h += '<button class="kachel" data-a="ortFilter" data-x="' + esc(o.name) + '" aria-pressed="' + an + '"><span class="titel">' + esc(o.name) + '</span><span class="sub">' + n + ' Artikel</span></button>';
     });
     h += '</div>';
   }
@@ -157,8 +149,8 @@ function orteBlock(){
     h += '<div class="gruppe">Koffer &amp; Werkzeugkästen</div><div class="kacheln">';
     koffer.forEach(k => {
       const o = k.name, t = naechsterTermin(o), tage = t ? tageBis(t.datum) : null;
-      const sub = t ? (tage === 0 ? "Rennen heute" : tage === 1 ? "Rennen morgen" : "Rennen in " + tage + " Tagen") : "Packliste ansehen";
-      h += '<button class="kachel" data-a="kofferAuf" data-x="' + esc(o) + '"><span class="titel">' + esc(o) + '</span><span class="sub">' + esc(sub) + '</span>' + kofferStatus(o) + '</button>';
+      const sub = t ? (tage === 0 ? "Rennen heute" : tage === 1 ? "Rennen morgen" : "Rennen in " + tage + " Tagen") : "";
+      h += '<button class="kachel" data-a="kofferAuf" data-x="' + esc(o) + '"><span class="titel">' + esc(o) + '</span>' + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + kofferStatus(o) + '</button>';
     });
     h += '</div>';
   }
