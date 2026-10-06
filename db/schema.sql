@@ -1,10 +1,10 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 14.1.1 — für eine NEUE, leere Datenbank.
+--  Stand 14.2.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
---   dann db/migration_14.1.1.sql.)
+--   dann db/migration_14.1.1.sql, dann db/migration_14.2.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -674,6 +674,7 @@ begin
   update konto set zuletzt = now(), fehlversuche = 0, gesperrt_bis = null where id = p_konto;
   -- Erfolgreich angemeldet: frühere Sperren zählen nicht mehr
   delete from fehlversuch where art = 'sperre:' || p_konto;
+  perform fotos_aufraeumen();
   return jsonb_build_object('token', t, 'gueltig_bis', v_bis);
 end $$;
 
@@ -1257,7 +1258,8 @@ end $$;
 -- Kennung vom Gerät ein zweites Mal (Nachsenden nach Funkloch), gibt es kein
 -- zweites Ticket. Einzelstücke: p_stuecke (Liste) und/oder p_stueck (eines).
 -- Sportler dürfen Tickets für ihre eigenen Räder anlegen — ohne Material und
--- Arbeitsschritte, nur in der Werkstatt.
+-- Arbeitsschritte, nur in der Werkstatt, und pro Rad nur, solange dort kein
+-- Ticket offen ist.
 create or replace function ticket_anlegen(
   p_rad text, p_problem text, p_fahrbereit boolean,
   p_soll_fertig date default null, p_naechstmoeglich boolean default false,
@@ -1317,6 +1319,12 @@ begin
     end if;
     p_positionen := '[]'::jsonb;
     p_arbeitsort := 'Werkstatt';
+    -- Pro Rad höchstens ein offenes Ticket, wenn ein Sportler meldet
+    perform pg_advisory_xact_lock(hashtext('ticket_rad_' || v_rad));
+    select id into v_id from ticket where rad_id = v_rad and status in ('offen', 'angenommen') order by id limit 1;
+    if v_id is not null then
+      raise exception 'Für dieses Rad ist schon ein Ticket offen (T-%) – ergänze dort Fotos oder sprich die Werkstatt an', lpad(v_id::text, 4, '0');
+    end if;
   end if;
 
   if v_rad is not null then
@@ -1395,6 +1403,7 @@ begin
   end loop;
 
   update ticket set status = 'erledigt', erledigt_am = now(), erledigt_von = p_bearbeiter where id = p_ticket;
+  perform fotos_aufraeumen();
   return v_summe;
 end $$;
 
@@ -1412,6 +1421,7 @@ begin
 
   update ticket_position set status = 'storniert' where ticket_id = p_ticket and status = 'reserviert';
   update ticket set status = 'storniert', storniert_am = now(), storniert_von = p_bearbeiter where id = p_ticket;
+  perform fotos_aufraeumen();
 end $$;
 
 -- ---------------------------------------------------------------------
@@ -1942,8 +1952,27 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+--  Fotos von Tickets, die seit mehr als 30 Tagen erledigt oder storniert
+--  sind, löschen. Läuft nebenbei bei jeder Anmeldung und beim Abschließen
+--  oder Stornieren eines Tickets (kein Zeitplaner nötig). Nur intern.
+-- ---------------------------------------------------------------------
+create or replace function fotos_aufraeumen() returns integer
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare
+  n integer;
+begin
+  delete from foto f
+   using ticket t
+   where t.id = f.ticket_id
+     and ((t.status = 'erledigt'  and coalesce(t.erledigt_am, t.angelegt) < now() - interval '30 days')
+       or (t.status = 'storniert' and coalesce(t.storniert_am, t.erledigt_am, t.angelegt) < now() - interval '30 days'));
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- ---------------------------------------------------------------------
 --  Foto hochladen — mit Kennung vom Gerät, kommt nur einmal an.
---  Sportler: nur an Tickets für ihre Räder.
+--  Sportler: nur an Tickets für ihre Räder. Höchstens 5 Fotos pro Ticket.
 -- ---------------------------------------------------------------------
 create or replace function foto_hochladen(p_ticket bigint, p_thumb text, p_bild text, p_mime text default 'image/jpeg',
                                           p_bearbeiter text default null, p_client_id uuid default null)
@@ -1962,12 +1991,15 @@ begin
     select id into v_id from foto where client_id = p_client_id;
     if found then return v_id; end if;
   end if;
-  select * into t from ticket where id = p_ticket and standort_id = v_st and status <> 'storniert';
+  select * into t from ticket where id = p_ticket and standort_id = v_st and status <> 'storniert' for update;
   if not found then raise exception 'Ticket % nicht gefunden oder storniert', p_ticket; end if;
   if not rolle_in('admin', 'manager', 'trainer')
      and not (meine_rolle() = 'sportler' and (t.fahrer_id = mein_sportler() or t.kostentraeger_id = mein_sportler()
                                               or (t.rad_id is not null and mein_rad(t.rad_id)))) then
     raise exception 'Keine Berechtigung';
+  end if;
+  if (select count(*) from foto where ticket_id = p_ticket) >= 5 then
+    raise exception 'Höchstens 5 Fotos pro Ticket – erst ein Foto löschen';
   end if;
   insert into foto (ticket_id, client_id, bearbeiter, mime, thumb, bild)
   values (p_ticket, p_client_id, p_bearbeiter, coalesce(p_mime, 'image/jpeg'), p_thumb, p_bild)

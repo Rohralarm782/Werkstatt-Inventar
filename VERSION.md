@@ -1,13 +1,11 @@
 # Version
 
-**14.1.1** — 06.10.2026
+**14.2.0** — 06.10.2026
 
-Anmeldung abgesichert und Fehler aus der Gesamtprüfung behoben: längere
-Sperre bei wiederholten PIN-Fehlversuchen, deaktivierte Sportler kommen
-nicht mehr hinein, umbenannte Sportler behalten ihren Zugang, neuer Code
-beim Wechsel Trainer → Manager/Geschäftsstelle, Pauschalen nur mit
-Verbrauch vom eigenen Standort. Migration nötig (nur Funktionen, Trigger
-und Rechte).
+Fotos: höchstens 5 pro Ticket, Fotos von Tickets, die seit mehr als
+30 Tagen erledigt oder storniert sind, werden automatisch gelöscht.
+Sportler können pro Rad nur ein offenes Ticket haben und ergänzen dort
+Fotos. Migration nötig (nur Funktionen und Rechte).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -16,6 +14,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 14.2.0 | 06.10.2026 | Höchstens 5 Fotos pro Ticket, Fotos nach 30 Tagen löschen, Sportler: ein offenes Ticket pro Rad |
 | 14.1.1 | 06.10.2026 | Anmeldung abgesichert (Sperre, deaktivierte Sportler, Rollenwechsel), Verbrauch nur eigener Standort |
 | 14.1.0 | 06.10.2026 | Gesamt-Admin ohne Zugriff auf fremde Standorte, Manager von außen einladen |
 | 14.0.0 | 06.10.2026 | Konten (Name + PIN), Rollen, Standorte, Codes mit Standort-Kürzel |

@@ -307,7 +307,7 @@
    Anmeldung mit Name + PIN (Konten in der Datenbank, seit 14.0.0).
    ===============================================================*/
 
-const APP_VERSION = "14.1.1";
+const APP_VERSION = "14.2.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -950,7 +950,8 @@ async function verlaufTicket(id){
   try{
     const f = await rest("/foto?ticket_id=eq." + id + "&select=id,thumb,aufgenommen&order=id");
     const el = $("vFotos"); if(!el) return;
-    el.innerHTML = !f.length ? '<p class="sub" style="margin:0">Keine Fotos.</p>' :
+    const zu = t.storniert_am || t.erledigt_am, alt = zu && (Date.now() - new Date(zu)) > 30 * 86400000;
+    el.innerHTML = !f.length ? '<p class="sub" style="margin:0">' + (alt ? 'Keine Fotos mehr — sie werden 30 Tage nach dem Abschluss gelöscht.' : 'Keine Fotos.') + '</p>' :
       '<div class="fotos">' + f.map(x => '<button class="foto" data-a="fotoZeigen" data-x="' + x.id + '"><img src="data:image/jpeg;base64,' + x.thumb + '" alt="Foto vom ' + esc(zeitKurz(x.aufgenommen)) + '"></button>').join("") + '</div>';
   }catch(e){ const el = $("vFotos"); if(el) el.innerHTML = '<p class="sub" style="margin:0">Fotos konnten nicht geladen werden.</p>'; }
 }
@@ -1229,7 +1230,8 @@ function neuView(){
     neu.fotos.forEach(f => h += '<div class="foto"><img src="data:image/jpeg;base64,' + f.thumb + '" alt="Foto"><button class="weg" data-a="nFotoWeg" data-x="' + f.client_id + '" aria-label="Foto entfernen">×</button></div>');
     h += '</div>';
   }
-  h += '<label class="btn small">+ Foto<input type="file" accept="image/*" multiple hidden data-c="nFoto"></label>';
+  if(neu.fotos.length < FOTOS_PRO_TICKET) h += '<label class="btn small">+ Foto<input type="file" accept="image/*" multiple hidden data-c="nFoto"></label>';
+  else h += '<p class="sub" style="margin:0">Höchstens ' + FOTOS_PRO_TICKET + ' Fotos pro Ticket.</p>';
   if(offline) h += '<p class="sub" style="margin:6px 0 0">Offline: höchstens ' + FOTOS_OFFLINE + ' Fotos, sie werden mit dem Ticket nachgesendet.</p>';
   h += '</div><p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Übernehmen.</p>';
   h += '<button class="btn primary voll" data-a="anlegen">Ticket anlegen</button></div>';
@@ -3235,7 +3237,8 @@ async function rechnungZeigen(id){
    JPEG) plus Vorschaubild, gespeichert in der Datenbank. Jedes Foto
    trägt eine Kennung und kommt auch beim Nachsenden nur einmal an.
 ----------------------------------------------------------------*/
-const FOTO_MAX = 1280, FOTO_Q = 0.7, VORSCHAU_MAX = 320, VORSCHAU_Q = 0.6, FOTOS_OFFLINE = 3;
+const FOTO_MAX = 1280, FOTO_Q = 0.7, VORSCHAU_MAX = 320, VORSCHAU_Q = 0.6, FOTOS_OFFLINE = 3,
+      FOTOS_PRO_TICKET = 5;   // so prüft es auch die Datenbank (foto_hochladen)
 let fotoCache = {};      // Ticket-ID → [{ id, thumb, aufgenommen, bearbeiter }] | "laedt" | "fehler"
 
 function bildLaden(datei){
@@ -3278,7 +3281,8 @@ async function ladeFotos(tid){
 function fotoKarte(t){
   const f = fotoCache[t.id];
   if(f === undefined && !offline) setTimeout(() => ladeFotos(t.id), 0);
-  let h = '<div class="card"><span class="lbl">Fotos</span>';
+  const n = Array.isArray(f) ? f.length : 0, voll = n >= FOTOS_PRO_TICKET;
+  let h = '<div class="card"><span class="lbl">Fotos' + (Array.isArray(f) ? ' (' + n + '/' + FOTOS_PRO_TICKET + ')' : '') + '</span>';
   if(offline) h += '<p class="sub" style="margin:0 0 8px">Fotos erst wieder mit Netz.</p>';
   else if(f === undefined || f === "laedt") h += '<p class="sub" style="margin:0 0 8px">lädt…</p>';
   else if(f === "fehler") h += '<p class="sub" style="margin:0 0 8px">Fotos konnten nicht geladen werden.</p>';
@@ -3288,7 +3292,8 @@ function fotoKarte(t){
     f.forEach(x => h += '<button class="foto" data-a="fotoZeigen" data-x="' + x.id + '"><img src="data:image/jpeg;base64,' + x.thumb + '" alt="Foto vom ' + esc(zeitKurz(x.aufgenommen)) + '"></button>');
     h += '</div>';
   }
-  if(!offline) h += '<label class="btn small" style="margin-top:8px">+ Foto<input type="file" accept="image/*" multiple hidden data-c="fotoDatei" data-x="' + t.id + '"></label>';
+  if(!offline && voll) h += '<p class="sub" style="margin:8px 0 0">Höchstens ' + FOTOS_PRO_TICKET + ' Fotos pro Ticket — für ein neues erst eins löschen (Werkstatt-Manager).</p>';
+  else if(!offline) h += '<label class="btn small" style="margin-top:8px">+ Foto<input type="file" accept="image/*" multiple hidden data-c="fotoDatei" data-x="' + t.id + '"></label>';
   return h + '</div>';
 }
 async function fotoZeigen(id){
@@ -4054,7 +4059,12 @@ const C = {
   fotoDatei: (v, x, el) => {
     const dateien = Array.from(el.files || []); el.value = "";
     if(!dateien.length) return;
-    const tid = Number(x);
+    const tid = Number(x), da = Array.isArray(fotoCache[tid]) ? fotoCache[tid].length : 0, frei = Math.max(FOTOS_PRO_TICKET - da, 0);
+    if(dateien.length > frei){
+      toast(frei ? "Höchstens " + FOTOS_PRO_TICKET + " Fotos pro Ticket — es werden nur " + frei + " gespeichert." : "Das Ticket hat schon " + FOTOS_PRO_TICKET + " Fotos.", true);
+      dateien.splice(frei);
+      if(!dateien.length) return;
+    }
     aktion(async () => {
       delete fotoCache[tid];
       let n = 0;
@@ -4066,6 +4076,7 @@ const C = {
     const dateien = Array.from(el.files || []); el.value = "";
     for(const d of dateien){
       if(offline && neu.fotos.length >= FOTOS_OFFLINE){ toast("Offline höchstens " + FOTOS_OFFLINE + " Fotos.", true); break; }
+      if(neu.fotos.length >= FOTOS_PRO_TICKET){ toast("Höchstens " + FOTOS_PRO_TICKET + " Fotos pro Ticket.", true); break; }
       try{ neu.fotos.push(await fotoAufbereiten(d)); }catch(e){ toast(e.message, true); }
     }
     render();
@@ -4156,7 +4167,7 @@ const IMMER_OK = ["anmWahl","anmName","anmNameOk","anmCode","anmCodeOk","anmCode
   "geraetEinstellen","geraetModus","werWahl","werWahlAbbrechen","codeKopieren","codeTeilen",
   "kontNeu","kontNeuOk","kontBearbeiten","kontSpeichern","kontCode","kontAktiv","sportlerZugang","standortNeu","standortNeuOk","standortHin",
   "stManagerNeu","stManagerNeuOk","stManagerCode","stManagerAktiv",
-  "briefkopfSpeichern","logoWeg","spProblem","spProblemOk","spTicket","modalZu","modalHintergrund"];
+  "briefkopfSpeichern","logoWeg","spProblem","spProblemOk","spFotosOk","spTicket","modalZu","modalHintergrund"];
 const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlaufTicket","verlaufRad","mat","matFilter","kofferAuf","kofferZu","rt","radAuf","radZu",
   "geheMehr","mehrZu","teilZeigen","oeffnen","zurueck","scan","drucken","artikelMenue","export","rechnungZeigen","rechnungDrucken","postenZeigen","fotoZeigen",
   "bestellZu","bestellKopieren","buchungenArtikel","serieEtiketten","stueckEtikett","artikelEtikett","radEtikett","radEtikettenAlle","etDrucken","etSammeln","etZurueck",
@@ -4527,9 +4538,14 @@ async function ladeSportler(){
   ]);
   const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
   const tsDa = await stueckeAnTickets(tickets);
+  // Anzahl Fotos der offenen Tickets (für „Fotos ergänzen“, höchstens FOTOS_PRO_TICKET)
+  const offeneIds = tickets.filter(t => t.status === "offen" || t.status === "angenommen").map(t => t.id);
+  const fotoIds = offeneIds.length ? await rest("/foto?ticket_id=in.(" + offeneIds.join(",") + ")&select=ticket_id") : [];
+  const fotoAnzahl = {};
+  fotoIds.forEach(x => fotoAnzahl[x.ticket_id] = (fotoAnzahl[x.ticket_id] || 0) + 1);
   STANDORT = standort[0] || null;
   DB = { bestand:[], artikel, raeder, sportler, stueck, tickets, positionen, koffer:[], termine:[], rechnungen, offenePosten:[], zaehlung:[], bestellungen:[],
-         tags:null, artikelTags:[], stueckTags:[], tsDa, kategorien:null };
+         tags:null, artikelTags:[], stueckTags:[], tsDa, kategorien:null, fotoAnzahl };
   stand = new Date();
   offline = false;
 }
@@ -4543,7 +4559,8 @@ function sportlerView(){
     h += '<div class="card"><div class="row" style="gap:8px;align-items:flex-start"><div style="flex:1;min-width:0"><span class="big">' + esc(r.bezeichnung || r.id) + '</span>' +
          '<div class="sub">' + esc([r.id, r.typ, r.marke, r.groesse ? "Gr. " + r.groesse : ""].filter(Boolean).join(" · ")) + '</div></div>' +
          (t.length ? '<span class="chip ' + (steht ? "alarm" : "warn") + '">' + (steht ? "steht · " : "") + 'Ticket offen</span>' : '<span class="chip ok">alles ok</span>') + '</div>' +
-         '<button class="btn voll ' + (t.length ? "" : "rot") + '" style="margin-top:10px" data-a="spProblem" data-x="' + esc(r.id) + '">Problem melden</button></div>';
+         '<button class="btn voll ' + (t.length ? "" : "rot") + '" style="margin-top:10px" data-a="spProblem" data-x="' + esc(r.id) + '">' +
+         (t.length ? tnr(t[0].id) + ' ansehen · Fotos ergänzen' : 'Problem melden') + '</button></div>';
   });
   const tl = (DB.tickets||[]).slice().sort((a, b) => (offen(b) - offen(a)) || (b.id - a.id));
   h += '<h2 class="sec">Meine Tickets</h2>';
@@ -4576,6 +4593,19 @@ function sportlerView(){
 function spProblemForm(radId){
   const r = rad(radId);
   if(!r){ toast("Das Rad gehört nicht zu dir.", true); return; }
+  // Pro Rad nur ein offenes Ticket — dann dort Fotos ergänzen
+  const t = (DB.tickets||[]).filter(x => x.rad_id === r.id && (x.status === "offen" || x.status === "angenommen")).sort((a, b) => a.id - b.id)[0];
+  if(t){
+    const n = (DB.fotoAnzahl || {})[t.id] || 0, frei = Math.max(FOTOS_PRO_TICKET - n, 0);
+    modal('<h3>' + tnr(t.id) + ' ist offen</h3><p class="sub" style="margin-top:-6px">' + esc(r.bezeichnung || r.id) + ' · ' + esc(r.id) + '</p>' +
+      '<div class="card"><strong>' + esc(t.problem) + '</strong><br><span class="sub">' + (t.status === "angenommen" ? "in Arbeit" : "gemeldet") + ' · ' + de(t.angelegt) +
+      (t.fahrbereit ? '' : ' · steht') + '</span></div>' +
+      '<p class="sub">Für dieses Rad ist schon ein Ticket offen. Ein neues kannst du melden, wenn es erledigt ist — sonst sprich die Werkstatt direkt an.</p>' +
+      (frei ? '<div class="feld"><span class="lbl">Fotos ergänzen (' + n + '/' + FOTOS_PRO_TICKET + ')</span><input type="file" id="spFotos" accept="image/*" multiple></div>' +
+              '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Schließen</button><span class="sp"></span><button class="btn primary" data-a="spFotosOk" data-x="' + t.id + '">Fotos senden</button></div>'
+            : '<p class="sub">Das Ticket hat schon ' + FOTOS_PRO_TICKET + ' Fotos.</p><div class="row"><span class="sp"></span><button class="btn" data-a="modalZu">Schließen</button></div>'));
+    return;
+  }
   modal('<h3>Problem melden</h3><p class="sub" style="margin-top:-6px">' + esc(r.bezeichnung || r.id) + ' · ' + esc(r.id) + '</p>' +
     '<div class="feld"><span class="lbl">Was ist los?</span><textarea id="spText" placeholder="z. B. Kette springt im großen Gang"></textarea></div>' +
     '<div class="feld"><span class="lbl">Kannst du noch fahren?</span><select id="spFahr"><option value="ja">Ja, fahrbereit</option><option value="nein">Nein — das Rad steht</option></select></div>' +
@@ -4787,9 +4817,20 @@ Object.assign(A, {
   },
   logoWeg: x => { if(!confirm("Logo entfernen?")) return; delete logoCache[GERAET.standort]; aktion(() => aendern("standort", "id=eq." + GERAET.standort, { [x]:null }), "Logo entfernt"); },
   spProblem: x => spProblemForm(x),
+  spFotosOk: x => {
+    const tid = Number(x), el = $("spFotos"), dateien = el ? Array.from(el.files || []) : [];
+    if(!dateien.length){ toast("Bitte Fotos auswählen.", true); return; }
+    const frei = Math.max(FOTOS_PRO_TICKET - ((DB.fotoAnzahl || {})[tid] || 0), 0);
+    if(dateien.length > frei) toast("Höchstens " + FOTOS_PRO_TICKET + " Fotos pro Ticket — es werden nur " + frei + " gesendet.", true);
+    const auswahl = dateien.slice(0, frei);
+    aktion(async () => { for(const d of auswahl) await fotoHochladen(tid, await fotoAufbereiten(d)); return auswahl.length; },
+           n => n + (n === 1 ? " Foto" : " Fotos") + " ergänzt");
+  },
   spProblemOk: x => {
     const text = wert("spText"); if(!text){ toast("Bitte kurz beschreiben, was ist.", true); return; }
-    const el = $("spFotos"), dateien = el ? Array.from(el.files || []) : [];
+    const el = $("spFotos"), alle = el ? Array.from(el.files || []) : [];
+    if(alle.length > FOTOS_PRO_TICKET) toast("Höchstens " + FOTOS_PRO_TICKET + " Fotos pro Ticket — es werden die ersten " + FOTOS_PRO_TICKET + " gesendet.", true);
+    const dateien = alle.slice(0, FOTOS_PRO_TICKET);
     const op = { p_rad:x, p_problem:text, p_fahrbereit:wert("spFahr") !== "nein", p_soll_fertig:wert("spDatum") || null,
                  p_naechstmoeglich:false, p_anlass:null, p_arbeitsort:"Werkstatt", p_positionen:[], p_client_id:neueId() };
     aktion(async () => {
