@@ -1,20 +1,22 @@
 # Version
 
-**16.0.0** — 06.10.2026
+**17.0.0** — 06.10.2026
 
-Bekleidung: Artikel mit Größen, Bestand je Größe, Ausleihe an Sportler
-und Rückgabe (nie berechnet), eigener Reiter Material → Bekleidung,
-Lagerort-Art „Bekleidung“. Dazu die Lager-Übersicht als Kacheln (zwei pro
-Reihe, „alle Orte“ oben) und Aufräumen unter Mehr → Lagerorte.
-Migration nötig (neue Spalten, Buchungsarten, Sichten, Funktionen).
+Umbau ohne neue Funktionen: Die bisher über 5000 Zeilen lange
+`index.html` ist aufgeteilt in `index.html` (nur Gerüst), `css/app.css`,
+`lib/zxing.min.js` und elf Dateien unter `js/` (nach Bereichen). Keine
+Datenbankänderung, keine Migration.
 
-Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
-`index.html` und wird unten in der App angezeigt.
+Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
+unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
+`?v=…`-Angaben an den eingebundenen Dateien auf die neue Version setzen,
+damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
 
 ## Verlauf
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 17.0.0 | 06.10.2026 | index.html aufgeteilt (css/, lib/, js/ nach Bereichen), keine Funktionsänderung |
 | 16.0.0 | 06.10.2026 | Bekleidung (Größen, Ausleihe/Rückgabe), Lager-Kacheln, Lagerorte aufgeräumt (enthält die nicht einzeln gelieferte 15.0.1) |
 | 15.0.0 | 06.10.2026 | Lagerorte selbst anlegen (Räume, Koffer/Werkzeugkästen), Raum-Filter im Lager |
 | 14.3.0 | 06.10.2026 | Neues Ticket aufgeräumt, Räder nach Typ klappbar, allgemeine Tickets ohne Rad |
