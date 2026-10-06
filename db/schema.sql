@@ -1,9 +1,10 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 14.1.0 — für eine NEUE, leere Datenbank.
+--  Stand 14.1.1 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
---   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql.)
+--   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
+--   dann db/migration_14.1.1.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -671,6 +672,8 @@ begin
   end if;
   insert into sitzung (token_hash, konto_id, gueltig_bis, geraet) values (token_hash(t), p_konto, v_bis, v_g);
   update konto set zuletzt = now(), fehlversuche = 0, gesperrt_bis = null where id = p_konto;
+  -- Erfolgreich angemeldet: frühere Sperren zählen nicht mehr
+  delete from fehlversuch where art = 'sperre:' || p_konto;
   return jsonb_build_object('token', t, 'gueltig_bis', v_bis);
 end $$;
 
@@ -710,6 +713,9 @@ $$;
 
 -- Fehler kommen als {ok:false, fehler:…} zurück (nicht als Abbruch),
 -- damit gezählte Fehlversuche gespeichert bleiben.
+-- Sperre: 5 falsche PINs → 15 Minuten; die dritte Sperre innerhalb von
+-- 24 Stunden → 24 Stunden (Werkstatt-Manager hebt sie mit „neuer Code“ auf).
+-- Sportler-Konten, deren Sportler deaktiviert ist, kommen nicht hinein.
 create or replace function anmelden(p_standort bigint, p_pin text, p_konto bigint default null, p_name text default null,
                                     p_geraet text default 'handy', p_bleiben boolean default true)
 returns jsonb
@@ -741,7 +747,10 @@ begin
   end if;
   if k.gesperrt_bis is not null and k.gesperrt_bis > now() then
     return jsonb_build_object('ok', false, 'fehler',
-      'Zu viele Fehlversuche – wieder möglich ab ' || to_char(k.gesperrt_bis at time zone 'Europe/Berlin', 'HH24:MI') || ' Uhr.');
+      'Zu viele Fehlversuche – wieder möglich ab '
+      || to_char(k.gesperrt_bis at time zone 'Europe/Berlin',
+                 case when k.gesperrt_bis > now() + interval '1 hour' then 'DD.MM. HH24:MI' else 'HH24:MI' end)
+      || ' Uhr. Der Werkstatt-Manager kann mit „neuer Code“ sofort entsperren.');
   end if;
   if k.pin_hash is null then
     return jsonb_build_object('ok', false, 'fehler', 'Noch keine PIN gesetzt – bitte mit dem Einladungscode anmelden.');
@@ -749,10 +758,22 @@ begin
   if crypt(coalesce(p_pin, ''), k.pin_hash) <> k.pin_hash then
     update konto set fehlversuche = fehlversuche + 1 where id = k.id returning fehlversuche into n;
     if n >= 5 then
+      delete from fehlversuch where zeit < now() - interval '1 day';
+      insert into fehlversuch (art) values ('sperre:' || k.id);
+      select count(*) into n from fehlversuch where art = 'sperre:' || k.id and zeit > now() - interval '24 hours';
+      if n >= 3 then
+        update konto set fehlversuche = 0, gesperrt_bis = now() + interval '24 hours' where id = k.id;
+        return jsonb_build_object('ok', false, 'fehler',
+          'PIN falsch – das Konto ist jetzt 24 Stunden gesperrt. Der Werkstatt-Manager kann mit „neuer Code“ sofort entsperren.');
+      end if;
       update konto set fehlversuche = 0, gesperrt_bis = now() + interval '15 minutes' where id = k.id;
       return jsonb_build_object('ok', false, 'fehler', 'PIN falsch – das Konto ist jetzt 15 Minuten gesperrt.');
     end if;
-    return jsonb_build_object('ok', false, 'fehler', 'Name oder PIN falsch (noch ' || (5 - n) || ' Versuche).');
+    return jsonb_build_object('ok', false, 'fehler',
+      'Name oder PIN falsch (noch ' || (5 - n) || case when 5 - n = 1 then ' Versuch).' else ' Versuche).' end);
+  end if;
+  if k.sportler_id is not null and not exists (select 1 from sportler sp where sp.id = k.sportler_id and sp.aktiv) then
+    return jsonb_build_object('ok', false, 'fehler', 'Der Zugang ist deaktiviert – bitte den Werkstatt-Manager fragen.');
   end if;
 
   v_s := sitzung_erzeugen(k.id, p_geraet, p_bleiben);
@@ -768,7 +789,10 @@ begin
   if zu_viele_versuche() then
     return jsonb_build_object('ok', false, 'fehler', 'Zu viele Versuche – bitte in ein paar Minuten noch einmal.');
   end if;
-  select konto_id into v_k from einladung where code_hash = code_hash(p_code) and gueltig_bis > now();
+  select e.konto_id into v_k
+    from einladung e join konto k on k.id = e.konto_id
+   where e.code_hash = code_hash(p_code) and e.gueltig_bis > now() and k.aktiv
+     and (k.sportler_id is null or exists (select 1 from sportler sp where sp.id = k.sportler_id and sp.aktiv));
   if v_k is null then
     perform fehlversuch_merken('code');
     return jsonb_build_object('ok', false, 'fehler', 'Code ungültig oder abgelaufen.');
@@ -789,7 +813,8 @@ begin
   end if;
   select e.konto_id into v_k
     from einladung e join konto k on k.id = e.konto_id
-   where e.code_hash = code_hash(p_code) and e.gueltig_bis > now() and k.aktiv;
+   where e.code_hash = code_hash(p_code) and e.gueltig_bis > now() and k.aktiv
+     and (k.sportler_id is null or exists (select 1 from sportler sp where sp.id = k.sportler_id and sp.aktiv));
   if v_k is null then
     perform fehlversuch_merken('code');
     return jsonb_build_object('ok', false, 'fehler', 'Code ungültig oder abgelaufen.');
@@ -928,12 +953,16 @@ begin
   return jsonb_build_object('konto_id', p_konto, 'name', (select name from konto where id = p_konto)) || einladung_erzeugen(p_konto);
 end $$;
 
+-- Name, Rolle, aktiv ändern. Wird jemand mit gesetzter PIN vom Trainer zum
+-- Manager oder zur Geschäftsstelle (dort 6 Ziffern), gilt die alte PIN nicht
+-- mehr: Rückgabe ist dann ein neuer Einladungscode, sonst null.
 create or replace function konto_aendern(p_konto bigint, p_name text default null, p_rolle text default null, p_aktiv boolean default null)
-returns void
+returns jsonb
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
   v_st  bigint := recht_manager();
   v_r   text   := konto_verwaltbar(p_konto);
+  v_neu jsonb;
 begin
   if p_name is not null then
     if trim(p_name) = '' then raise exception 'Name fehlt'; end if;
@@ -946,11 +975,18 @@ begin
     end if;
     if p_rolle = 'manager' and not ist_admin() then raise exception 'Werkstatt-Manager ernennt nur der Gesamt-Admin'; end if;
     update konto_rolle set rolle = p_rolle where konto_id = p_konto and standort_id = v_st;
+    if v_r = 'trainer' and p_rolle in ('manager', 'geschaeftsstelle')
+       and exists (select 1 from konto where id = p_konto and pin_hash is not null) then
+      update konto set pin_hash = null, fehlversuche = 0, gesperrt_bis = null where id = p_konto;
+      delete from sitzung where konto_id = p_konto;
+      v_neu := jsonb_build_object('konto_id', p_konto, 'name', (select name from konto where id = p_konto)) || einladung_erzeugen(p_konto);
+    end if;
   end if;
   if p_aktiv is not null then
     update konto set aktiv = p_aktiv where id = p_konto;
     if not p_aktiv then delete from sitzung where konto_id = p_konto; end if;
   end if;
+  return v_neu;
 end $$;
 
 -- „Zugang einladen“ auf der Sportler-Seite: neues Konto oder neuer Code.
@@ -961,6 +997,9 @@ declare
   v_k   bigint;
 begin
   if not exists (select 1 from sportler where id = p_sportler and standort_id = v_st) then raise exception 'Unbekannter Sportler'; end if;
+  if not exists (select 1 from sportler where id = p_sportler and aktiv) then
+    raise exception 'Der Sportler ist deaktiviert – erst wieder aktivieren';
+  end if;
   select id into v_k from konto where sportler_id = p_sportler;
   if v_k is null then return konto_anlegen(null, 'sportler', p_sportler); end if;
   update konto set aktiv = true where id = v_k;
@@ -1129,7 +1168,8 @@ end $$;
 -- ---------------------------------------------------------------------
 
 -- Material ausgeben — mit oder ohne Ticket. Preis wird festgeschrieben;
--- Pauschalen ziehen zusätzlich ihren hinterlegten Verbrauch ab.
+-- Pauschalen ziehen zusätzlich ihren hinterlegten Verbrauch ab (nur einen
+-- Artikel desselben Standorts).
 create or replace function material_ausgeben(
   p_code text, p_menge numeric, p_ort text default 'Werkstatt',
   p_sportler bigint default null, p_ticket bigint default null, p_notiz text default null,
@@ -1154,6 +1194,9 @@ begin
     raise exception 'Ticket % nicht gefunden', p_ticket;
   end if;
   if a.art = 'Pauschale' and a.verbraucht_code is not null and a.verbrauch_menge is not null then
+    if not exists (select 1 from artikel v where v.code = a.verbraucht_code and v.standort_id = v_st) then
+      raise exception 'Der Verbrauch von % (%) gehört nicht zu diesem Standort – bitte am Artikel korrigieren', p_code, a.verbraucht_code;
+    end if;
     v_grp := gen_random_uuid();
   end if;
 
@@ -1944,6 +1987,40 @@ begin
   return null;
 end $$;
 
+-- Verbrauch einer Pauschale: nur ein Artikel desselben Standorts.
+create or replace function verbrauch_pruefen() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if new.verbraucht_code is not null
+     and (tg_op = 'INSERT' or new.verbraucht_code is distinct from old.verbraucht_code
+          or new.standort_id is distinct from old.standort_id)
+     and not exists (select 1 from artikel v where v.code = new.verbraucht_code and v.standort_id = new.standort_id) then
+    raise exception 'Unbekannter Verbrauchsartikel: %', new.verbraucht_code;
+  end if;
+  return new;
+end $$;
+
+-- Sportler umbenannt → Anmeldename seines Kontos folgt.
+-- Sportler deaktiviert → seine Geräte werden abgemeldet.
+create or replace function sportler_konto_abgleich() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_k  bigint;
+begin
+  select id into v_k from konto where sportler_id = new.id;
+  if v_k is null then return null; end if;
+  if new.name is distinct from old.name then
+    if name_vergeben(new.standort_id, new.name, v_k) then
+      raise exception 'Den Namen % hat schon ein Konto an diesem Standort – bitte etwas anders schreiben', new.name;
+    end if;
+    update konto set name = trim(new.name) where id = v_k;
+  end if;
+  if old.aktiv and not new.aktiv then
+    delete from sitzung where konto_id = v_k;
+  end if;
+  return null;
+end $$;
+
 -- Neue Zeilen gehören zum gewählten Standort (Kopfzeile X-Standort).
 alter table sportler alter column standort_id set default akt_standort();
 alter table kategorie alter column standort_id set default akt_standort();
@@ -1970,6 +2047,8 @@ create trigger buchung_bearbeiter    before insert on buchung    for each row ex
 create trigger bestellung_bearbeiter before insert on bestellung for each row execute function bearbeiter_setzen();
 create trigger ticket_uebernahme     before update on ticket     for each row execute function ticket_uebernahme();
 create trigger artikel_preis         before update on artikel    for each row execute function preis_schutz();
+create trigger artikel_verbrauch     before insert or update on artikel for each row execute function verbrauch_pruefen();
+create trigger sportler_konto        after update on sportler    for each row execute function sportler_konto_abgleich();
 
 -- ---------------------------------------------------------------------
 --  Zugriffsregeln

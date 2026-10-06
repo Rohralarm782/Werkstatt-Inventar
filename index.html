@@ -307,7 +307,7 @@
    Anmeldung mit Name + PIN (Konten in der Datenbank, seit 14.0.0).
    ===============================================================*/
 
-const APP_VERSION = "14.1.0";
+const APP_VERSION = "14.1.1";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -4718,7 +4718,14 @@ Object.assign(A, {
   },
   kontSpeichern: x => {
     const k = kontenCache.find(y => y.id === Number(x)), n = wert("kbName"), r = $("kbRolle") ? wert("kbRolle") : null;
-    kontoRpc("konto_aendern", { p_konto:k.id, p_name:n !== k.name ? n : null, p_rolle:r && r !== k.rolle ? r : null, p_aktiv:null }, () => { modalZu(); toast("Gespeichert"); render(); });
+    // Vom Trainer (4 Ziffern) zu Manager/Geschäftsstelle (6 Ziffern): die alte PIN gilt nicht mehr,
+    // die Datenbank gibt dann einen neuen Einladungscode zurück.
+    const pinWeg = k.pin_gesetzt && k.rolle === "trainer" && (r === "manager" || r === "geschaeftsstelle");
+    if(pinWeg && !confirm(k.name + " braucht als " + (ROLLEN_TEXT[r] || r) + " eine 6-stellige PIN. Die bisherige PIN gilt danach nicht mehr, alle Geräte werden abgemeldet und du bekommst einen neuen Einladungscode. Weiter?")) return;
+    kontoRpc("konto_aendern", { p_konto:k.id, p_name:n !== k.name ? n : null, p_rolle:r && r !== k.rolle ? r : null, p_aktiv:null }, res => {
+      if(res && res.code){ codeZeigen(res); render(); }
+      else { modalZu(); toast("Gespeichert"); render(); }
+    });
   },
   kontCode: x => {
     const k = kontenCache.find(y => y.id === Number(x));

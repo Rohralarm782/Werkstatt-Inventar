@@ -1,11 +1,13 @@
 # Version
 
-**14.1.0** — 06.10.2026
+**14.1.1** — 06.10.2026
 
-Gesamt-Admin ohne Zugriff auf fremde Standorte: Er sieht alle Standorte in
-einer Liste und lädt dort Werkstatt-Manager ein, kommt aber nur in die
-Daten der Standorte, an denen er eine Rolle hat. Migration nötig (nur
-Funktionen und Rechte).
+Anmeldung abgesichert und Fehler aus der Gesamtprüfung behoben: längere
+Sperre bei wiederholten PIN-Fehlversuchen, deaktivierte Sportler kommen
+nicht mehr hinein, umbenannte Sportler behalten ihren Zugang, neuer Code
+beim Wechsel Trainer → Manager/Geschäftsstelle, Pauschalen nur mit
+Verbrauch vom eigenen Standort. Migration nötig (nur Funktionen, Trigger
+und Rechte).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -14,6 +16,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 14.1.1 | 06.10.2026 | Anmeldung abgesichert (Sperre, deaktivierte Sportler, Rollenwechsel), Verbrauch nur eigener Standort |
 | 14.1.0 | 06.10.2026 | Gesamt-Admin ohne Zugriff auf fremde Standorte, Manager von außen einladen |
 | 14.0.0 | 06.10.2026 | Konten (Name + PIN), Rollen, Standorte, Codes mit Standort-Kürzel |
 | 13.0.0 | 05.10.2026 | Kategorie-Namen in der Datenbank, Name bei neuer Kategorie |
