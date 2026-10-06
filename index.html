@@ -168,6 +168,10 @@
   .wahl-kopf.klapp{display:block;width:100%;text-align:left;border:none;border-top:1px solid var(--line);cursor:pointer}
   .wahl-tipp{margin:0;padding:8px 10px;border-top:1px solid var(--line)}
   .wahl-zeile .nummern{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .wahl-liste.frei{max-height:none;overflow:visible}
+  .wahl-zeile.gruppe{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink-2);background:#FAF9F7}
+  .wahl-zeile.gruppe .anz{margin-left:auto;font-weight:400}
+  .wahl-zeile.unter{padding-left:26px}
   .wahl-gewaehlt{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
   .wahl-gewaehlt .txt{flex:1;min-width:0}
   .wahl-gewaehlt-liste{display:grid;gap:6px}
@@ -307,7 +311,7 @@
    Anmeldung mit Name + PIN (Konten in der Datenbank, seit 14.0.0).
    ===============================================================*/
 
-const APP_VERSION = "14.2.0";
+const APP_VERSION = "14.3.0";
 const API_URL  = "https://ep-red-sunset-b1rq936o.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1";
 const AUTH_URL = "https://ep-red-sunset-b1rq936o.neonauth.c-5.eu-central-1.aws.neon.tech/neondb/auth";
 
@@ -638,7 +642,7 @@ function fehlerZeigen(){
   f.forEach(x => {
     const r = x.op.p_rad ? rad(x.op.p_rad) : null;
     const st = x.op.p_stuecke || (x.op.p_stueck ? [x.op.p_stueck] : []);
-    const name = r ? (r.fahrer || r.bezeichnung) : st.length ? stueckeKurz(st) : (x.op.p_rad || "?");
+    const name = r ? (r.fahrer || r.bezeichnung) : st.length ? stueckeKurz(st) : (x.op.p_rad || "Allgemein");
     h += '<div class="eintrag"><div class="txt"><strong>' + esc(name) + '</strong> · ' + esc(x.op.p_problem) +
          '<br><span class="sub" style="color:var(--sprint)">' + esc(x.fehler) + '</span></div>' +
          '<div class="knoepfe"><button class="btn small" data-a="fehlerNochmal" data-x="' + esc(x.op.p_client_id) + '">nochmal senden</button>' +
@@ -694,7 +698,10 @@ function stueckeKurz(nummern){
 }
 function pruefOffen(t){ return ticketStuecke(t).filter(s => s.zustand === "zu prüfen"); }
 function stueckText(nr){ const s = stueckNr(nr); return s ? nr + " " + s.typ + (s.marke ? " · " + s.marke : "") : nr; }
+/** Allgemeines Ticket: weder Rad noch Einzelstück (z. B. Werkstatt aufräumen, ab 14.3.0). */
+function istAllgemein(t){ return !t.rad_id && !t.fahrer_id && !tStuecke(t).length; }
 function wer(t){
+  if(istAllgemein(t)) return "Allgemein";
   const f = t.fahrer_id ? sportlerName(t.fahrer_id) : "";
   if(f) return f;
   const r = t.rad_id ? rad(t.rad_id) : null;
@@ -704,6 +711,7 @@ function wer(t){
 }
 /** Zweite Zeile eines Tickets: Rad und ggf. Einzelstück. */
 function ticketObjekt(t){
+  if(istAllgemein(t)) return "ohne Rad · " + t.arbeitsort;
   const teile = [];
   if(t.rad_id) teile.push(radName(t.rad_id));
   const st = tStuecke(t);
@@ -849,11 +857,13 @@ function boardView(){
   const summe = liste.reduce((m, t) => { const x = schaetzung(positionen(t.id)); return m + (x ? x.min : 0); }, 0);
   if(summe) h += '<p class="sub" style="margin:0 0 4px">Noch offene Arbeit in dieser Auswahl: <strong>' + dauerText(summe) + '</strong> (nur Schritte mit Arbeitszeit)</p>';
   const steht = sortiert(liste.filter(t => !t.fahrbereit));
-  const faehrt = sortiert(liste.filter(t => t.fahrbereit));
+  const faehrt = sortiert(liste.filter(t => t.fahrbereit && !istAllgemein(t)));
+  const allg = sortiert(liste.filter(t => t.fahrbereit && istAllgemein(t)));
   h += '<h2 class="sec alarm">Rad steht</h2>';
   h += steht.length ? steht.map(t => ticketKarte(t, true)).join("") : '<div class="leer">Kein Rad steht.</div>';
   h += '<h2 class="sec">Fahrbereit</h2>';
   h += faehrt.length ? faehrt.map(t => ticketKarte(t, false)).join("") : '<div class="leer">' + (view.filter === "ich" ? "Du hast nichts übernommen." : "Nichts offen.") + '</div>';
+  if(allg.length) h += '<h2 class="sec">Allgemein</h2>' + allg.map(t => ticketKarte(t, false)).join("");
   h += '<p class="sub" style="margin-top:14px">Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit. „Sofort“ steht immer oben.</p>';
   return h;
 }
@@ -1079,7 +1089,7 @@ function detailView(id){
   const sa = ticketStuecke(t), eigen = tStuecke(t);
   h += '<div class="card"><div class="row"><span class="lbl" style="margin:0;flex:1">Einzelstücke' + (t.rad_id ? ' · am Rad und am Ticket' : '') + '</span>' +
        (DB.tsDa !== false ? '<button class="btn small" data-a="tsDazu"' + gesperrt + '>+ dazu</button>' : '') + '</div>';
-  if(!sa.length) h += '<p class="sub" style="margin:6px 0 0">Kein nummeriertes Teil zugeordnet.</p>';
+  if(!sa.length) h += '<p class="sub" style="margin:6px 0 0">' + (istAllgemein(t) ? 'Allgemeines Ticket — bei Bedarf Einzelstücke dazunehmen.' : 'Kein nummeriertes Teil zugeordnet.') + '</p>';
   else {
     h += '<div class="liste" style="margin-top:6px">';
     sa.forEach(s => {
@@ -1088,8 +1098,8 @@ function detailView(id){
       h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.nummer) + '</strong> ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br><span class="sub">' + esc(info) + '</span></div>';
       h += s.zustand === "frei" ? '<span class="chip ok">frei</span>' : '<span class="chip alarm">' + esc(s.zustand) + '</span>';
       h += '<div class="knoepfe"><button class="btn small" data-a="pruefen" data-x="' + esc(s.nummer) + '"' + gesperrt + '>' + (s.zustand === "frei" ? "prüfen" : "freigeben") + '</button>';
-      // Herausnehmen nur, was direkt am Ticket hängt — und ohne Rad bleibt mindestens eins
-      if(amTicket && DB.tsDa !== false && (t.rad_id || eigen.length > 1))
+      // Herausnehmen nur, was direkt am Ticket hängt (ab 14.3.0 auch das letzte — dann allgemeines Ticket)
+      if(amTicket && DB.tsDa !== false)
         h += '<button class="btn small" data-a="tsWeg" data-x="' + esc(s.nummer) + '" aria-label="' + esc(s.nummer) + ' aus dem Ticket nehmen"' + gesperrt + '>✕</button>';
       h += '</div></div>';
     });
@@ -1182,25 +1192,35 @@ function zeile(l, r){ return '<div class="row" style="padding:4px 0"><span>' + l
 /* ===============================================================
    Neues Ticket
    ===============================================================*/
-function neuStart(){ neu = { rad:"", stuecke:[], problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[] }; }
+function neuStart(){ neu = { art:"rad", rad:"", stuecke:[], problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[] }; }
 function neuView(){
   if(!neu) neuStart();
+  if(!neu.art) neu.art = "rad";
+  const allg = neu.art === "allgemein";
   let h = '<button class="btn small" data-a="tab" data-x="tickets" style="margin-bottom:10px">← Alle Tickets</button>';
   h += '<h2 class="sec" style="margin-top:0">Neues Ticket</h2><div class="card">';
   if(!Array.isArray(neu.stuecke)) neu.stuecke = [];
   if(neu.wahlSuche === undefined) neu.wahlSuche = "";
-  h += '<div class="feld"><span class="lbl">Rad und/oder Einzelstücke</span>' + wahlFeld() + '</div>';
-  h += '<div class="feld"><span class="lbl">Was ist passiert?</span><textarea data-c="nProblem" placeholder="Sturz, Lenker verbogen, Rahmen prüfen">' + esc(neu.problem) + '</textarea></div>';
-  if(neu.rad){
+  // 1. Worum geht es: Rad/Material oder allgemein (ohne Rad, z. B. Werkstatt aufräumen)
+  h += '<div class="feld"><span class="lbl">Worum geht es?</span><div class="seg">' +
+       segBtn("nArt", "rad", "Rad / Einzelstück", neu.art) + segBtn("nArt", "allgemein", "Allgemein", neu.art) + '</div></div>';
+  if(allg) h += '<p class="sub" style="margin:-4px 0 12px">Für Aufgaben ohne Rad oder Einzelstück — z. B. Werkstatt aufräumen, Koffer packen, Bestellung einräumen.</p>';
+  else h += '<div class="feld">' + wahlFeld() + '</div>';
+  // 2. Was ist los
+  h += '<div class="feld"><span class="lbl">' + (allg ? 'Was ist zu tun?' : 'Was ist passiert?') + '</span><textarea data-c="nProblem" placeholder="' +
+       (allg ? 'Werkstatt aufräumen, Kompressor entkalken' : 'Sturz, Lenker verbogen, Rahmen prüfen') + '">' + esc(neu.problem) + '</textarea></div>';
+  if(!allg && neu.rad){
     h += '<div class="feld"><span class="lbl">Rad noch fahrbereit?</span><div class="seg">';
     h += segBtn("nFahrbereit", "ja", "Ja, fährt", neu.fahrbereit ? "ja" : "nein");
     h += segBtn("nFahrbereit", "nein", "Nein, steht", neu.fahrbereit ? "ja" : "nein", "rotwahl") + '</div></div>';
   }
+  // 3. Wann
+  h += '<div class="feld"><span class="lbl">Soll fertig</span>' + terminWahl("n", neu.soll_fertig, neu.naechstmoeglich) + '</div>';
+  h += '<div class="feld"><span class="lbl">Anlass (optional)</span><input type="text" data-c="nAnlass" value="' + esc(neu.anlass) + '" placeholder="Wettkampf, Training…"></div>';
+  // 4. Wo und womit
   h += '<div class="feld"><span class="lbl">Wo wird gearbeitet?</span><div class="seg">';
   ORTE.forEach(o => h += segBtn("nOrt", o, o, neu.arbeitsort));
   h += '</div></div>';
-  h += '<div class="feld"><span class="lbl">Soll fertig</span>' + terminWahl("n", neu.soll_fertig, neu.naechstmoeglich) + '</div>';
-  h += '<div class="feld"><span class="lbl">Anlass</span><input type="text" data-c="nAnlass" value="' + esc(neu.anlass) + '" placeholder="Wettkampf, Training…"></div>';
   h += '<div class="feld"><span class="lbl">Arbeitsschritte (optional)</span><div class="row" style="gap:8px">';
   h += '<button class="btn small" data-a="scan" data-x="neuMaterial"' + (offline ? " disabled" : "") + '>Scannen</button><select data-c="nMat" style="flex:1"><option value="">Teil wählen…</option>';
   (DB.artikel||[]).filter(vormerkbar).forEach(a => {
@@ -2971,26 +2991,38 @@ function wahlFeld(){
   }
   return h + '<div class="row" style="gap:8px"><button class="btn small" data-a="scan" data-x="neuRad">Scannen</button>' +
          '<input type="search" data-c="nWahlSuche" placeholder="' + (r ? 'Nummer oder Typ (z. B. L-209)' : 'Fahrer, Rad oder Nummer (z. B. L-203)') + '" value="' + esc(neu.wahlSuche) + '" style="flex:1"></div>' +
-         '<div id="wahlListe" class="wahl-liste">' + wahlListe() + '</div>';
+         '<div id="wahlListe" class="wahl-liste frei">' + wahlListe() + '</div>';
 }
+const RAD_TYPEN = ["Bahn", "Straße", "Zeitfahren", "Cross", "Sonstiges"];
 function wahlListe(){
   const q = (neu.wahlSuche || "").trim().toLowerCase();
   const passt = t => !q || t.toLowerCase().indexOf(q) >= 0;
+  const radZeile = (r, unter) => '<button class="wahl-zeile' + (unter ? ' unter' : '') + '" data-a="nWahlRad" data-x="' + esc(r.id) + '"><strong>' + esc(r.fahrer || r.bezeichnung) + '</strong>' +
+    (r.fahrer ? ' <span class="sub">' + esc(r.bezeichnung) + '</span>' : '') + (unter ? '' : ' <span class="sub">· ' + esc(r.typ || "") + '</span>') + '</button>';
   let h = "";
-  // Räder
-  const raeder = neu.rad ? [] : (DB.raeder||[]).filter(r => r.aktiv && passt([r.fahrer, r.bezeichnung, r.id, r.marke].join(" ")))
+  // Räder — ohne Suche nach Typ (Bahn, Straße …) gegliedert und zugeklappt
+  const raeder = neu.rad ? [] : (DB.raeder||[]).filter(r => r.aktiv && passt([r.fahrer, r.bezeichnung, r.id, r.marke, r.typ].join(" ")))
     .sort((a,b) => (a.fahrer ? 0 : 1) - (b.fahrer ? 0 : 1) || (a.fahrer || a.bezeichnung).localeCompare(b.fahrer || b.bezeichnung, "de"));
   if(raeder.length){
-    h += '<div class="wahl-kopf">Räder</div>';
-    raeder.forEach(r => h += '<button class="wahl-zeile" data-a="nWahlRad" data-x="' + esc(r.id) + '"><strong>' + esc(r.fahrer || r.bezeichnung) + '</strong>' +
-                             (r.fahrer ? ' <span class="sub">' + esc(r.bezeichnung) + '</span>' : '') + '</button>');
+    h += '<div class="wahl-kopf">Räder · ' + raeder.length + '</div>';
+    if(q) raeder.forEach(r => h += radZeile(r, false));
+    else {
+      const gr = {};
+      raeder.forEach(r => { const k = RAD_TYPEN.indexOf(r.typ) >= 0 ? r.typ : "Sonstiges"; (gr[k] = gr[k] || []).push(r); });
+      const typen = RAD_TYPEN.filter(k => gr[k]), einzig = typen.length === 1;
+      typen.forEach(k => {
+        const offen = einzig || !!(neu.radTypOffen || {})[k];
+        h += '<button class="wahl-zeile gruppe" data-a="nRadTypAuf" data-x="' + esc(k) + '" aria-expanded="' + offen + '">' + (offen ? "▾" : "▸") + ' ' + esc(k) + '<span class="anz sub">' + gr[k].length + '</span></button>';
+        if(offen) gr[k].forEach(r => h += radZeile(r, true));
+      });
+    }
   }
   const aktiv = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert").sort((a,b) => a.nummer.localeCompare(b.nummer, "de", { numeric:true }));
 
   if(q){
     // Suche: alle passenden Einzelstücke, auch die an einem Rad
     const treffer = aktiv.filter(s => passt([s.nummer, s.typ, s.marke, s.detail, s.rad_id ? ((rad(s.rad_id)||{}).fahrer || "") : ""].join(" ")));
-    if(treffer.length) h += '<div class="wahl-kopf">Einzelstücke</div>' + wahlSerien(treffer);
+    if(treffer.length) h += '<div class="wahl-kopf">Einzelstücke · ' + treffer.length + '</div>' + wahlSerien(treffer);
     return h || '<p class="sub" style="margin:8px 10px">Nichts gefunden.</p>';
   }
 
@@ -2998,19 +3030,16 @@ function wahlListe(){
   // stehen zugeklappt nach Kategorie, damit die Liste kurz bleibt.
   const lose = aktiv.filter(s => !s.rad_id);
   if(lose.length){
-    h += '<button class="wahl-kopf klapp" data-a="nLoseAuf">' + (neu.loseOffen ? "▾" : "▸") + ' Einzelstücke ohne Rad · ' + lose.length +
-         (neu.stuecke.length ? ' <span class="sub">· ' + neu.stuecke.length + ' gewählt</span>' : '') + '</button>';
-    if(neu.loseOffen){
-      const kats = {};
-      lose.forEach(s => (kats[stueckKategorie(s.nummer)] = kats[stueckKategorie(s.nummer)] || []).push(s));
-      Object.keys(kats).sort().forEach(k => {
-        const offen = !!(neu.katOffen || {})[k];
-        h += '<button class="wahl-zeile kat" data-a="nKatAuf" data-x="' + esc(k) + '">' + (offen ? "▾" : "▸") + ' ' + esc(kategorieName(k)) + ' <span class="sub">· ' + kats[k].length + '</span></button>';
-        if(offen) h += wahlSerien(kats[k]);
-      });
-    }
+    h += '<div class="wahl-kopf">Einzelstücke ohne Rad · ' + lose.length + (neu.stuecke.length ? ' · ' + neu.stuecke.length + ' gewählt' : '') + '</div>';
+    const kats = {};
+    lose.forEach(s => (kats[stueckKategorie(s.nummer)] = kats[stueckKategorie(s.nummer)] || []).push(s));
+    Object.keys(kats).sort().forEach(k => {
+      const offen = !!(neu.katOffen || {})[k];
+      h += '<button class="wahl-zeile gruppe" data-a="nKatAuf" data-x="' + esc(k) + '" aria-expanded="' + offen + '">' + (offen ? "▾" : "▸") + ' ' + esc(kategorieName(k)) + '<span class="anz sub">' + kats[k].length + '</span></button>';
+      if(offen) h += wahlSerien(kats[k]);
+    });
   }
-  if(!neu.rad) h += '<p class="sub wahl-tipp">Teile an einem Rad: erst das Rad wählen. Nummer tippen oder scannen findet jedes Teil. Mehrere Einzelstücke (z. B. Laufräder) einfach nacheinander antippen.</p>';
+  if(!neu.rad) h += '<p class="sub wahl-tipp">Teile an einem Rad: erst das Rad wählen. Nummer tippen oder scannen findet jedes Teil.</p>';
   return h;
 }
 /** Einzelstücke nach Serie gebündelt: eine Zeile je Serie, Nummern als Knöpfe. */
@@ -3036,6 +3065,7 @@ function wahlSerien(teile){
 
 /** Rad im neuen Ticket wählen: Teile, die an einem anderen Rad stecken, fallen raus. Die Liste klappt zu. */
 function radImNeuen(id){
+  neu.art = "rad";
   neu.rad = id;
   neu.stuecke = neu.stuecke.filter(n => { const x = stueckNr(n); return !x || !x.rad_id || x.rad_id === id; });
   neu.pickerOffen = false;
@@ -3044,6 +3074,7 @@ function radImNeuen(id){
     Gibt false zurück, wenn es nicht dazu passt. */
 function neuStueckWaehlen(nr, ohneRender){
   const s = stueckNr(nr); if(!s) return false;
+  neu.art = "rad";
   if(s.rad_id && neu.rad && neu.rad !== s.rad_id){
     const r = rad(s.rad_id);
     toast(nr + " steckt am Rad von " + (r ? (r.fahrer || r.bezeichnung) : s.rad_id) + " — passt nicht zu diesem Ticket.", true);
@@ -3068,17 +3099,18 @@ function neuStueckUmschalten(nr){
   else neuStueckWaehlen(nr);
 }
 async function ticketAnlegen(){
-  if(!neu.rad && !neu.stuecke.length){ toast("Erst ein Rad oder ein Einzelstück wählen oder scannen.", true); return; }
-  if(!neu.problem.trim()){ toast("Bitte kurz beschreiben, was ist.", true); return; }
-  const op = { p_rad:neu.rad || null, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
+  const allg = neu.art === "allgemein";
+  if(!allg && !neu.rad && !neu.stuecke.length){ toast("Erst ein Rad oder Einzelstück wählen — oder oben „Allgemein“.", true); return; }
+  if(!neu.problem.trim()){ toast(allg ? "Bitte kurz beschreiben, was zu tun ist." : "Bitte kurz beschreiben, was ist.", true); return; }
+  const op = { p_rad:(!allg && neu.rad) || null, p_problem:neu.problem.trim(), p_fahrbereit:neu.fahrbereit,
     p_soll_fertig:neu.soll_fertig, p_naechstmoeglich:neu.naechstmoeglich, p_anlass:neu.anlass || null,
     p_arbeitsort:neu.arbeitsort, p_positionen:neu.pos, p_bearbeiter:bearbeiter || null, p_client_id:neueId(), _konto:aktivKonto };
   // Ein Teil: p_stueck (geht mit und ohne Migration 12.0.0); mehrere: p_stuecke.
-  if(neu.stuecke.length === 1) op.p_stueck = neu.stuecke[0];
-  else if(neu.stuecke.length > 1) op.p_stuecke = neu.stuecke.slice();
+  if(!allg && neu.stuecke.length === 1) op.p_stueck = neu.stuecke[0];
+  else if(!allg && neu.stuecke.length > 1) op.p_stuecke = neu.stuecke.slice();
   if(neu.fotos && neu.fotos.length) op._fotos = neu.fotos;
-  const r = neu.rad ? rad(neu.rad) : null, name = r ? (r.fahrer || r.bezeichnung) : (neu.stuecke.length ? stueckeKurz(neu.stuecke) : neu.rad);
-  if(!neu.rad) op.p_fahrbereit = true;   // ohne Rad gibt es kein „Rad steht“
+  const r = op.p_rad ? rad(op.p_rad) : null, name = r ? (r.fahrer || r.bezeichnung) : (op.p_stueck || op.p_stuecke ? stueckeKurz(neu.stuecke) : "");
+  if(!op.p_rad) op.p_fahrbereit = true;   // ohne Rad gibt es kein „Rad steht“
   if(offline){
     const mitFotos = inWarteschlange(op);
     neu = null; view.tab = "tickets"; render();
@@ -3092,7 +3124,7 @@ async function ticketAnlegen(){
   const erg = await aktion(async () => {
     try{ return await ticketSenden(op); }
     catch(e){ if(e instanceof NetzFehler){ mitFotos = inWarteschlange(op); return "wartet"; } throw e; }
-  }, x => x !== "wartet" ? "Ticket für " + name + " angelegt" + (op._fotos ? " · " + op._fotos.length + " Foto" + (op._fotos.length === 1 ? "" : "s") : "")
+  }, x => x !== "wartet" ? (name ? "Ticket für " + name : "Allgemeines Ticket") + " angelegt" + (op._fotos ? " · " + op._fotos.length + " Foto" + (op._fotos.length === 1 ? "" : "s") : "")
         : mitFotos ? "Verbindung weg — Ticket gespeichert, wird nachgesendet" : "Verbindung weg — Ticket wird nachgesendet, Fotos passten nicht in den Gerätespeicher");
   if(erg !== undefined){ neu = null; view.tab = "tickets"; view.ticket = null; render(); }
 }
@@ -3410,6 +3442,8 @@ const A = {
   drucken: () => window.print(),
 
   /* Neues Ticket */
+  nArt: x => { neu.art = x; render(); },
+  nRadTypAuf: x => { neu.radTypOffen = neu.radTypOffen || {}; neu.radTypOffen[x] = !neu.radTypOffen[x]; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); },
   nFahrbereit: x => { neu.fahrbereit = x === "ja"; render(); },
   nOrt: x => { neu.arbeitsort = x; render(); },
   nTermin: x => { Object.assign(neu, terminWert(x)); render(); },

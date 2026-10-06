@@ -186,7 +186,7 @@ create index stueck_tag_tag on stueck_tag (tag_id);
 create table ticket (
   id                bigint generated always as identity primary key,
   angelegt          timestamptz not null default now(),
-  rad_id            text references rad (id) on update cascade,       -- Rad und/oder Einzelstücke (ticket_stueck); geprüft in den Funktionen
+  rad_id            text references rad (id) on update cascade,       -- Rad und/oder Einzelstücke (ticket_stueck); beides leer = allgemeines Ticket
   fahrer_id         bigint references sportler (id),   -- Stand beim Anlegen, bleibt stehen
   problem           text not null,
   fahrbereit        boolean not null default true,
@@ -1310,7 +1310,7 @@ begin
     select array_agg(distinct rad_id) into v_raeder from stueck where nummer = any (v_stuecke) and rad_id is not null;
     if cardinality(v_raeder) = 1 then v_rad := v_raeder[1]; end if;
   end if;
-  if v_rad is null and cardinality(v_stuecke) = 0 then raise exception 'Rad oder Einzelstück fehlt'; end if;
+  -- Ohne Rad und ohne Einzelstück: allgemeines Ticket (z. B. Werkstatt aufräumen), nicht für Sportler
 
   if v_rolle = 'sportler' then
     if v_rad is null or not mein_rad(v_rad) then raise exception 'Tickets nur für die eigenen Räder'; end if;
@@ -1429,7 +1429,7 @@ end $$;
 --  herausnehmen (p_ohne). Nachgetragene „freie“ Teile werden „zu prüfen“;
 --  ein herausgenommenes Teil, das auf „zu prüfen“ steht und an keinem
 --  anderen offenen Ticket hängt, wird wieder „frei“. Ein Ticket ohne Rad
---  behält mindestens ein Einzelstück.
+--  darf auch ohne Einzelstück bleiben (allgemeines Ticket, ab 14.3.0).
 -- ---------------------------------------------------------------------
 create or replace function ticket_stuecke_aendern(p_ticket bigint, p_mit text[] default null, p_ohne text[] default null) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -1467,9 +1467,7 @@ begin
                       where ts.nummer = s.nummer and x.status in ('offen', 'angenommen'))
      and not exists (select 1 from ticket x where x.rad_id = s.rad_id and x.status in ('offen', 'angenommen'));
 
-  if t.rad_id is null and not exists (select 1 from ticket_stueck where ticket_id = p_ticket) then
-    raise exception 'Ein Ticket ohne Rad braucht mindestens ein Einzelstück';
-  end if;
+  -- Ab 14.3.0 darf ein Ticket ohne Rad auch ohne Einzelstück bleiben (allgemeines Ticket).
 end $$;
 
 -- ---------------------------------------------------------------------

@@ -1,11 +1,11 @@
 # Version
 
-**14.2.0** — 06.10.2026
+**14.3.0** — 06.10.2026
 
-Fotos: höchstens 5 pro Ticket, Fotos von Tickets, die seit mehr als
-30 Tagen erledigt oder storniert sind, werden automatisch gelöscht.
-Sportler können pro Rad nur ein offenes Ticket haben und ergänzen dort
-Fotos. Migration nötig (nur Funktionen und Rechte).
+Neues Ticket aufgeräumt: „Worum geht es?“ (Rad / Einzelstück oder
+Allgemein), Räder nach Typ (Bahn, Straße …) zum Aufklappen, keine
+eigene Scrollbox mehr. Allgemeine Tickets ohne Rad und ohne Einzelstück
+(z. B. Werkstatt aufräumen). Migration nötig (nur Funktionen).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -14,6 +14,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 14.3.0 | 06.10.2026 | Neues Ticket aufgeräumt, Räder nach Typ klappbar, allgemeine Tickets ohne Rad |
 | 14.2.0 | 06.10.2026 | Höchstens 5 Fotos pro Ticket, Fotos nach 30 Tagen löschen, Sportler: ein offenes Ticket pro Rad |
 | 14.1.1 | 06.10.2026 | Anmeldung abgesichert (Sperre, deaktivierte Sportler, Rollenwechsel), Verbrauch nur eigener Standort |
 | 14.1.0 | 06.10.2026 | Gesamt-Admin ohne Zugriff auf fremde Standorte, Manager von außen einladen |
