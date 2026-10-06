@@ -1,11 +1,12 @@
 # Version
 
-**14.3.0** — 06.10.2026
+**15.0.0** — 06.10.2026
 
-Neues Ticket aufgeräumt: „Worum geht es?“ (Rad / Einzelstück oder
-Allgemein), Räder nach Typ (Bahn, Straße …) zum Aufklappen, keine
-eigene Scrollbox mehr. Allgemeine Tickets ohne Rad und ohne Einzelstück
-(z. B. Werkstatt aufräumen). Migration nötig (nur Funktionen).
+Lagerorte selbst anlegen: Werkstatt-Manager legen unter Mehr → Lagerorte
+Räume (zählen zum Lager) und Koffer/Werkzeugkästen (Packliste mit
+Soll/Ist) an, benennen sie um, sortieren, deaktivieren oder löschen sie.
+Die Werkstatt bleibt fester Hauptraum. Migration nötig (neue Tabelle,
+Spalten auf text, Sicht v_bestand umgebaut).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -14,6 +15,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 15.0.0 | 06.10.2026 | Lagerorte selbst anlegen (Räume, Koffer/Werkzeugkästen), Raum-Filter im Lager |
 | 14.3.0 | 06.10.2026 | Neues Ticket aufgeräumt, Räder nach Typ klappbar, allgemeine Tickets ohne Rad |
 | 14.2.0 | 06.10.2026 | Höchstens 5 Fotos pro Ticket, Fotos nach 30 Tagen löschen, Sportler: ein offenes Ticket pro Rad |
 | 14.1.1 | 06.10.2026 | Anmeldung abgesichert (Sperre, deaktivierte Sportler, Rollenwechsel), Verbrauch nur eigener Standort |
