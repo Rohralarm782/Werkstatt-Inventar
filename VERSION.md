@@ -1,10 +1,11 @@
 # Version
 
-**13.0.0** — 05.10.2026
+**14.0.0** — 06.10.2026
 
-Kategorie-Namen in der Datenbank: Bei „neue Kategorie“ gibt man jetzt Name
-und Buchstaben ein (z. B. Orga · O). Namen lassen sich unter Mehr → Tags
-ändern. Datenbank-Änderung (Migration nötig).
+Konten, Rollen und Standorte: Anmeldung mit Name + PIN, Rollen Werkstatt-
+Manager, Trainer/Mechaniker, Geschäftsstelle, Sportler und Gesamt-Admin.
+Mehrere Standorte mit getrennten Daten; jeder Code trägt das Kürzel des
+Standorts (SN-B-101). Datenbank-Änderung (Migration nötig).
 
 Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 `index.html` und wird unten in der App angezeigt.
@@ -13,6 +14,7 @@ Die Versionsnummer steht zusätzlich als `APP_VERSION` in der
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 14.0.0 | 06.10.2026 | Konten (Name + PIN), Rollen, Standorte, Codes mit Standort-Kürzel |
 | 13.0.0 | 05.10.2026 | Kategorie-Namen in der Datenbank, Name bei neuer Kategorie |
 | 12.0.0 | 05.10.2026 | Mehrere Einzelstücke je Ticket (z. B. Rad + Laufräder) |
 | 11.0.0 | 05.10.2026 | Tags statt Unterkategorien (mehrere je Artikel/Teil) |
