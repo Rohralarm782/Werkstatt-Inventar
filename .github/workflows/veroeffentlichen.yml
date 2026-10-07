@@ -1,0 +1,55 @@
+# Veröffentlicht die App auf GitHub Pages.
+#
+# - Jede Nacht automatisch: der aktuelle Stand von main geht live.
+#   GitHub rechnet in UTC: 1:17 UTC = 3:17 Uhr Sommerzeit / 2:17 Uhr Winterzeit.
+#   Der Start kann sich um einige Minuten bis etwa eine Stunde verzögern.
+# - Sofort (dringende Fehler): Actions → "App veröffentlichen" → "Run workflow".
+#
+# Ein Upload/Push auf main geht NICHT mehr sofort live.
+# Voraussetzung: Settings → Pages → Source = "GitHub Actions".
+
+name: App veröffentlichen
+
+on:
+  schedule:
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Nie zwei Veröffentlichungen gleichzeitig; eine laufende wird nicht abgebrochen.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  veroeffentlichen:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Stand von main holen
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Version anzeigen
+        run: |
+          echo "Veröffentlicht wird: $(git log -1 --format='%h %s')"
+          grep -o 'APP_VERSION = "[^"]*"' index.html || true
+
+      - name: Pages vorbereiten
+        uses: actions/configure-pages@v5
+
+      - name: Dateien packen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
