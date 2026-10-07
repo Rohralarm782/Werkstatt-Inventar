@@ -81,7 +81,7 @@ const IMMER_OK = ["anmWahl","anmName","anmNameOk","anmCode","anmCodeOk","anmCode
   "briefkopfSpeichern","logoWeg","spProblem","spProblemOk","spFotosOk","spTicket","modalZu","modalHintergrund"];
 const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlaufTicket","verlaufRad","mat","matFilter","kofferAuf","kofferZu","rt","radAuf","radZu",
   "geheMehr","mehrZu","teilZeigen","oeffnen","zurueck","scan","drucken","artikelMenue","export","rechnungZeigen","rechnungDrucken","postenZeigen","fotoZeigen",
-  "bestellZu","bestellKopieren","buchungenArtikel","serieEtiketten","stueckEtikett","artikelEtikett","radEtikett","radEtikettenAlle","etDrucken","etSammeln","etZurueck",
+  "bestellZu","bestellKopieren","buchungenArtikel","serieEtiketten","stueckEtikett","artikelEtikett","radEtikett","radEtikettenAlle","etDrucken","etSammeln","etZurueck","etBilder","etTeilen","sortWahl",
   "vorlagenVerwalten","vorlageForm","vorlageSpeichern","vorlageLoeschen","vorlageTest","dlEntfernen","dlLeeren","dlDrucken","dlAlle","dlKeine","dlAuswahl","zurDruckliste",
   "zeigAus","katFilter","ukFilter","katKlapp","katAlle","serieAuf","ukKatAuf","ukKatZu","fehlerZeigen","fehlerVerwerfen","invFilter"];
 const RECHNEN_NUR = ["rechnungErstellen","rechnungStatus","rStorno","rStornoOk"];

@@ -66,6 +66,35 @@ function katSortieren(p, liste, nummer){
   });
 }
 
+/* ---------------------------------------------------------------
+   Sortierung der Übersichten (ab 20.0.0): Material ("l"), Einzelstücke ("inv")
+   und Räder ("rad") wahlweise wie bisher (nach Kategorie bzw. Fahrer), nach
+   Nummer oder nach letzter Änderung (Spalte geaendert_am, setzt die Datenbank).
+   Die Wahl bleibt auf dem Gerät.
+----------------------------------------------------------------*/
+const SORT_ARTEN = ["standard", "nummer", "geaendert"];
+function sortWahlen(){ try{ return JSON.parse(localStorage.getItem("wSort") || "{}") || {}; }catch(e){ return {}; } }
+function sortArt(p){ const a = sortWahlen()[p]; return SORT_ARTEN.indexOf(a) >= 0 ? a : "standard"; }
+function sortSetzen(p, a){ const o = sortWahlen(); o[p] = SORT_ARTEN.indexOf(a) >= 0 ? a : "standard"; try{ localStorage.setItem("wSort", JSON.stringify(o)); }catch(e){} }
+/** Knopfreihe „Sortieren: Kategorie · Nummer · Zuletzt geändert“ */
+function sortZeile(p, standardText){
+  const a = sortArt(p), t = { standard:standardText, nummer:"Nummer", geaendert:"zuletzt geändert" };
+  return '<div class="row sortzeile" style="gap:6px;margin:-2px 0 10px;flex-wrap:wrap;align-items:center"><span class="sub">Sortieren:</span>' +
+         SORT_ARTEN.map(x => '<button class="btn small' + (a === x ? " primary" : "") + '" data-a="sortWahl" data-x="' + p + '|' + x + '"' + (a === x ? ' aria-pressed="true"' : '') + '>' + t[x] + '</button>').join("") + '</div>';
+}
+/** Zeitpunkt der letzten Änderung in ms (0, wenn unbekannt — z. B. Migration 20.0.0 noch nicht gelaufen). */
+function geaendertZeit(x){ const t = x && x.geaendert_am ? Date.parse(x.geaendert_am) : NaN; return isNaN(t) ? 0 : t; }
+function geaendertText(x){ const t = geaendertZeit(x); return t ? "geändert " + deLang(iso(new Date(t))) : ""; }
+/** Sortiert nach Nummer bzw. neueste Änderung zuerst (bei gleicher Zeit nach Nummer). */
+function nachArt(liste, art, nummer, zeit){
+  const nr = (a, b) => String(nummer(a)).localeCompare(String(nummer(b)), "de", { numeric:true });
+  return liste.slice().sort(art === "geaendert" ? (a, b) => (zeit(b) - zeit(a)) || nr(a, b) : nr);
+}
+/** Hinweis, wenn nach Änderung sortiert wird, die Datenbank die Zeit aber noch nicht liefert. */
+function geaendertFehlt(liste, zeit){
+  return liste.length && !liste.some(x => zeit(x)) ? '<p class="sub" style="color:var(--warn);margin:-4px 0 10px">Die Datenbank liefert noch keine Änderungszeit — Migration 20.0.0 ausführen, danach Data API → „Refresh schema cache“.</p>' : '';
+}
+
 /** Filterzeile: ohne Auswahl die Kategorien. Nach Antippen einer Kategorie stehen an
     derselben Stelle „‹ Kategorie“ (zurück) und deren Tags — eine Zeile, nicht zwei.
     Ein Eintrag mit mehreren Tags zählt bei jedem seiner Tags mit.
@@ -158,13 +187,13 @@ function nummernText(nummern){
 function stueckOrtText(s){ const r = s.rad_id ? rad(s.rad_id) : null; return r ? "an " + (r.fahrer || r.bezeichnung) : s.ort; }
 function zaehle(liste, f){ const c = {}; liste.forEach(x => { const k = f(x); c[k] = (c[k] || 0) + 1; }); return c; }
 
-function stueckKarte(s, gesperrt){
+function stueckKarte(s, gesperrt, zusatz){
   const r = s.rad_id ? rad(s.rad_id) : null;
   let h = '<div class="card"><div class="row wrapr"><span><strong>' + esc(s.nummer) + '</strong> · ' + esc(s.typ) + (s.marke ? ' · ' + esc(s.marke) : '') + '<br><span class="sub">' + esc(s.detail || "") + (s.kaufdatum ? (s.detail ? ' · ' : '') + 'gekauft ' + monatJahr(s.kaufdatum) : '') + '</span></span><span class="sp"></span>';
   h += s.zustand === "zu prüfen" ? '<span class="chip alarm">zu prüfen</span>' : s.zustand === "defekt" ? '<span class="chip alarm">defekt</span>' : '<span class="chip ok">frei</span>';
   const tk = stueckTicket(s.nummer);
   if(tk) h += '<button class="chip warn" style="border:none;cursor:pointer;margin-left:4px" data-a="zumTicket" data-x="' + tk.id + '">Ticket ' + tnr(tk.id) + ' ›</button>';
-  h += '</div><p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + '</p>';
+  h += '</div><p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';
   h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
   orte().concat(s.ort !== "am Rad" && orte().indexOf(s.ort) < 0 && s.ort !== "ausgemustert" ? [s.ort] : [], ["ausgemustert"])
     .forEach(o => h += '<option value="' + esc(o) + '"' + (s.ort === o ? " selected" : "") + '>' + esc(o) + '</option>');
@@ -174,7 +203,7 @@ function stueckKarte(s, gesperrt){
   h += '</select></div><button class="btn small" style="margin-top:8px" data-a="stueckBearbeiten" data-x="' + esc(s.nummer) + '"' + gesperrt + '>Details bearbeiten</button></div>';
   return h;
 }
-function serienKarte(gruppe, offen){
+function serienKarte(gruppe, offen, zusatz){
   const s0 = gruppe[0], key = serienSchluessel(s0);
   const zust = zaehle(gruppe, s => s.zustand || "frei"), orte = zaehle(gruppe, stueckOrtText);
   let chips = "";
@@ -185,7 +214,7 @@ function serienKarte(gruppe, offen){
           (s0.detail ? '<br><span class="sub">' + esc(s0.detail) + '</span>' : '') + '</span><span class="sp"></span><span class="chips">' + chips + '</span></div>';
   const daten = Array.from(new Set(gruppe.map(s => (s.kaufdatum || "").slice(0, 7))));
   const kauf = daten.length === 1 ? (daten[0] ? " · gekauft " + monatJahr(daten[0]) : "") : " · verschiedene Kaufdaten";
-  h += '<p class="sub" style="margin:8px 0"><span class="mono">' + esc(nummernText(gruppe.map(s => s.nummer))) + '</span> · ' + esc(ortText) + esc(kauf) + '</p>';
+  h += '<p class="sub" style="margin:8px 0"><span class="mono">' + esc(nummernText(gruppe.map(s => s.nummer))) + '</span> · ' + esc(ortText) + esc(kauf) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';
   h += '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn small" data-a="serieAuf" data-x="' + esc(key) + '">' + (offen ? "zuklappen ▴" : "einzeln ▾") + '</button>' +
        '<button class="btn small" data-a="serieBearbeiten" data-x="' + esc(key) + '"' + (offline ? " disabled" : "") + '>bearbeiten</button>' +
        '<button class="btn small" data-a="serieEtiketten" data-x="' + esc(key) + '">Etiketten</button>' +
@@ -284,20 +313,25 @@ function inventarView(){
   const gesucht = alle.filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "") + " " + tagNamen(tagsVon("stueck", s.nummer))).toLowerCase().indexOf(q) >= 0);
   h += katFilterZeile("inv", gesucht);
   h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer" value="' + esc(view.suche) + '"></div>';
+  h += sortZeile("inv", "Kategorie");
   const liste = katFilterAnwenden("inv", gesucht);
   const ausKnopf = nAus ? '<p style="text-align:center;margin-top:14px"><button class="btn small link" data-a="zeigAus">' + (view.zeigAus ? "ausgemusterte ausblenden" : "ausgemusterte zeigen (" + nAus + ")") + '</button></p>' : '';
   if(!liste.length) return h + '<div class="leer">' + (alle.length ? "Nichts gefunden." : roh.length ? "Nur ausgemusterte Einzelstücke vorhanden." : "Noch keine Einzelstücke erfasst.") + '</div>' + ausKnopf;
 
-  // Serien bilden — Reihenfolge: Kategorie, erster Tag, kleinste Nummer
+  // Serien bilden — Reihenfolge: Kategorie, erster Tag, kleinste Nummer (Standard),
+  // sonst nach Nummer bzw. neuester Änderung in der Serie
+  const sArt = sortArt("inv"), zeit = s => geaendertZeit(s);
+  if(sArt === "geaendert") h += geaendertFehlt(liste, zeit);
   const gruppen = {}, reihe = [];
-  katSortieren("inv", liste, s => s.nummer).forEach(s => {
+  (sArt === "standard" ? katSortieren("inv", liste, s => s.nummer) : nachArt(liste, sArt, s => s.nummer, zeit)).forEach(s => {
     const k = serienSchluessel(s);
     if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); }
     gruppen[k].push(s);
   });
   // Ohne Kategorie-Filter: Überschrift je Kategorie (antippen = ein-/ausklappen),
   // darin Tags. Bei einer Suche ist alles aufgeklappt.
-  const mitKat = !view.invKat;
+  const flach = sArt !== "standard";
+  const mitKat = !view.invKat && !flach;
   const katsHier = Array.from(new Set(liste.map(s => stueckKategorie(s.nummer))));
   if(mitKat && katsHier.length > 1 && !q){
     h += '<div class="row" style="gap:6px;margin:-2px 0 4px;justify-content:flex-end">' +
@@ -305,16 +339,17 @@ function inventarView(){
          '<button class="btn small link" data-a="katAlle" data-x="inv|auf">alle aufklappen</button></div>';
   }
   const eintraege = reihe.map(k => {
-    const g = gruppen[k], kat = stueckKategorie(g[0].nummer);
+    const g = gruppen[k], kat = flach ? "" : stueckKategorie(g[0].nummer);
+    const zusatz = sArt === "geaendert" ? geaendertText(g.reduce((m, s) => zeit(s) > zeit(m) ? s : m, g[0])) : "";
     let html;
-    if(g.length === 1) html = stueckKarte(g[0], gesperrt);
+    if(g.length === 1) html = stueckKarte(g[0], gesperrt, zusatz);
     else {
       // Aufgeklappt, wenn gewünscht oder wenn die Suche eine Nummer der Serie trifft (z. B. nach dem Scannen)
       const offen = !!view.serieOffen[k] || (q && g.some(s => s.nummer.toLowerCase().indexOf(q) >= 0));
-      html = serienKarte(g, offen) + (offen ? '<div class="serie-teile">' + g.map(s => stueckKarte(s, gesperrt)).join("") + '</div>' : '');
+      html = serienKarte(g, offen, zusatz) + (offen ? '<div class="serie-teile">' + g.map(s => stueckKarte(s, gesperrt, sArt === "geaendert" ? geaendertText(s) : "")).join("") + '</div>' : '');
     }
-    return { kat, uk:ukSchluessel(tagsVon("stueck", g[0].nummer)), n:g.length, html };
+    return { kat, uk:flach ? "ohne" : ukSchluessel(tagsVon("stueck", g[0].nummer)), n:g.length, html };
   });
-  h += gegliedert(eintraege, { p:"inv", mitKat, mitUk:!view.invUk, klappbar:!q, block:x => x, einheit:["Teil", "Teile"] });
+  h += gegliedert(eintraege, { p:"inv", mitKat, mitUk:!view.invUk && !flach, klappbar:!q && !flach, block:x => x, einheit:["Teil", "Teile"] });
   return h + ausKnopf;
 }

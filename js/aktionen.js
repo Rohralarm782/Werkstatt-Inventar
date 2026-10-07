@@ -547,12 +547,33 @@ const A = {
   etDrucken: () => {
     const v = vorlage(wert("etVorlage")), start = Math.min(felderJeSeite(v), Math.max(1, Number(wert("etStart") || 1)));
     const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
-    try{ localStorage.setItem("wEtikettVorlage", v.id); }catch(e){}
+    const wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
+    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); }catch(e){}
     const items = etikettAuftrag || [], quelle = etikettQuelle, leeren = !!($("etLeeren") && $("etLeeren").checked);
+    let schmal = 0;
+    if(art === "bar"){
+      const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
+      if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
+      schmal = Math.min.apply(null, items.map(it => barModulMm(it.bc, barBreiteMm(v))));
+    }
     modalZu();
     if(quelle === "druckliste" && leeren){ drucklisteSpeichern([]); render(); }
-    etikettenDrucken(items, v, v.seite === "A4" ? start : 1, k);
+    if(art === "bar" && schmal < 0.19) toast("Achtung: Der Barcode wird sehr fein (Strich " + schmal.toFixed(2).replace(".", ",") + " mm) — ggf. breitere Etiketten oder QR-Code nehmen.", true);
+    etikettenDrucken(items, v, v.seite === "A4" ? start : 1, k, false, art);
   },
+  etBilder: () => {
+    const v = vorlage(wert("etVorlage")), wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
+    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); }catch(e){}
+    const items = etikettAuftrag || [];
+    if(art === "bar"){
+      const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
+      if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
+    }
+    if(items.length > 60){ toast("Höchstens 60 Bilder auf einmal — bitte weniger auswählen.", true); return; }
+    etikettBilderZeigen(items, v, art).catch(e => toast(e.message, true));
+  },
+  etTeilen: x => etikettBilderTeilen(x),
+  sortWahl: x => { const [p, a] = x.split("|"); sortSetzen(p, a); render(); },
   etSammeln: () => {
     const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
     aufDruckliste(etikettAuftrag || [], k);

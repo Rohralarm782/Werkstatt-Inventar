@@ -8,11 +8,11 @@ Live: https://rohralarm782.github.io/Werkstatt-Inventar/
 |---|---|
 | `index.html` | Gerüst, `APP_VERSION`, Einbindung aller Dateien (Reihenfolge wichtig) |
 | `css/app.css` | Gestaltung |
-| `lib/zxing.min.js` | ZXing (QR/Barcode lesen und QR erzeugen), fest eingebaut, kein CDN |
+| `lib/zxing.min.js` | ZXing (QR/Barcode lesen und QR erzeugen), fest eingebaut, kein CDN; Barcodes (Code 128) erzeugt `js/etiketten.js` selbst |
 | `js/core.js` | Konfiguration, Zustand, Zugang, Datenbank (rest/rpc), Laden, Hilfsfunktionen, Rahmen, Modal |
 | `js/tickets.js` | Board, Ticket-Detail, Neues Ticket, Auswahl Rad/Einzelstück, Fotos |
 | `js/lager.js` | Lager, Bestellliste, Koffer, Bekleidung, Buchungen ansehen/stornieren |
-| `js/etiketten.js` | Etiketten und Druck |
+| `js/etiketten.js` | Etiketten und Druck (QR-Code oder Barcode Code 128; auch als Bild für Etikettendrucker mit Handy-App) |
 | `js/inventur.js` | Inventur-Modus |
 | `js/inventar.js` | Nummerierte Einzelstücke |
 | `js/verwaltung.js` | Verwaltung/Mehr, Lagerorte, Stammdaten-Formulare, Nummern, Rechnung |

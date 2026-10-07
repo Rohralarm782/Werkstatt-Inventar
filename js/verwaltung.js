@@ -74,8 +74,14 @@ function raederView(){
   const gesperrt = offline ? " disabled" : "";
   h += '<div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad-ID, Marke" value="' + esc(view.suche) + '"></div>';
   const q = view.suche.toLowerCase();
-  const liste = (DB.raeder||[]).filter(r => !q || [r.fahrer, r.bezeichnung, r.id, r.marke, r.typ].join(" ").toLowerCase().indexOf(q) >= 0)
-    .sort((a, b) => (b.aktiv ? 1 : 0) - (a.aktiv ? 1 : 0) || (a.fahrer ? 0 : 1) - (b.fahrer ? 0 : 1) || (a.fahrer || a.bezeichnung).localeCompare(b.fahrer || b.bezeichnung, "de"));
+  // Sortierung: Standard = aktive zuerst, mit Fahrer zuerst, nach Name; sonst nach Nummer bzw. letzter Änderung (aktive bleiben vorn)
+  const sArt = sortArt("rad"), zeit = r => geaendertZeit(r);
+  h += sortZeile("rad", "Fahrer");
+  const gefunden = (DB.raeder||[]).filter(r => !q || [r.fahrer, r.bezeichnung, r.id, r.marke, r.typ].join(" ").toLowerCase().indexOf(q) >= 0);
+  if(sArt === "geaendert") h += geaendertFehlt(gefunden, zeit);
+  const liste = sArt === "standard"
+    ? gefunden.sort((a, b) => (b.aktiv ? 1 : 0) - (a.aktiv ? 1 : 0) || (a.fahrer ? 0 : 1) - (b.fahrer ? 0 : 1) || (a.fahrer || a.bezeichnung).localeCompare(b.fahrer || b.bezeichnung, "de"))
+    : nachArt(gefunden, sArt, r => r.id, zeit).sort((a, b) => (b.aktiv ? 1 : 0) - (a.aktiv ? 1 : 0));
   if(!liste.length) h += '<div class="leer">' + ((DB.raeder||[]).length ? "Nichts gefunden." : "Noch keine Räder angelegt.") + '</div>';
   else {
     h += '<div class="card" style="padding-top:2px;padding-bottom:2px">';
@@ -85,7 +91,8 @@ function raederView(){
            ' <span class="sub" style="font-weight:400">' + esc(r.id) + ' · ' + esc(r.bezeichnung) + '</span></span><span class="chips" style="margin-top:4px">' +
            (!r.aktiv ? '<span class="chip grau">inaktiv</span>' : steht ? '<span class="chip alarm">steht</span>' : '<span class="chip ok">fährt</span>') +
            (tk.length ? '<span class="chip warn">' + tk.length + ' Ticket' + (tk.length === 1 ? '' : 's') + '</span>' : '') +
-           (stueckAm(r.id).length ? '<span class="chip grau">' + stueckAm(r.id).length + (stueckAm(r.id).length === 1 ? ' Teil' : ' Teile') + '</span>' : '') + '</span></span>' + SVG_PFEIL + '</button>';
+           (stueckAm(r.id).length ? '<span class="chip grau">' + stueckAm(r.id).length + (stueckAm(r.id).length === 1 ? ' Teil' : ' Teile') + '</span>' : '') +
+           (sArt === "geaendert" && geaendertText(r) ? '<span class="sub" style="font-size:12px;align-self:center">' + esc(geaendertText(r)) + '</span>' : '') + '</span></span>' + SVG_PFEIL + '</button>';
     });
     h += '</div>';
   }

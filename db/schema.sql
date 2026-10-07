@@ -1,12 +1,13 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 19.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 20.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
 --   db/migration_14.3.0.sql, db/migration_15.0.0.sql, db/migration_16.0.0.sql,
---   db/migration_18.0.0.sql und db/migration_19.0.0.sql.)
+--   db/migration_18.0.0.sql, db/migration_19.0.0.sql und
+--   db/migration_20.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -136,7 +137,8 @@ create table artikel (
   aktiv            boolean not null default true,
   dauer_min        integer check (dauer_min is null or dauer_min >= 0),  -- Arbeitszeit je Stück bzw. Leistung
   standort_id  bigint not null references standort (id),
-  groessen  text[] check (groessen is null or cardinality(groessen) between 1 and 40)   -- Bekleidung: Größen (ab 16.0.0), sonst leer
+  groessen  text[] check (groessen is null or cardinality(groessen) between 1 and 40),   -- Bekleidung: Größen (ab 16.0.0), sonst leer
+  geaendert_am  timestamptz not null default now()   -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
 );
 create index artikel_standort on artikel (standort_id);
 
@@ -151,7 +153,8 @@ create table rad (
   aktiv           boolean not null default true,
   notiz           text,
   marke           text,
-  standort_id  bigint not null references standort (id)
+  standort_id  bigint not null references standort (id),
+  geaendert_am  timestamptz not null default now()   -- letzte Änderung inkl. Fahrerwechsel (ab 20.0.0)
 );
 
 -- Wer fährt welches Rad — mit Verlauf. Pro Rad gibt es höchstens einen
@@ -180,7 +183,8 @@ create table stueck (
   notiz         text,
   marke         text,
   check ((ort = 'am Rad') = (rad_id is not null)),
-  standort_id  bigint not null references standort (id)
+  standort_id  bigint not null references standort (id),
+  geaendert_am  timestamptz not null default now()   -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
 );
 create index stueck_standort on stueck (standort_id);
 
@@ -498,7 +502,8 @@ select r.id, r.bezeichnung, r.typ, r.rahmennummer, r.groesse, r.eigentuemer_id, 
        z.sportler_id as fahrer_id,
        s.name        as fahrer,
        z.gueltig_ab  as fahrer_seit,
-       r.marke
+       r.marke,
+       r.geaendert_am
 from rad r
 left join zuordnung z on z.rad_id = r.id and z.gueltig_bis is null
 left join sportler s  on s.id = z.sportler_id;
@@ -1316,6 +1321,19 @@ begin
   return new;
 end $$;
 
+-- Zeit der letzten Änderung setzen (Anlegen und jede echte Änderung; ab 20.0.0).
+create or replace function geaendert_setzen() returns trigger
+language plpgsql set search_path = public, pg_temp as $$
+begin
+  -- Update ohne geänderten Wert: Zeit bleibt stehen
+  if tg_op = 'UPDATE' and new.geaendert_am is not distinct from old.geaendert_am
+     and (to_jsonb(new) - 'geaendert_am') = (to_jsonb(old) - 'geaendert_am') then
+    return new;
+  end if;
+  new.geaendert_am := now();
+  return new;
+end $$;
+
 -- Preise ändern nur Werkstatt-Manager (und Gesamt-Admin).
 create or replace function preis_schutz() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -1726,6 +1744,7 @@ begin
   if p_sportler is not null then
     insert into zuordnung (rad_id, sportler_id) values (p_rad, p_sportler);
   end if;
+  update rad set geaendert_am = now() where id = p_rad and standort_id = v_st;
 end $$;
 
 -- Rechnung festschreiben: offene, abzurechnende Entnahmen eines Sportlers
@@ -2635,6 +2654,9 @@ create trigger stueck_nummer before update of nummer on stueck
   for each row when (new.nummer is distinct from old.nummer) execute function nummer_schutz();
 create trigger rad_nummer before update of id on rad
   for each row when (new.id is distinct from old.id) execute function nummer_schutz();
+create trigger zz_artikel_geaendert before insert or update on artikel for each row execute function geaendert_setzen();
+create trigger zz_rad_geaendert     before insert or update on rad     for each row execute function geaendert_setzen();
+create trigger zz_stueck_geaendert  before insert or update on stueck  for each row execute function geaendert_setzen();
 
 -- ---------------------------------------------------------------------
 --  Zugriffsregeln

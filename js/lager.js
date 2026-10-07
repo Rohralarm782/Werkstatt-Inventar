@@ -57,18 +57,23 @@ function lagerView(){
 
   // Gegliedert nach Kategorie und (erstem) Tag; ohne Filter klappbar wie im Inventar
   // (ohne „alle zu-/aufklappen“-Links, damit es oben ruhig bleibt — Überschrift antippen reicht)
-  const mitKat = !view.lKat && !imW;
-  const eintraege = katSortieren("l", liste, b => b.code).map(b => {
-    const kat = stueckKategorie(b.code);
-    return { kat, uk:ukSchluessel(tagsVon("artikel", b.code)), n:1, html:lagerZeile(b, zuBestellen, gesperrt, imOrt) };
+  // Sortierung: Standard = gegliedert nach Kategorie und Tag; nach Nummer / Änderung = eine flache Liste
+  const sArt = sortArt("l"), flach = sArt !== "standard", zeit = b => geaendertZeit(artikel(b.code));
+  h += sortZeile("l", "Kategorie");
+  if(sArt === "geaendert") h += geaendertFehlt(liste, zeit);
+  const mitKat = !view.lKat && !imW && !flach;
+  const eintraege = (flach ? nachArt(liste, sArt, b => b.code, zeit) : katSortieren("l", liste, b => b.code)).map(b => {
+    const kat = flach ? "" : stueckKategorie(b.code);
+    return { kat, uk:flach ? "ohne" : ukSchluessel(tagsVon("artikel", b.code)), n:1,
+             html:lagerZeile(b, zuBestellen, gesperrt, imOrt, sArt === "geaendert" ? geaendertText(artikel(b.code)) : "") };
   });
-  h += gegliedert(eintraege, { p:"l", mitKat, mitUk:!view.lUk, klappbar:!q, block:x => '<div class="card liste">' + x + '</div>', einheit:["Artikel", "Artikel"] });
+  h += gegliedert(eintraege, { p:"l", mitKat, mitUk:!view.lUk && !flach, klappbar:!q && !flach, block:x => '<div class="card liste">' + x + '</div>', einheit:["Artikel", "Artikel"] });
   if(!imW) h += '<p class="sub">Name antippen: Buchungen, Inventur, Etikett, Bearbeiten. „+“ = Zugang. „frei“ = in den Räumen und nicht reserviert; was in Koffern gepackt ist, zählt zum Bestand, aber nicht als frei.</p>';
   return h;
 }
 
 /** Eine Zeile der Lager-Liste */
-function lagerZeile(b, zuBestellen, gesperrt, imOrt){
+function lagerZeile(b, zuBestellen, gesperrt, imOrt, zusatz){
   let h = "";
   const leistung = b.art === "Pauschale";
   const vt = verteilung(b);
@@ -90,6 +95,7 @@ function lagerZeile(b, zuBestellen, gesperrt, imOrt){
     if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
     else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
   }
+  if(zusatz) h += '<br><span class="sub" style="font-size:12px">' + esc(zusatz) + '</span>';
   if(!leistung && istWMat(b.code))
     return h + '</button><div class="knoepfe"><button class="btn small" data-a="wEntnahme" data-x="' + esc(b.code) + '" aria-label="Eins entnehmen: ' + esc(b.name) + '"' + gesperrt + ' style="min-width:46px;font-size:20px">−</button></div></div>';
   h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : hatGroessen(b.code) ? "Ausleihen" : "Ausgeben") + '</button>';
