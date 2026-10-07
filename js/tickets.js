@@ -166,14 +166,14 @@ function istWMat(code){ return stueckKategorie(code) === W_MAT; }
 
 function ticketKarte(t, steht){
   const p = pufferText(t), pos = positionen(t.id), alle = schritte(t.id), fertig = alle.filter(schrittFertig).length;
-  const mat = pos.filter(x => x.code), f = fehlend(t), b = beschaffung(t), pr = pruefOffen(t).length;
+  const mat = pos.filter(x => x.code), f = fehlend(t), b = beschaffungWerktage(t), pr = pruefOffen(t).length;
   let h = '<button class="ticket' + (steht ? " steht" : "") + '" data-a="oeffnen" data-x="' + t.id + '">';
   h += '<span class="kopf"><span class="big">' + esc(wer(t)) + '</span><span class="sub">' + esc(ticketObjekt(t)) + '</span>';
   h += '<span class="puffer mono" style="color:' + p.farbe + '">' + p.txt + '</span></span>';
   h += '<p class="prob">' + esc(t.problem) + '</p><span class="chips">';
   if(!alle.length) h += '<span class="chip grau">keine Schritte</span>';
   else if(fertig) h += '<span class="chip blau">' + fertig + ' von ' + alle.length + ' erledigt</span>';
-  if(f.length) h += '<span class="chip warn">' + (b > 0 ? 'Bestellen · ' + b + ' T' : 'Fehlt · ' + f.length) + '</span>';
+  if(f.length) h += '<span class="chip warn">' + (b > 0 ? 'Bestellen · ' + werktageText(b) : 'Fehlt · ' + f.length) + '</span>';
   else if(mat.length) h += '<span class="chip ok">Reserviert · ' + mat.length + '</span>';
   const sch = schaetzung(pos);
   h += '<span class="chip grau">' + esc(t.aufwand) + (sch ? ' · ≈ ' + dauerText(sch.min) + (fertig ? ' offen' : '') : '') + '</span>';
@@ -212,7 +212,7 @@ function terminWert(x){
 function detailView(id){
   const t = ticket(id);
   if(!t){ view.ticket = null; return boardView(); }
-  const p = pufferText(t), b = beschaffung(t), pr = pruefOffen(t);
+  const p = pufferText(t), b = beschaffung(t), bw = beschaffungWerktage(t), pr = pruefOffen(t);
   const gesperrt = offline ? " disabled" : "";
 
   let h = '<button class="btn small" data-a="zurueck" style="margin-bottom:10px">← Alle Tickets</button>';
@@ -230,7 +230,7 @@ function detailView(id){
   } else if(t.soll_fertig){
     h += zeile("Soll fertig " + de(t.soll_fertig), tageBis(t.soll_fertig) + " T");
     h += zeile("− Arbeitsaufwand (" + esc(t.aufwand) + ")", (AUFWAND[t.aufwand] || 0) + " T");
-    h += zeile("− Beschaffung fehlender Teile", b + " T");
+    h += zeile("− Beschaffung fehlender Teile" + (bw ? " (" + werktageText(bw) + ")" : ""), b + " T");
     h += '<div class="row trenn"><strong>Puffer</strong><span class="sp"></span><span class="big" style="color:' + p.farbe + '">' + p.txt.replace(" T"," Tage") + '</span></div>';
   } else {
     h += '<p class="sub" style="margin:0">Kein Termin — läuft am Ende der Liste mit.</p>';
@@ -333,7 +333,7 @@ function schritteKarte(t, gesperrt){
       const fehlt = p.code && fehltCodes.indexOf(p.code) >= 0, lz = a ? num(a.lieferzeit_tage) : 0;
       h += '<button class="haken" data-a="schrittAb" data-x="' + p.id + '" aria-label="' + esc(schrittName(p)) + ' abhaken"' + gesperrt + '></button>';
       h += '<div class="txt"><div class="name">' + esc(schrittName(p)) + '</div><div class="sub">' + info +
-           (fehlt ? ' · <span style="color:var(--warn)">fehlt' + (lz ? ', Lieferzeit ' + lz + ' T' : '') + '</span>' : (p.code && !istLeistung(p.code) ? ' · vorhanden' : '')) + '</div></div>';
+           (fehlt ? ' · <span style="color:var(--warn)">fehlt' + (lz ? ', Lieferzeit ' + werktageText(lz) : '') + '</span>' : (p.code && !istLeistung(p.code) ? ' · vorhanden' : '')) + '</div></div>';
       if(p.code && !istLeistung(p.code)) h += '<input type="number" class="menge" min="0" step="any" inputmode="decimal" value="' + num(p.menge) + '" data-c="posMenge" data-x="' + p.id + '" aria-label="Menge ' + esc(schrittName(p)) + ' — 0 gibt frei"' + gesperrt + ' style="width:62px;min-height:38px;padding:4px 6px;text-align:right">';
       h += '<button class="btn small" data-a="posWeg" data-x="' + p.id + '" aria-label="' + esc(schrittName(p)) + ' entfernen"' + gesperrt + '>✕</button>';
     }

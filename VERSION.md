@@ -1,20 +1,29 @@
 # Version
 
-**20.0.1** — 07.10.2026
+**20.1.0** — 07.10.2026
 
-Veröffentlichung über GitHub Actions: Updates gehen nachts automatisch live
-(ca. 3 Uhr), dringende Korrekturen per Knopf sofort. Keine Änderung an App
-oder Datenbank.
+Lieferzeit wird in Werktagen (Mo–Fr) gerechnet; neue Artikel haben 3
+Werktage vorausgefüllt. Datenbank: db/migration_20.1.0.sql setzt in
+Schwerin bestehende Artikel ohne Lieferzeit auf 3 (nur Daten).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
 `?v=…`-Angaben an den eingebundenen Dateien auf die neue Version setzen,
 damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
 
+Nummernschema (ab 20.1.0 bewusst sparsamer):
+
+- **X.0.0** nur für große Umbauten (z. B. neues Zugriffsmodell, Umbau der
+  Dateistruktur).
+- **0.X.0** neue Funktionen — auch wenn dafür neue Spalten, Tabellen oder
+  Datenbankfunktionen dazukommen.
+- **0.0.X** Bugfixes und kleine Anpassungen.
+
 ## Verlauf
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.1.0 | 07.10.2026 | Lieferzeit in Werktagen (Mo–Fr), Standard 3 für neue Artikel, Schwerin-Bestand auf 3 (Migration, nur Daten) |
 | 20.0.1 | 07.10.2026 | Nächtliche Veröffentlichung über GitHub Actions, sofort per „Run workflow“ |
 | 20.0.0 | 07.10.2026 | Barcode-Etiketten, Etiketten als Bild (Handy-Drucker), Sortierung nach Nummer / letzter Änderung (Migration) |
 | 19.1.0 | 07.10.2026 | Standort-Kürzel in Anzeige und Etikettentext ausgeblendet, im QR-Code bleibt es |

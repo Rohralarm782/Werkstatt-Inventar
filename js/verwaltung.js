@@ -313,7 +313,7 @@ function artikelVerw(){
   if(!(DB.artikel||[]).length) h += '<div class="sub">Noch keine Artikel angelegt.</div>';
   (DB.artikel||[]).forEach(a => {
     h += '<div class="eintrag"><div class="txt"><strong>' + esc(a.name) + '</strong> <span class="sub">' + esc(a.code) + ' · ' + esc(a.art) + ' · ' + eur(a.preis) +
-         (a.lieferzeit_tage ? ' · ' + a.lieferzeit_tage + ' T Lieferzeit' : '') + '</span>' + (a.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
+         (a.lieferzeit_tage ? ' · Lieferzeit ' + werktageText(num(a.lieferzeit_tage)) : '') + '</span>' + (a.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
     h += '<button class="btn small" data-a="artikelBearbeiten" data-x="' + esc(a.code) + '">bearbeiten</button></div>';
   });
   return h + '</div>';
@@ -668,14 +668,14 @@ function groessenLesenStill(t){
   return l.slice(0, 40);
 }
 function artikelForm(code, zweck){
-  const a = code ? artikel(code) : { code:"", name:"", einheit:"Stück", preis:0, mindestbestand:0, lieferzeit_tage:0, art:"Stück", aktiv:true };
+  const a = code ? artikel(code) : { code:"", name:"", einheit:"Stück", preis:0, mindestbestand:0, lieferzeit_tage:LIEFERZEIT_STANDARD, art:"Stück", aktiv:true };
   const verbrauch = [["","—"]].concat((DB.artikel||[]).filter(x => x.art === "Vorrat").map(x => [x.code, x.name]));
   if(code) nrForm = null;
   const ko = kleiderOrte();
   artZweck = code ? (hatGroessen(code) ? "kleidung" : "werkstatt") : (zweck === "kleidung" && ko.length ? "kleidung" : "werkstatt");
   const wahl = ko.length || artZweck === "kleidung";
   const preisGesperrt = code && !darf("manager");
-  const bestellOffen = !!(a.lieferant || a.bestellnummer || a.shop_link || num(a.lieferzeit_tage));
+  const bestellOffen = !!(a.lieferant || a.bestellnummer || a.shop_link || (num(a.lieferzeit_tage) && num(a.lieferzeit_tage) !== LIEFERZEIT_STANDARD));
   const artFeld = '<div class="feld" data-zeig="W"><span class="lbl">Art</span><select id="aArt" data-c="artGruppe">' +
     ["Stück","Vorrat","Pauschale"].map(x => '<option' + (a.art === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
   modal('<h3>' + (code ? "Artikel bearbeiten · " + esc(code) : "Neuer Artikel") + '</h3>' +
@@ -705,7 +705,7 @@ function artikelForm(code, zweck){
     // Bestellangaben aufklappbar
     '<details class="mehrfelder" data-zeig="L"' + (bestellOffen ? " open" : "") + '><summary>Bestellangaben' + (a.lieferant ? ' · ' + esc(a.lieferant) : '') + '</summary>' +
       '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
-      '<div class="grid2">' + feld("Lieferzeit (Tage)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + feld("Shop-Link", "aLink", a.shop_link) + '</div></details>' +
+      '<div class="grid2">' + feld("Lieferzeit (Werktage Mo–Fr)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + feld("Shop-Link", "aLink", a.shop_link) + '</div></details>' +
     (code ? auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) : '<input type="hidden" id="aAktiv" value="true">') +
     '<p class="sub" data-zeig="K">Bestand wird je Größe geführt; ausgegeben wird als Leihgabe an Sportler (nie berechnet).</p>' +
     (code ? '' : '<p class="sub" data-zeig="W">Die Ziffer richtet sich nach der Art: Stück 1xx, Vorrat 5xx, Pauschale 9xx.</p>') +

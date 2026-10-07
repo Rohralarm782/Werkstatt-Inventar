@@ -517,9 +517,29 @@ function fehlend(t){
   positionen(t.id).forEach(p => { if(p.code) bedarf[p.code] = (bedarf[p.code] || 0) + num(p.menge); });
   return Object.keys(bedarf).filter(c => bedarf[c] > greifbar(c, t.arbeitsort, t.id));
 }
-/** Längste Lieferzeit der fehlenden Teile (0, wenn nichts fehlt oder keine Lieferzeit eingetragen ist). */
-function beschaffung(t){
+/* Lieferzeit wird in Werktagen (Mo–Fr) geführt, Feiertage zählen mit.
+   Neue Artikel bekommen LIEFERZEIT_STANDARD vorausgefüllt (ab 20.1.0). */
+const LIEFERZEIT_STANDARD = 3;
+function werktageText(n){ return n + (n === 1 ? " Werktag" : " Werktage"); }
+/** Kalendertage von heute, bis n Werktage (Mo–Fr) vergangen sind. Fr + 3 Werktage = Mi = 5 Tage. */
+function werktageInTagen(n, ab){
+  n = Math.max(0, Math.round(num(n)));
+  const d = ab ? new Date(ab) : heute();
+  let tage = 0;
+  while(n > 0){
+    d.setDate(d.getDate() + 1); tage++;
+    const wt = d.getDay();
+    if(wt !== 0 && wt !== 6) n--;
+  }
+  return tage;
+}
+/** Längste Lieferzeit der fehlenden Teile in Werktagen (0, wenn nichts fehlt oder keine Lieferzeit eingetragen ist). */
+function beschaffungWerktage(t){
   return fehlend(t).reduce((max, c) => Math.max(max, num((artikel(c) || {}).lieferzeit_tage)), 0);
+}
+/** Dieselbe Lieferzeit in Kalendertagen ab heute — damit rechnet der Puffer. */
+function beschaffung(t){
+  return werktageInTagen(beschaffungWerktage(t));
 }
 function puffer(t){
   if(t.naechstmoeglich) return null;

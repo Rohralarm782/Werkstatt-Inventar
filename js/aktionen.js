@@ -427,7 +427,7 @@ const A = {
   artikelSpeichern: x => {
     const kleid = artZweck === "kleidung";
     const d = { name:wert("aName"), einheit:wert("aEinheit") || "Stück", preis:zahlOderNull("aPreis") || 0, mindestbestand:zahlOderNull("aMin") || 0,
-                lieferzeit_tage: Math.round(zahlOderNull("aLz") || 0), art:kleid ? "Stück" : wert("aArt"), verbraucht_code:wert("aVerb") || null,
+                lieferzeit_tage: !kleid && wert("aArt") === "Pauschale" ? 0 : Math.max(0, Math.round(zahlOderNull("aLz") || 0)), art:kleid ? "Stück" : wert("aArt"), verbraucht_code:wert("aVerb") || null,
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
                 shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true",
                 dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
