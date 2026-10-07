@@ -1,10 +1,10 @@
 # Version
 
-**20.0.0** — 07.10.2026
+**20.0.1** — 07.10.2026
 
-Etiketten wahlweise mit Barcode (Code 128) und als Bild für Etikettendrucker
-mit Handy-App; Übersichten (Material, Räder, Einzelstücke) nach Nummer oder
-letzter Änderung sortierbar. Datenbankänderung: db/migration_20.0.0.sql.
+Veröffentlichung über GitHub Actions: Updates gehen nachts automatisch live
+(ca. 3 Uhr), dringende Korrekturen per Knopf sofort. Keine Änderung an App
+oder Datenbank.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -15,6 +15,7 @@ damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.0.1 | 07.10.2026 | Nächtliche Veröffentlichung über GitHub Actions, sofort per „Run workflow“ |
 | 20.0.0 | 07.10.2026 | Barcode-Etiketten, Etiketten als Bild (Handy-Drucker), Sortierung nach Nummer / letzter Änderung (Migration) |
 | 19.1.0 | 07.10.2026 | Standort-Kürzel in Anzeige und Etikettentext ausgeblendet, im QR-Code bleibt es |
 | 19.0.1 | 07.10.2026 | Rad-Nummern: Vorschau korrigiert, deutsche Meldung bei fehlender Datenbank-Funktion |

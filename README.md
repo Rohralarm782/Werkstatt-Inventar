@@ -23,8 +23,27 @@ Live: https://rohralarm782.github.io/Werkstatt-Inventar/
 | `db/schema.sql` | Vollständiges Schema für eine neue Datenbank |
 | `db/migration_X.Y.Z.sql` | Änderungen für die bestehende Datenbank, der Reihe nach |
 | `updates/vX.Y.Z.md` | Protokoll je Version |
+| `.github/workflows/veroeffentlichen.yml` | Veröffentlichung auf GitHub Pages (nachts automatisch oder per Knopf) |
 
 Alle Skripte sind normale `<script>`-Dateien ohne Module und ohne
 Build-Schritt; sie teilen sich den globalen Bereich wie zuvor die eine
 `index.html`. Beim Laden ausgeführter Code darf nur Dinge aus derselben
 oder einer früher geladenen Datei verwenden.
+
+## Veröffentlichen (seit 20.0.1)
+
+Ein Upload nach `main` geht **nicht sofort** live. GitHub veröffentlicht den
+aktuellen Stand von `main` jede Nacht automatisch (ca. 3:15 Uhr im Sommer,
+2:15 Uhr im Winter; kann sich etwas verzögern).
+
+- **Sofort veröffentlichen** (dringende Fehler): im Repo auf **Actions** →
+  links **„App veröffentlichen“** → rechts **„Run workflow“** → grüner Knopf.
+  Nach 1–2 Minuten ist der neue Stand live.
+- **Voraussetzung:** Settings → Pages → Source = „GitHub Actions“.
+- **Datenbank-Migrationen** führt weiterhin niemand automatisch aus:
+  - Migrationen, die nur etwas hinzufügen (neue Funktionen, Spalten,
+    Rechte), können tagsüber vorab in Neon laufen; die alte App läuft weiter,
+    nachts kommt das neue Frontend dazu.
+  - Migrationen, die etwas umbauen oder entfernen: Migration ausführen und
+    direkt danach sofort veröffentlichen.
+- Wer die App offen hat, sieht den neuen Stand nach dem Neuladen.
