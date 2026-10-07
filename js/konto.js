@@ -16,9 +16,9 @@ class AbgemeldetFehler extends Error {}
 
 function lies(k, d){ try{ const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; }catch(e){ return d; } }
 const GERAET = Object.assign({ standort:null, standortName:"", modus:"handy" }, lies("wGeraet", {}));
-let SITZUNGEN = lies("wSitzungen", []);   // [{ token, bis, konto_id, name, pin_laenge, gesamt_admin, sportler_id, standorte:[{id,name,rolle}] }]
+let SITZUNGEN = lies("wSitzungen", []);   // [{ token, bis, konto_id, name, pin_laenge, gesamt_admin, sportler_id, standorte:[{id,name,rolle,rollen}] }]
 let aktivKonto = lies("wAktiv", null);
-let ICH = null;          // Antwort von ich() für die aktive Person (Rolle am Standort)
+let ICH = null;          // Antwort von ich() für die aktive Person (rolle = Hauptrolle, rollen = alle am Standort)
 let STANDORT = null;     // Name, Briefkopf und Bank des Standorts (ohne Logos)
 let anm = null;          // Anmeldung in Arbeit (siehe anmeldungHtml)
 
@@ -32,20 +32,31 @@ function merkeSitzungen(){
 function aktiveSitzung(){ const l = sitzungen(); return l.find(s => s.konto_id === aktivKonto) || l[0] || null; }
 function sitzungFuer(kontoId){ return sitzungen().find(s => s.konto_id === kontoId) || null; }
 function sitzungEntfernen(kontoId){ SITZUNGEN = SITZUNGEN.filter(s => s.konto_id !== kontoId); merkeSitzungen(); }
+/** Hauptrolle am Standort (die stärkste): manager | trainer | geschaeftsstelle | sportler */
 function rolle(){ return ICH ? ICH.rolle : null; }
+/** Alle Rollen am Standort (ab 18.0.0 mehrere möglich, z. B. Trainer + Sportler) */
+function rollen(){ return ICH ? (ICH.rollen || (ICH.rolle ? [ICH.rolle] : [])) : []; }
 const ROLLEN_TEXT = { admin:"Gesamt-Admin", manager:"Werkstatt-Manager", trainer:"Trainer/Mechaniker", geschaeftsstelle:"Geschäftsstelle", sportler:"Sportler" };
-function rolleAm(s, st){ const x = ((s && s.standorte) || []).find(y => y.id === st); return x ? x.rolle : ""; }
-/** arbeiten: buchen, Tickets, Stammdaten · manager: löschen, Kategorien, Tags, Preise, Konten · rechnen: Rechnungen, Briefkopf */
+const ROLLEN_REIHE = ["admin", "manager", "trainer", "geschaeftsstelle", "sportler"];
+/** „Trainer/Mechaniker + Sportler“ — x: Objekt mit rollen (Liste) oder rolle */
+function rollenText(x){
+  const l = x ? (x.rollen || (x.rolle ? [x.rolle] : [])) : [];
+  return l.slice().sort((a, b) => ROLLEN_REIHE.indexOf(a) - ROLLEN_REIHE.indexOf(b)).map(r => ROLLEN_TEXT[r] || r).join(" + ");
+}
+function standortVon(s, st){ return ((s && s.standorte) || []).find(y => y.id === st) || null; }
+function rolleAm(s, st){ const x = standortVon(s, st); return x ? x.rolle : ""; }
+/** arbeiten: buchen, Tickets, Stammdaten, neue Kategorien/Tags · manager: löschen, umbenennen, Preise, Konten · rechnen: Rechnungen, Briefkopf.
+    Mehrere Rollen: es zählt, was eine davon darf. */
 function darf(was){
-  const r = rolle();
-  if(was === "arbeiten") return r === "admin" || r === "manager" || r === "trainer";
-  if(was === "manager")  return r === "admin" || r === "manager";
-  if(was === "rechnen")  return r === "admin" || r === "manager" || r === "geschaeftsstelle";
+  const r = rollen(), hat = l => l.some(x => r.indexOf(x) >= 0);
+  if(was === "arbeiten") return hat(["admin", "manager", "trainer"]);
+  if(was === "manager")  return hat(["admin", "manager"]);
+  if(was === "rechnen")  return hat(["admin", "manager", "geschaeftsstelle"]);
   if(was === "admin")    return !!(ICH && ICH.gesamt_admin);   // Gesamt-Admin: Standorte verwalten, nicht in fremde Daten
   return false;
 }
-/** Eingetragene Personen am Werkstatt-Laptop (ohne Sportler) */
-function werkstattPersonen(){ return GERAET.modus === "werkstatt" ? sitzungen().filter(s => !s.sportler_id) : []; }
+/** Eingetragene Personen am Werkstatt-Laptop (ohne reine Sportler) */
+function werkstattPersonen(){ return GERAET.modus === "werkstatt" ? sitzungen().filter(s => rolleAm(s, GERAET.standort) !== "sportler") : []; }
 
 /** Antwort von anmelden / einladung_einloesen übernehmen */
 function sitzungUebernehmen(r){
@@ -74,8 +85,8 @@ const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlau
   "vorlagenVerwalten","vorlageForm","vorlageSpeichern","vorlageLoeschen","vorlageTest","dlEntfernen","dlLeeren","dlDrucken","dlAlle","dlKeine","dlAuswahl","zurDruckliste",
   "zeigAus","katFilter","ukFilter","katKlapp","katAlle","serieAuf","ukKatAuf","ukKatZu","fehlerZeigen","fehlerVerwerfen","invFilter"];
 const RECHNEN_NUR = ["rechnungErstellen","rechnungStatus","rStorno","rStornoOk"];
-const MANAGER_NUR = ["terminWeg","fotoLoeschen","ukNeu","ukHoch","ukUmbenennen","ukNameSpeichern","ukLoeschen","katUmbenennen","katNameSpeichern",
-  "stueckLoeschen","serieLoeschen","tagNeuImFormular"];
+const MANAGER_NUR = ["terminWeg","fotoLoeschen","ukHoch","ukUmbenennen","ukNameSpeichern","ukLoeschen","katUmbenennen","katNameSpeichern",
+  "stueckLoeschen","serieLoeschen"];
 const LESEN_C_OK = ["suche","uzTag","etVorlage","logoDatei"];
 function aktionErlaubt(a){
   if(IMMER_OK.indexOf(a) >= 0) return true;
@@ -115,7 +126,7 @@ function werMachtDas(){
     let el = $("werWahl"); if(!el){ el = document.createElement("div"); el.id = "werWahl"; document.body.appendChild(el); }
     let h = '<div class="overlay" style="z-index:58"><div class="sheet"><h3>Wer macht das?</h3><div style="display:grid;gap:8px">';
     l.forEach(s => h += '<button class="btn' + (s.konto_id === aktivKonto ? " primary" : "") + '" style="justify-content:flex-start" data-a="werWahl" data-x="' + s.konto_id + '">' +
-                       esc(s.name) + ' <span class="sub" style="color:inherit;opacity:.75">· ' + esc(ROLLEN_TEXT[rolleAm(s, GERAET.standort)] || "") + '</span></button>');
+                       esc(s.name) + ' <span class="sub" style="color:inherit;opacity:.75">· ' + esc(rollenText(standortVon(s, GERAET.standort))) + '</span></button>');
     h += '</div><button class="btn voll" style="margin-top:12px" data-a="werWahlAbbrechen">Abbrechen</button></div></div>';
     el.innerHTML = h;
   });
@@ -168,7 +179,7 @@ function anmeldungHtml(){
     if(!a.liste){ h += a.laedtFehler ? '<button class="btn voll" data-a="anmZurueck">Nochmal versuchen</button>' : '<div class="sub">Lädt…</div>'; }
     else {
       h += '<div class="kacheln">';
-      a.liste.forEach(k => h += '<button class="btn kachel" data-a="anmWahl" data-x="' + k.id + '"><span>' + esc(k.name) + '</span><span class="sub">' + esc(ROLLEN_TEXT[k.rolle] || "") + '</span></button>');
+      a.liste.forEach(k => h += '<button class="btn kachel" data-a="anmWahl" data-x="' + k.id + '"><span>' + esc(k.name) + '</span><span class="sub">' + esc(rollenText(k)) + '</span></button>');
       h += '<button class="btn kachel" data-a="anmName"><span>Name eingeben</span><span class="sub">Sportler und andere</span></button>' +
            '<button class="btn kachel" data-a="anmCode"><span>Code</span><span class="sub">Einladung / neue PIN</span></button></div>';
     }
@@ -269,13 +280,13 @@ function werText(){
 function kontoMenue(){
   const s = aktiveSitzung();
   if(!s){ anmStart(false); return; }
-  let h = '<h3>' + esc(s.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(ROLLEN_TEXT[rolleAm(s, GERAET.standort)] || "") + ' · ' + esc(GERAET.standortName || "") + '</p>';
+  let h = '<h3>' + esc(s.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(rollenText(standortVon(s, GERAET.standort))) + ' · ' + esc(GERAET.standortName || "") + '</p>';
   if(GERAET.modus === "werkstatt"){
     h += '<div class="card" style="padding-top:4px;padding-bottom:4px"><span class="lbl" style="margin-top:8px">Gerade in der Werkstatt</span><div class="liste">';
     sitzungen().forEach(x => {
       const aktiv = x.konto_id === aktivKonto;
       h += '<div class="eintrag"><div class="txt"><strong>' + esc(x.name) + '</strong>' + (aktiv ? ' <span class="chip ok">aktiv</span>' : '') +
-           '<br><span class="sub">' + esc(ROLLEN_TEXT[rolleAm(x, GERAET.standort)] || "") + '</span></div><div class="knoepfe">' +
+           '<br><span class="sub">' + esc(rollenText(standortVon(x, GERAET.standort))) + '</span></div><div class="knoepfe">' +
            (aktiv ? '' : '<button class="btn small" data-a="kontoAktiv" data-x="' + x.konto_id + '">wechseln</button>') +
            '<button class="btn small" data-a="kontoAustragen" data-x="' + x.konto_id + '">austragen</button></div></div>';
     });
@@ -323,7 +334,7 @@ function kontenVerw(){
   if(kontenCache === "fehler") return '<div class="leer">Konnte nicht geladen werden. <button class="btn small" data-a="geheMehr" data-x="konten">nochmal</button></div>';
   let h = '<button class="btn primary" data-a="kontNeu" style="margin-bottom:10px">+ Neues Konto</button><div class="card liste">';
   kontenCache.forEach(k => {
-    h += '<div class="eintrag"><div class="txt"><strong>' + esc(k.name) + '</strong> <span class="sub">· ' + esc(ROLLEN_TEXT[k.rolle] || k.rolle) + '</span><br>' + kontoStatus(k) +
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(k.name) + '</strong> <span class="sub">· ' + esc(rollenText(k)) + '</span><br>' + kontoStatus(k) +
          (k.zuletzt ? ' <span class="sub">zuletzt ' + de(k.zuletzt) + '</span>' : '') + '</div>' +
          (k.rolle === "admin" ? '' : '<button class="btn small" data-a="kontBearbeiten" data-x="' + k.id + '">bearbeiten</button>') + '</div>';
   });
@@ -331,12 +342,29 @@ function kontenVerw(){
        'Sportler-Zugänge gibt es auch auf der Seite Sportler.' + (darf("admin") ? ' Werkstatt-Manager anderer Standorte lädst du unter Mehr → Standorte ein.' : '') + '</p>';
   return h;
 }
-function rollenOptionen(wert, mitSportler){
-  const l = [["trainer","Trainer/Mechaniker"],["geschaeftsstelle","Geschäftsstelle"]];
-  if(darf("admin")) l.unshift(["manager","Werkstatt-Manager"]);
-  if(mitSportler) l.push(["sportler","Sportler"]);
-  return l.map(([v, t]) => '<option value="' + v + '"' + (v === wert ? " selected" : "") + '>' + t + '</option>').join("");
+/* Rollen als Häkchen (ab 18.0.0 mehrere je Konto). Werkstatt-Manager nur für den
+   Gesamt-Admin. Beim Häkchen „Sportler“ erscheint die Sportler-Auswahl, solange
+   das Konto noch mit keinem Sportler verknüpft ist (spFest = verknüpfter Name). */
+const ROLLEN_ERKL = { manager:"alles, auch Konten, Preise, Löschen", trainer:"buchen, Tickets, Material und Stammdaten anlegen",
+  geschaeftsstelle:"alles ansehen, Rechnungen, Briefkopf", sportler:"eigene Räder, Tickets, Rechnungen" };
+function rollenAuswahl(pre, gewaehlt, spFest){
+  const l = (darf("admin") ? ["manager"] : []).concat(["trainer", "geschaeftsstelle", "sportler"]);
+  const sp = (DB.sportler||[]).filter(s => s.aktiv && s.abrechnen && !(Array.isArray(kontenCache) && kontenCache.some(k => k.sportler_id === s.id && k.aktiv)));
+  const spBox = pre + 'SpBox';
+  let h = '<div class="feld"><span class="lbl">Rollen (auch mehrere)</span><div class="liste">';
+  l.forEach(r => {
+    h += '<label class="eintrag" style="cursor:pointer"><input type="checkbox" data-rolle="' + pre + '" value="' + r + '"' + (gewaehlt.indexOf(r) >= 0 ? " checked" : "") +
+         (r === "sportler" && !spFest ? ' onchange="document.getElementById(\'' + spBox + '\').hidden=!this.checked"' : '') + ' style="width:20px;height:20px">' +
+         '<div class="txt"><strong>' + esc(ROLLEN_TEXT[r]) + '</strong>' + (r === "sportler" && spFest ? ' <span class="sub">· ' + esc(spFest) + '</span>' : '') +
+         '<br><span class="sub">' + esc(ROLLEN_ERKL[r]) + '</span></div></label>';
+  });
+  h += '</div></div>';
+  if(!spFest) h += '<div class="feld" id="' + spBox + '"' + (gewaehlt.indexOf("sportler") >= 0 ? "" : " hidden") + '><span class="lbl">Welcher Sportler?</span><select id="' + pre + 'Sportler"><option value="">— wählen —</option>' +
+                   sp.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join("") + '</select></div>';
+  return h;
 }
+function rollenGewaehlt(pre){ return Array.from(document.querySelectorAll('[data-rolle="' + pre + '"]')).filter(c => c.checked).map(c => c.value); }
+function pinLaengeFuer(l){ return l.indexOf("manager") >= 0 || l.indexOf("geschaeftsstelle") >= 0 ? 6 : 4; }
 function codeZeigen(r){
   const link = appUrl() + "#einladung=" + r.code;
   modal('<h3>Einladung für ' + esc(r.name) + '</h3>' +
@@ -592,7 +620,7 @@ Object.assign(A, {
   standortWechseln: () => {
     const s = aktiveSitzung(), l = (s && s.standorte) || [];
     modal('<h3>Standort wechseln</h3><div style="display:grid;gap:8px">' +
-      l.map(x => '<button class="btn' + (x.id === GERAET.standort ? " primary" : "") + '" data-a="standortHin" data-x="' + x.id + '">' + esc(x.name) + ' <span class="sub" style="color:inherit;opacity:.75">· ' + esc(ROLLEN_TEXT[x.rolle] || "") + '</span></button>').join("") +
+      l.map(x => '<button class="btn' + (x.id === GERAET.standort ? " primary" : "") + '" data-a="standortHin" data-x="' + x.id + '">' + esc(x.name) + ' <span class="sub" style="color:inherit;opacity:.75">· ' + esc(rollenText(x)) + '</span></button>').join("") +
       '</div><button class="btn voll" style="margin-top:12px" data-a="modalZu">Abbrechen</button>');
   },
   standortHin: x => { const s = aktiveSitzung(), z = ((s && s.standorte) || []).find(y => y.id === Number(x)); if(z) standortSetzen(z.id, z.name); },
@@ -631,36 +659,47 @@ Object.assign(A, {
   },
   codeTeilen: x => { navigator.share({ title:"Einladung Werkstatt", text:"Deine Einladung für die Werkstatt-App:", url:x }).catch(() => {}); },
   kontNeu: () => {
-    const sp = (DB.sportler||[]).filter(s => s.aktiv && s.abrechnen);
-    modal('<h3>Neues Konto</h3>' + feld("Name", "knName", "") +
-      '<div class="feld"><span class="lbl">Rolle</span><select id="knRolle" onchange="document.getElementById(\'knSpBox\').hidden=this.value!==\'sportler\'">' + rollenOptionen("trainer", true) + '</select></div>' +
-      '<div class="feld" id="knSpBox" hidden><span class="lbl">Sportler</span><select id="knSportler"><option value="">— wählen —</option>' + sp.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join("") + '</select></div>' +
-      '<p class="sub">Trainer/Mechaniker: buchen, Tickets, Stammdaten — ohne Löschen, Preise, Kategorien/Tags und Rechnungen. Geschäftsstelle: alles ansehen, Rechnungen und Briefkopf. Sportler: eigene Räder, Tickets und Rechnungen.</p>' +
+    modal('<h3>Neues Konto</h3>' + feld("Name", "knName", "", "text", ' placeholder="bei Sportlern: leer = Name des Sportlers"') +
+      rollenAuswahl("kn", ["trainer"], "") +
       '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="kontNeuOk">Einladung erzeugen</button></div>');
   },
   kontNeuOk: () => {
-    const r = wert("knRolle"), sp = wert("knSportler");
-    if(r === "sportler" && !sp){ toast("Bitte den Sportler wählen.", true); return; }
-    if(r !== "sportler" && !wert("knName")){ toast("Name fehlt.", true); return; }
-    kontoRpc("konto_anlegen", { p_name:wert("knName") || null, p_rolle:r, p_sportler:sp ? Number(sp) : null }, x => { codeZeigen(x); render(); });
+    const l = rollenGewaehlt("kn"), sp = wert("knSportler");
+    if(!l.length){ toast("Bitte mindestens eine Rolle wählen.", true); return; }
+    if(l.indexOf("sportler") >= 0 && !sp){ toast("Bitte den Sportler wählen.", true); return; }
+    if(l.indexOf("sportler") < 0 && !wert("knName")){ toast("Name fehlt.", true); return; }
+    kontoRpc("konto_anlegen", { p_name:wert("knName") || null, p_rolle:l[0], p_sportler:sp ? Number(sp) : null, p_rollen:l }, x => { codeZeigen(x); render(); });
   },
   kontBearbeiten: x => {
     const k = (Array.isArray(kontenCache) ? kontenCache : []).find(y => y.id === Number(x)); if(!k) return;
-    const rolleFest = k.rolle === "sportler" || (k.rolle === "manager" && !darf("admin"));
-    modal('<h3>' + esc(k.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(ROLLEN_TEXT[k.rolle] || k.rolle) + ' · ' + kontoStatus(k) + '</p>' +
+    const l = k.rollen || [k.rolle];
+    const rolleFest = l.indexOf("manager") >= 0 && !darf("admin");
+    const spName = k.sportler_id ? (((DB.sportler||[]).find(s => s.id === k.sportler_id) || {}).name || "verknüpft") : "";
+    modal('<h3>' + esc(k.name) + '</h3><p class="sub" style="margin-top:-6px">' + esc(rollenText(k)) + ' · ' + kontoStatus(k) + '</p>' +
       feld("Name", "kbName", k.name) +
-      (rolleFest ? '' : '<div class="feld"><span class="lbl">Rolle</span><select id="kbRolle">' + rollenOptionen(k.rolle, false) + '</select></div>') +
+      (rolleFest ? '<p class="sub">Die Rollen eines Werkstatt-Managers ändert nur der Gesamt-Admin.</p>' : rollenAuswahl("kb", l, spName)) +
       '<div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="btn" data-a="kontCode" data-x="' + k.id + '">' + (k.pin_gesetzt ? "PIN zurücksetzen (neuer Code)" : "Neuer Code") + '</button>' +
       '<button class="btn" data-a="kontAktiv" data-x="' + k.id + '">' + (k.aktiv ? "Deaktivieren" : "Aktivieren") + '</button></div>' +
       '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="kontSpeichern" data-x="' + k.id + '">Speichern</button></div>');
   },
-  kontSpeichern: x => {
-    const k = kontenCache.find(y => y.id === Number(x)), n = wert("kbName"), r = $("kbRolle") ? wert("kbRolle") : null;
-    // Vom Trainer (4 Ziffern) zu Manager/Geschäftsstelle (6 Ziffern): die alte PIN gilt nicht mehr,
-    // die Datenbank gibt dann einen neuen Einladungscode zurück.
-    const pinWeg = k.pin_gesetzt && k.rolle === "trainer" && (r === "manager" || r === "geschaeftsstelle");
-    if(pinWeg && !confirm(k.name + " braucht als " + (ROLLEN_TEXT[r] || r) + " eine 6-stellige PIN. Die bisherige PIN gilt danach nicht mehr, alle Geräte werden abgemeldet und du bekommst einen neuen Einladungscode. Weiter?")) return;
-    kontoRpc("konto_aendern", { p_konto:k.id, p_name:n !== k.name ? n : null, p_rolle:r && r !== k.rolle ? r : null, p_aktiv:null }, res => {
+  kontSpeichern: async x => {
+    const k = kontenCache.find(y => y.id === Number(x)), n = wert("kbName");
+    const alt = k.rollen || [k.rolle], fest = !document.querySelector('[data-rolle="kb"]');
+    const neu = fest ? alt : rollenGewaehlt("kb"), sp = wert("kbSportler");
+    const gleich = neu.length === alt.length && neu.every(r => alt.indexOf(r) >= 0);
+    if(!n){ toast("Name fehlt.", true); return; }
+    if(!neu.length){ toast("Bitte mindestens eine Rolle wählen.", true); return; }
+    if(neu.indexOf("sportler") >= 0 && !k.sportler_id && !sp){ toast("Bitte den Sportler wählen.", true); return; }
+    // Mit Manager/Geschäftsstelle braucht das Konto 6 Ziffern: die alte PIN gilt dann nicht mehr,
+    // die Datenbank gibt einen neuen Einladungscode zurück.
+    if(!gleich && k.pin_gesetzt && pinLaengeFuer(neu) > pinLaengeFuer(alt) &&
+       !confirm(k.name + " braucht als " + rollenText({ rollen:neu }) + " eine 6-stellige PIN. Die bisherige PIN gilt danach nicht mehr, alle Geräte werden abgemeldet und du bekommst einen neuen Einladungscode. Weiter?")) return;
+    if(n !== k.name){
+      const ok = await kontoRpc("konto_aendern", { p_konto:k.id, p_name:n, p_rolle:null, p_aktiv:null }, () => {});
+      if(ok === undefined) return;   // Fehler wurde schon gemeldet
+    }
+    if(gleich){ modalZu(); toast("Gespeichert"); render(); return; }
+    kontoRpc("konto_rollen", { p_konto:k.id, p_rollen:neu, p_sportler:sp ? Number(sp) : null }, res => {
       if(res && res.code){ codeZeigen(res); render(); }
       else { modalZu(); toast("Gespeichert"); render(); }
     });

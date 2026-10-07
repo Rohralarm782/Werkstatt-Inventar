@@ -1,10 +1,11 @@
 # Version
 
-**17.1.0** — 06.10.2026
+**18.0.0** — 07.10.2026
 
-Artikelformular getrennt nach „Werkstatt“ und „Bekleidung“: Es zeigt nur
-noch die Felder, die zur Variante und zur Art passen. Neue Bekleidung
-bekommt den Anfangsbestand gleich je Größe. Keine Datenbankänderung.
+Mehrere Rollen je Konto (z. B. Trainer/Mechaniker + Sportler), Rollen lassen
+sich unter Mehr → Konten & Rollen per Häkchen ändern. Trainer/Mechaniker
+dürfen neue Kategorien und Tags anlegen. Mit Datenbankänderung
+(db/migration_18.0.0.sql).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -15,6 +16,7 @@ damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 18.0.0 | 07.10.2026 | Mehrere Rollen je Konto, Rollen ändern, Trainer legen Kategorien/Tags an (Migration) |
 | 17.1.0 | 06.10.2026 | Artikelformular: Werkstatt / Bekleidung getrennt, Anfangsbestand je Größe |
 | 17.0.1 | 06.10.2026 | Lager-Karte kompakter (ein Raum ausgeblendet, Bekleidung raus, keine Erklärtexte) |
 | 17.0.0 | 06.10.2026 | index.html aufgeteilt (css/, lib/, js/ nach Bereichen), keine Funktionsänderung |

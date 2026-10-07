@@ -1,11 +1,12 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 16.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 18.0.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
---   db/migration_14.3.0.sql, db/migration_15.0.0.sql und db/migration_16.0.0.sql.)
+--   db/migration_14.3.0.sql, db/migration_15.0.0.sql, db/migration_16.0.0.sql
+--   und db/migration_18.0.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -388,12 +389,14 @@ create table konto (
   zuletzt       timestamptz
 );
 
--- Rolle je Standort: manager | trainer | geschaeftsstelle | sportler
+-- Rollen je Standort: manager | trainer | geschaeftsstelle | sportler.
+-- Ab 18.0.0 auch mehrere je Standort (z. B. Trainer + Sportler); die Rechte
+-- sind die Summe aller Rollen. Sportler-Rolle nur mit konto.sportler_id.
 create table konto_rolle (
   konto_id     bigint not null references konto (id) on delete cascade,
   standort_id  bigint not null references standort (id),
   rolle        text not null check (rolle in ('manager', 'trainer', 'geschaeftsstelle', 'sportler')),
-  primary key (konto_id, standort_id)
+  primary key (konto_id, standort_id, rolle)
 );
 
 -- Einladungscode (nur als Prüfsumme gespeichert), 7 Tage gültig, einmal.
@@ -562,24 +565,38 @@ language sql stable security definer set search_path = public, pg_temp as $$
      and exists (select 1 from konto_rolle r where r.konto_id = ich_id() and r.standort_id = st.id);
 $$;
 
--- manager | trainer | geschaeftsstelle | sportler | null (Rolle am gewählten Standort)
+-- Rollen eines Kontos an einem Standort, die stärkste zuerst
+-- (manager, trainer, geschaeftsstelle, sportler); leer = keine.
+create or replace function rollen_von(p_konto bigint, p_standort bigint) returns text[]
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(array_agg(r.rolle order by array_position(array['manager', 'trainer', 'geschaeftsstelle', 'sportler'], r.rolle)),
+                  '{}'::text[])
+    from konto_rolle r where r.konto_id = p_konto and r.standort_id = p_standort;
+$$;
+
+-- Meine Rollen am gewählten Standort (leer, wenn kein Standort).
+create or replace function meine_rollen() returns text[]
+language sql stable security definer set search_path = public, pg_temp as $$
+  select case when akt_standort() is null then '{}'::text[] else rollen_von(ich_id(), akt_standort()) end;
+$$;
+
+-- Hauptrolle (die stärkste) am gewählten Standort:
+-- manager | trainer | geschaeftsstelle | sportler | null
 create or replace function meine_rolle() returns text
 language sql stable security definer set search_path = public, pg_temp as $$
-  select case
-           when akt_standort() is null then null
-           else (select r.rolle from konto_rolle r where r.konto_id = ich_id() and r.standort_id = akt_standort())
-         end;
+  select (meine_rollen())[1];
 $$;
 
+-- Hat das Konto hier mindestens eine dieser Rollen? (Rechte = Summe aller Rollen)
 create or replace function rolle_in(variadic p_rollen text[]) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
-  select coalesce(meine_rolle() = any (p_rollen), false);
+  select coalesce(meine_rollen() && p_rollen, false);
 $$;
 
--- Der Sportler hinter einem Sportler-Konto (sonst null).
+-- Der Sportler hinter dem Konto, wenn es hier die Rolle Sportler hat (sonst null).
 create or replace function mein_sportler() returns bigint
 language sql stable security definer set search_path = public, pg_temp as $$
-  select k.sportler_id from konto k where k.id = ich_id() and meine_rolle() = 'sportler';
+  select k.sportler_id from konto k where k.id = ich_id() and 'sportler' = any (meine_rollen());
 $$;
 
 -- „Sein“ Rad: er fährt es gerade oder es gehört ihm.
@@ -733,11 +750,20 @@ language sql stable security definer set search_path = public, pg_temp as $$
            'pin_laenge', pin_laenge(k.id),
            'standorte', coalesce((
              select jsonb_agg(jsonb_build_object('id', st.id, 'name', st.name, 'kuerzel', st.kuerzel,
-                                                 'rolle', r.rolle) order by st.name)
+                                                 'rolle', x.rollen[1], 'rollen', to_jsonb(x.rollen)) order by st.name)
                from standort st
-               join konto_rolle r on r.standort_id = st.id and r.konto_id = k.id
-              where st.aktiv and r.konto_id is not null), '[]'::jsonb))
+               cross join lateral (select rollen_von(k.id, st.id) as rollen) x
+              where st.aktiv and cardinality(x.rollen) > 0), '[]'::jsonb))
     from konto k where k.id = p_konto;
+$$;
+
+-- Sportler-Konto ohne andere Rolle, dessen Sportler deaktiviert ist:
+-- kommt nicht hinein. (Hat es noch eine andere Rolle, darf es weiter.)
+create or replace function nur_sportler_deaktiviert(p_konto bigint) returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (select 1 from konto k join sportler sp on sp.id = k.sportler_id
+                  where k.id = p_konto and not sp.aktiv)
+     and not exists (select 1 from konto_rolle r where r.konto_id = p_konto and r.rolle <> 'sportler');
 $$;
 
 -- ---------------------------------------------------------------------
@@ -753,17 +779,19 @@ $$;
 -- Sportler stehen nicht in der Liste, sie tippen ihren Namen ein.
 create or replace function anmelde_liste(p_standort bigint) returns jsonb
 language sql stable security definer set search_path = public, pg_temp as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', k.id, 'name', k.name, 'rolle', r.rolle)
-                            order by array_position(array['manager', 'trainer', 'geschaeftsstelle'], r.rolle), lower(k.name)), '[]'::jsonb)
-    from konto k join konto_rolle r on r.konto_id = k.id and r.standort_id = p_standort
-   where k.aktiv and k.pin_hash is not null and r.rolle in ('manager', 'trainer', 'geschaeftsstelle');
+  select coalesce(jsonb_agg(jsonb_build_object('id', k.id, 'name', k.name, 'rolle', x.rollen[1], 'rollen', to_jsonb(x.rollen))
+                            order by array_position(array['manager', 'trainer', 'geschaeftsstelle'], x.rollen[1]), lower(k.name)), '[]'::jsonb)
+    from konto k
+    cross join lateral (select rollen_von(k.id, p_standort) as rollen) x
+   where k.aktiv and k.pin_hash is not null and x.rollen && array['manager', 'trainer', 'geschaeftsstelle'];
 $$;
 
 -- Fehler kommen als {ok:false, fehler:…} zurück (nicht als Abbruch),
 -- damit gezählte Fehlversuche gespeichert bleiben.
 -- Sperre: 5 falsche PINs → 15 Minuten; die dritte Sperre innerhalb von
 -- 24 Stunden → 24 Stunden (Werkstatt-Manager hebt sie mit „neuer Code“ auf).
--- Sportler-Konten, deren Sportler deaktiviert ist, kommen nicht hinein.
+-- Sportler-Konten, deren Sportler deaktiviert ist, kommen nicht hinein
+-- (außer sie haben noch eine andere Rolle).
 create or replace function anmelden(p_standort bigint, p_pin text, p_konto bigint default null, p_name text default null,
                                     p_geraet text default 'handy', p_bleiben boolean default true)
 returns jsonb
@@ -820,7 +848,7 @@ begin
     return jsonb_build_object('ok', false, 'fehler',
       'Name oder PIN falsch (noch ' || (5 - n) || case when 5 - n = 1 then ' Versuch).' else ' Versuche).' end);
   end if;
-  if k.sportler_id is not null and not exists (select 1 from sportler sp where sp.id = k.sportler_id and sp.aktiv) then
+  if nur_sportler_deaktiviert(k.id) then
     return jsonb_build_object('ok', false, 'fehler', 'Der Zugang ist deaktiviert – bitte den Werkstatt-Manager fragen.');
   end if;
 
@@ -840,7 +868,7 @@ begin
   select e.konto_id into v_k
     from einladung e join konto k on k.id = e.konto_id
    where e.code_hash = code_hash(p_code) and e.gueltig_bis > now() and k.aktiv
-     and (k.sportler_id is null or exists (select 1 from sportler sp where sp.id = k.sportler_id and sp.aktiv));
+     and not nur_sportler_deaktiviert(k.id);
   if v_k is null then
     perform fehlversuch_merken('code');
     return jsonb_build_object('ok', false, 'fehler', 'Code ungültig oder abgelaufen.');
@@ -862,7 +890,7 @@ begin
   select e.konto_id into v_k
     from einladung e join konto k on k.id = e.konto_id
    where e.code_hash = code_hash(p_code) and e.gueltig_bis > now() and k.aktiv
-     and (k.sportler_id is null or exists (select 1 from sportler sp where sp.id = k.sportler_id and sp.aktiv));
+     and not nur_sportler_deaktiviert(k.id);
   if v_k is null then
     perform fehlversuch_merken('code');
     return jsonb_build_object('ok', false, 'fehler', 'Code ungültig oder abgelaufen.');
@@ -881,7 +909,8 @@ end $$;
 create or replace function ich() returns jsonb
 language sql stable security definer set search_path = public, pg_temp as $$
   select case when ich_id() is null then null
-              else konto_info(ich_id()) || jsonb_build_object('rolle', meine_rolle(), 'standort_id', akt_standort()) end;
+              else konto_info(ich_id()) || jsonb_build_object('rolle', meine_rolle(), 'rollen', to_jsonb(meine_rollen()),
+                                                              'standort_id', akt_standort()) end;
 $$;
 
 create or replace function abmelden() returns void
@@ -919,16 +948,16 @@ begin
     select jsonb_agg(z order by array_position(array['admin', 'manager', 'trainer', 'geschaeftsstelle', 'sportler'], z ->> 'rolle'),
                                 lower(z ->> 'name'))
       from (
-        select jsonb_build_object('id', k.id, 'name', k.name, 'rolle', r.rolle, 'aktiv', k.aktiv,
+        select jsonb_build_object('id', k.id, 'name', k.name, 'rolle', x.rollen[1], 'rollen', to_jsonb(x.rollen), 'aktiv', k.aktiv,
                                   'pin_gesetzt', k.pin_hash is not null, 'einladung_bis', e.gueltig_bis,
                                   'zuletzt', k.zuletzt, 'sportler_id', k.sportler_id,
                                   'gesperrt', coalesce(k.gesperrt_bis > now(), false)) as z
           from konto k
-          join konto_rolle r on r.konto_id = k.id and r.standort_id = v_st
+          cross join lateral (select rollen_von(k.id, v_st) as rollen) x
           left join einladung e on e.konto_id = k.id
-         where not k.gesamt_admin
+         where not k.gesamt_admin and cardinality(x.rollen) > 0
         union all
-        select jsonb_build_object('id', k.id, 'name', k.name, 'rolle', 'admin', 'aktiv', k.aktiv,
+        select jsonb_build_object('id', k.id, 'name', k.name, 'rolle', 'admin', 'rollen', '["admin"]'::jsonb, 'aktiv', k.aktiv,
                                   'pin_gesetzt', k.pin_hash is not null, 'einladung_bis', e.gueltig_bis,
                                   'zuletzt', k.zuletzt, 'sportler_id', null, 'gesperrt', coalesce(k.gesperrt_bis > now(), false))
           from konto k
@@ -945,21 +974,41 @@ language sql stable security definer set search_path = public, pg_temp as $$
                     and (k.gesamt_admin or exists (select 1 from konto_rolle r where r.konto_id = k.id and r.standort_id = p_standort)));
 $$;
 
-create or replace function konto_anlegen(p_name text, p_rolle text, p_sportler bigint default null) returns jsonb
+-- Rollenliste bereinigen: ohne Leere und Doppelte, stärkste zuerst; unbekannte → Abbruch.
+create or replace function rollen_normal(p_rollen text[]) returns text[]
+language plpgsql immutable set search_path = public, pg_temp as $$
+declare
+  v  text[];
+  x  text;
+begin
+  select coalesce(array_agg(r order by array_position(array['manager', 'trainer', 'geschaeftsstelle', 'sportler'], r)), '{}')
+    into v
+    from (select distinct trim(y) as r from unnest(coalesce(p_rollen, '{}')) y where nullif(trim(y), '') is not null) z;
+  foreach x in array v loop
+    if x not in ('manager', 'trainer', 'geschaeftsstelle', 'sportler') then raise exception 'Unbekannte Rolle: %', x; end if;
+  end loop;
+  if cardinality(v) = 0 then raise exception 'Mindestens eine Rolle wählen'; end if;
+  return v;
+end $$;
+
+-- Neues Konto mit einer Rolle (p_rolle) oder mehreren (p_rollen, ab 18.0.0).
+-- Mit Rolle Sportler braucht es den Sportler (p_sportler).
+create or replace function konto_anlegen(p_name text, p_rolle text, p_sportler bigint default null, p_rollen text[] default null)
+returns jsonb
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
-  v_st    bigint := recht_manager();
-  v_name  text   := trim(coalesce(p_name, ''));
-  v_id    bigint;
+  v_st     bigint := recht_manager();
+  v_name   text   := trim(coalesce(p_name, ''));
+  v_rollen text[] := rollen_normal(coalesce(p_rollen, array[p_rolle]));
+  v_id     bigint;
 begin
-  if p_rolle not in ('manager', 'trainer', 'geschaeftsstelle', 'sportler') then raise exception 'Unbekannte Rolle: %', p_rolle; end if;
-  if p_rolle = 'manager' and not ist_admin() then
+  if 'manager' = any (v_rollen) and not ist_admin() then
     raise exception 'Werkstatt-Manager lädt nur der Gesamt-Admin ein';
   end if;
-  if p_rolle = 'sportler' then
+  if 'sportler' = any (v_rollen) then
     if p_sportler is null then raise exception 'Sportler fehlt'; end if;
-    if v_name = '' then select name into v_name from sportler where id = p_sportler and standort_id = v_st; end if;
     if not exists (select 1 from sportler where id = p_sportler and standort_id = v_st) then raise exception 'Unbekannter Sportler'; end if;
+    if v_name = '' then select name into v_name from sportler where id = p_sportler and standort_id = v_st; end if;
     if exists (select 1 from konto where sportler_id = p_sportler) then
       raise exception 'Hat schon einen Zugang – dort „neuer Code“ wählen';
     end if;
@@ -970,25 +1019,25 @@ begin
   if name_vergeben(v_st, v_name) then raise exception 'Den Namen gibt es an diesem Standort schon'; end if;
 
   insert into konto (name, sportler_id) values (v_name, p_sportler) returning id into v_id;
-  insert into konto_rolle (konto_id, standort_id, rolle) values (v_id, v_st, p_rolle);
+  insert into konto_rolle (konto_id, standort_id, rolle) select v_id, v_st, unnest(v_rollen);
   return jsonb_build_object('konto_id', v_id, 'name', v_name) || einladung_erzeugen(v_id);
 end $$;
 
--- Prüft, ob der Aufrufer das Konto verwalten darf; gibt dessen Rolle hier zurück.
+-- Prüft, ob der Aufrufer das Konto verwalten darf; gibt dessen Hauptrolle hier zurück.
 create or replace function konto_verwaltbar(p_konto bigint) returns text
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare
   v_st  bigint := recht_manager();
   k     konto;
-  v_r   text;
+  v_r   text[];
 begin
   select * into k from konto where id = p_konto;
   if k.id is null then raise exception 'Unbekanntes Konto'; end if;
   if k.gesamt_admin then raise exception 'Den Gesamt-Admin nur über den Neon SQL-Editor (notfall_code)'; end if;
-  select rolle into v_r from konto_rolle where konto_id = p_konto and standort_id = v_st;
-  if v_r is null then raise exception 'Das Konto gehört nicht zu diesem Standort'; end if;
-  if v_r = 'manager' and not ist_admin() then raise exception 'Einen Werkstatt-Manager verwaltet nur der Gesamt-Admin'; end if;
-  return v_r;
+  v_r := rollen_von(p_konto, v_st);
+  if cardinality(v_r) = 0 then raise exception 'Das Konto gehört nicht zu diesem Standort'; end if;
+  if 'manager' = any (v_r) and not ist_admin() then raise exception 'Einen Werkstatt-Manager verwaltet nur der Gesamt-Admin'; end if;
+  return v_r[1];
 end $$;
 
 -- PIN vergessen / neu einladen: alte PIN gilt nicht mehr, alle Geräte abgemeldet.
@@ -1001,15 +1050,78 @@ begin
   return jsonb_build_object('konto_id', p_konto, 'name', (select name from konto where id = p_konto)) || einladung_erzeugen(p_konto);
 end $$;
 
--- Name, Rolle, aktiv ändern. Wird jemand mit gesetzter PIN vom Trainer zum
--- Manager oder zur Geschäftsstelle (dort 6 Ziffern), gilt die alte PIN nicht
--- mehr: Rückgabe ist dann ein neuer Einladungscode, sonst null.
+-- Rollen eines Kontos an diesem Standort setzen (ab 18.0.0), z. B.
+-- {trainer,sportler}. Werkstatt-Manager vergibt und entzieht nur der
+-- Gesamt-Admin. Für die Rolle Sportler muss das Konto mit einem Sportler
+-- dieses Standorts verknüpft sein (oder p_sportler angeben); ohne die
+-- Rolle wird die Verknüpfung gelöst, wenn sie nirgends mehr gebraucht wird.
+-- Hat der Sportler schon einen eigenen, deaktivierten Zugang, verliert der
+-- die Sportler-Rolle (so lassen sich zwei Konten zusammenführen).
+-- Braucht das Konto danach eine längere PIN (Manager, Geschäftsstelle:
+-- 6 Ziffern), gilt die alte nicht mehr: Rückgabe ist dann ein neuer
+-- Einladungscode, sonst null.
+create or replace function konto_rollen(p_konto bigint, p_rollen text[], p_sportler bigint default null) returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare
+  v_st     bigint := recht_manager();
+  v_alt    text[];
+  v_neu    text[] := rollen_normal(p_rollen);
+  v_sp     bigint;
+  v_pin    integer;
+begin
+  perform konto_verwaltbar(p_konto);
+  v_alt := rollen_von(p_konto, v_st);
+  if ('manager' = any (v_alt)) <> ('manager' = any (v_neu)) and not ist_admin() then
+    raise exception 'Werkstatt-Manager ernennt nur der Gesamt-Admin';
+  end if;
+  select sportler_id into v_sp from konto where id = p_konto;
+
+  if 'sportler' = any (v_neu) then
+    if p_sportler is not null and p_sportler is distinct from v_sp then
+      if not exists (select 1 from sportler where id = p_sportler and standort_id = v_st) then raise exception 'Unbekannter Sportler'; end if;
+      if exists (select 1 from konto where sportler_id = p_sportler and id <> p_konto and aktiv) then
+        raise exception 'Der Sportler hat schon einen eigenen Zugang – den erst deaktivieren';
+      end if;
+      -- ein deaktivierter eigener Zugang gibt den Sportler ab (Konten zusammenführen)
+      delete from konto_rolle r using konto k
+       where k.sportler_id = p_sportler and k.id <> p_konto and r.konto_id = k.id and r.rolle = 'sportler';
+      update konto set sportler_id = null where sportler_id = p_sportler and id <> p_konto;
+      if v_sp is not null and exists (select 1 from konto_rolle where konto_id = p_konto and standort_id <> v_st and rolle = 'sportler') then
+        raise exception 'Das Konto ist an einem anderen Standort schon mit einem Sportler verknüpft';
+      end if;
+      v_sp := p_sportler;
+    end if;
+    if v_sp is null then raise exception 'Für die Rolle Sportler bitte den Sportler wählen'; end if;
+    if not exists (select 1 from sportler where id = v_sp and standort_id = v_st) then
+      raise exception 'Der verknüpfte Sportler gehört nicht zu diesem Standort';
+    end if;
+  elsif not exists (select 1 from konto_rolle where konto_id = p_konto and standort_id <> v_st and rolle = 'sportler') then
+    v_sp := null;
+  end if;
+
+  v_pin := pin_laenge(p_konto);
+  update konto set sportler_id = v_sp where id = p_konto and sportler_id is distinct from v_sp;
+  delete from konto_rolle where konto_id = p_konto and standort_id = v_st and rolle <> all (v_neu);
+  insert into konto_rolle (konto_id, standort_id, rolle) select p_konto, v_st, unnest(v_neu) on conflict do nothing;
+
+  if pin_laenge(p_konto) > v_pin and exists (select 1 from konto where id = p_konto and pin_hash is not null) then
+    update konto set pin_hash = null, fehlversuche = 0, gesperrt_bis = null where id = p_konto;
+    delete from sitzung where konto_id = p_konto;
+    return jsonb_build_object('konto_id', p_konto, 'name', (select name from konto where id = p_konto)) || einladung_erzeugen(p_konto);
+  end if;
+  return null;
+end $$;
+
+-- Name, aktiv ändern. p_rolle (bis 17.x): ersetzt die Werkstatt-Rolle
+-- (Manager/Trainer/Geschäftsstelle), eine Sportler-Rolle bleibt; neue
+-- App-Stände nehmen konto_rollen. Rückgabe wie konto_rollen.
 create or replace function konto_aendern(p_konto bigint, p_name text default null, p_rolle text default null, p_aktiv boolean default null)
 returns jsonb
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
   v_st  bigint := recht_manager();
   v_r   text   := konto_verwaltbar(p_konto);
+  v_alt text[] := rollen_von(p_konto, v_st);
   v_neu jsonb;
 begin
   if p_name is not null then
@@ -1018,17 +1130,10 @@ begin
     update konto set name = trim(p_name) where id = p_konto;
   end if;
   if p_rolle is not null and p_rolle <> v_r then
-    if p_rolle not in ('manager', 'trainer', 'geschaeftsstelle') or v_r = 'sportler' then
+    if p_rolle not in ('manager', 'trainer', 'geschaeftsstelle') then
       raise exception 'Diese Rolle lässt sich nicht ändern';
     end if;
-    if p_rolle = 'manager' and not ist_admin() then raise exception 'Werkstatt-Manager ernennt nur der Gesamt-Admin'; end if;
-    update konto_rolle set rolle = p_rolle where konto_id = p_konto and standort_id = v_st;
-    if v_r = 'trainer' and p_rolle in ('manager', 'geschaeftsstelle')
-       and exists (select 1 from konto where id = p_konto and pin_hash is not null) then
-      update konto set pin_hash = null, fehlversuche = 0, gesperrt_bis = null where id = p_konto;
-      delete from sitzung where konto_id = p_konto;
-      v_neu := jsonb_build_object('konto_id', p_konto, 'name', (select name from konto where id = p_konto)) || einladung_erzeugen(p_konto);
-    end if;
+    v_neu := konto_rollen(p_konto, array[p_rolle] || case when 'sportler' = any (v_alt) then array['sportler'] else '{}'::text[] end);
   end if;
   if p_aktiv is not null then
     update konto set aktiv = p_aktiv where id = p_konto;
@@ -1103,7 +1208,7 @@ begin
   return coalesce((
     select jsonb_agg(jsonb_build_object(
              'id', st.id, 'name', st.name, 'kuerzel', st.kuerzel, 'angelegt', st.angelegt,
-             'meine_rolle', (select r.rolle from konto_rolle r where r.konto_id = ich_id() and r.standort_id = st.id),
+             'meine_rolle', (rollen_von(ich_id(), st.id))[1],
              'manager', coalesce((
                select jsonb_agg(jsonb_build_object('id', k.id, 'name', k.name, 'aktiv', k.aktiv,
                                                    'pin_gesetzt', k.pin_hash is not null, 'einladung_bis', e.gueltig_bis,
@@ -1343,8 +1448,10 @@ begin
   if ich_id() is null then raise exception 'Nicht angemeldet – bitte neu anmelden' using errcode = '28000'; end if;
   v_st := akt_standort();
   if v_st is null then raise exception 'Kein Zugriff auf diesen Standort'; end if;
-  v_rolle := meine_rolle();
-  if v_rolle not in ('admin', 'manager', 'trainer', 'sportler') then raise exception 'Keine Berechtigung'; end if;
+  -- Werkstatt-Rolle geht vor; sonst nur als Sportler (eigene Räder)
+  v_rolle := case when rolle_in('admin', 'manager', 'trainer') then 'werkstatt'
+                  when mein_sportler() is not null then 'sportler' end;
+  if v_rolle is null then raise exception 'Keine Berechtigung'; end if;
   p_bearbeiter := ich_name();
 
   if p_client_id is not null then
@@ -2063,8 +2170,8 @@ begin
   select * into t from ticket where id = p_ticket and standort_id = v_st and status <> 'storniert' for update;
   if not found then raise exception 'Ticket % nicht gefunden oder storniert', p_ticket; end if;
   if not rolle_in('admin', 'manager', 'trainer')
-     and not (meine_rolle() = 'sportler' and (t.fahrer_id = mein_sportler() or t.kostentraeger_id = mein_sportler()
-                                              or (t.rad_id is not null and mein_rad(t.rad_id)))) then
+     and not (mein_sportler() is not null and (t.fahrer_id = mein_sportler() or t.kostentraeger_id = mein_sportler()
+                                               or (t.rad_id is not null and mein_rad(t.rad_id)))) then
     raise exception 'Keine Berechtigung';
   end if;
   if (select count(*) from foto where ticket_id = p_ticket) >= 5 then
@@ -2434,9 +2541,12 @@ create trigger stueck_ort            before insert or update of ort, standort_id
 --  und am Standort (X-Standort):
 --    S  = Zeile gehört zum gewählten Standort
 --    P  = Personal: admin, manager, trainer, geschaeftsstelle (alles lesen)
---    W  = Werkstatt: admin, manager, trainer (buchen, Tickets, Stammdaten)
---    M  = Manager: admin, manager (löschen, Kategorien, Tags, Preise)
+--    W  = Werkstatt: admin, manager, trainer (buchen, Tickets, Stammdaten,
+--         ab 18.0.0 auch neue Kategorien und Tags anlegen)
+--    M  = Manager: admin, manager (löschen, Kategorien/Tags umbenennen, Preise)
 --    R  = Rechnungen: admin, manager, geschaeftsstelle
+--  Ein Konto kann mehrere Rollen haben (ab 18.0.0); es darf, was
+--  eine seiner Rollen darf.
 --  Sportler sehen nur, was ihnen zugeordnet ist (ihre Räder, Tickets,
 --  Rechnungen, Buchungen) und die Artikel- und Kategorienamen.
 --  Buchungen außer Zugängen, Abschließen, Stornieren, Rechnungen und
@@ -2472,7 +2582,7 @@ create policy aendern on sportler for update to anonymous
 create policy lesen on kategorie for select to anonymous
   using (standort_id = (select akt_standort()));
 create policy anlegen on kategorie for insert to anonymous
-  with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager')));
+  with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager', 'trainer')));
 create policy aendern on kategorie for update to anonymous
   using (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager')))
   with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager')));
@@ -2480,7 +2590,7 @@ create policy aendern on kategorie for update to anonymous
 create policy lesen on tag for select to anonymous
   using (standort_id = (select akt_standort()));
 create policy anlegen on tag for insert to anonymous
-  with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager')));
+  with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager', 'trainer')));
 create policy aendern on tag for update to anonymous
   using (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager')))
   with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager')));
@@ -2654,15 +2764,15 @@ grant usage, select on all sequences in schema public to anonymous;
 revoke execute on all functions in schema public from public, anonymous;
 grant execute on function
   -- Hilfen, die die Zugriffsregeln und Spaltenvorgaben aufrufen
-  kopfzeile(text), token_hash(text), ich_id(), ich_name(), ist_admin(), akt_standort(), meine_rolle(),
+  kopfzeile(text), token_hash(text), ich_id(), ich_name(), ist_admin(), akt_standort(), meine_rolle(), meine_rollen(),
   rolle_in(text[]), mein_sportler(), mein_rad(text), standort_kuerzel(), eigener_code(text), code_buchstabe(text),
   -- Anmelden und Konto
   standorte_liste(), anmelde_liste(bigint),
   anmelden(bigint, text, bigint, text, text, boolean),
   einladung_pruefen(text), einladung_einloesen(text, text, text, boolean),
   ich(), abmelden(), pin_aendern(text, text),
-  konten_liste(), konto_anlegen(text, text, bigint), konto_neuer_code(bigint),
-  konto_aendern(bigint, text, text, boolean), sportler_zugang(bigint), standort_anlegen(text, text),
+  konten_liste(), konto_anlegen(text, text, bigint, text[]), konto_neuer_code(bigint),
+  konto_aendern(bigint, text, text, boolean), konto_rollen(bigint, text[], bigint), sportler_zugang(bigint), standort_anlegen(text, text),
   standorte_verwaltung(), standort_manager_einladen(bigint, text), manager_neuer_code(bigint), manager_aktiv(bigint, boolean),
   -- Werkstatt
   rad_zuordnen(text, bigint),

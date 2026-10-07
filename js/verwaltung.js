@@ -335,10 +335,13 @@ function ukVerw(){
   l.forEach((t, i) => {
     const n = tagAnzahl(t.id);
     const txt = [n.a ? n.a + " Artikel" : "", n.s ? n.s + " Teile" : ""].filter(Boolean).join(" · ") || "leer";
-    h += '<div class="eintrag"><button class="lzeile" data-a="ukUmbenennen" data-x="' + t.id + '"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></button>' +
+    // Umbenennen, Löschen und Reihenfolge: nur Werkstatt-Manager; Trainer sehen die Tags als Liste
+    h += '<div class="eintrag">' + (darf("manager")
+           ? '<button class="lzeile" data-a="ukUmbenennen" data-x="' + t.id + '"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></button>'
+           : '<div class="txt"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></div>') +
          (i ? '<button class="btn small" data-a="ukHoch" data-x="' + t.id + '" aria-label="' + esc(t.name) + ' nach oben">↑</button>' : '') + '</div>';
   });
-  h += '</div><p class="sub" style="margin:8px 0 0">Name antippen: umbenennen oder löschen. ↑ ändert die Reihenfolge der Filter und Überschriften.</p>' +
+  h += '</div>' + (darf("manager") ? '<p class="sub" style="margin:8px 0 0">Name antippen: umbenennen oder löschen. ↑ ändert die Reihenfolge der Filter und Überschriften.</p>' : '') +
        '<div class="row" style="gap:8px;margin-top:10px"><input type="text" id="ukNeuName" placeholder="Neuer Tag, z. B. Schläuche" style="flex:1">' +
        '<button class="btn primary" data-a="ukNeu" data-x="' + esc(k) + '">Hinzufügen</button></div></div>';
   if(l.length){
@@ -468,7 +471,7 @@ function kategorien(typ){
 function kategorieOptionen(gruppe){
   let h = '<option value="">— bitte wählen —</option>';
   kategorien(nrForm && nrForm.typ).forEach(([k, name]) => h += '<option value="' + k + '">' + esc(name || "Kategorie " + k) + ' · ' + esc(kuerzel()) + '-' + k + '-' + gruppe + 'xx</option>');
-  return h + (darf("manager") ? '<option value="_neu">＋ neue Kategorie …</option>' : '');
+  return h + (darf("arbeiten") ? '<option value="_neu">＋ neue Kategorie …</option>' : '');
 }
 /** Gewählter Buchstabe — aus der Liste oder bei „neue Kategorie“ aus dem Eingabefeld. */
 function nrBuchstabe(){

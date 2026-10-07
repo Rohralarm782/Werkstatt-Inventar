@@ -144,6 +144,9 @@ async function ladeAlles(){
     ICH = null;
     throw new AbgemeldetFehler("Abgemeldet — bitte neu anmelden.");
   }
+  // Mehrere Rollen je Konto (ab 18.0.0): ich() liefert dann „rollen“
+  if(!Array.isArray(ich.rollen))
+    throw new Error("Für 18.0.0 muss die Datenbank aktualisiert werden: db/migration_18.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
   const sz = aktiveSitzung();
   Object.assign(sz, { name:ich.name, standorte:ich.standorte, pin_laenge:ich.pin_laenge, gesamt_admin:ich.gesamt_admin, sportler_id:ich.sportler_id });
   merkeSitzungen();
