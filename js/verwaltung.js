@@ -784,19 +784,19 @@ function radNummernVerw(){
   h += '<div class="grid2">' + feld("Fester Teil (leer = Standard)", "rnVorlage", S.rad_vorlage || "", "text", ' autocapitalize="characters" maxlength="20" placeholder="z. B. HSG-TR" data-c="radNrVorschau"') +
        '<div class="feld"><span class="lbl">Stellen der Zahl</span><select id="rnStellen" data-c="radNrVorschau">' +
        [2,3,4,5,6].map(n => '<option' + (n === radStellen() ? " selected" : "") + '>' + n + '</option>').join("") + '</select></div></div>';
-  h += '<p class="sub" id="rnVorschau" style="margin:0 0 12px">' + radNrVorschauText() + '</p>';
+  h += '<p class="sub" id="rnVorschau" style="margin:0 0 12px">' + radNrVorschauText(S.rad_vorlage || "", radStellen()) + '</p>';
   h += '<button class="btn primary" data-a="radNrSpeichern">Speichern</button>';
   h += '<p class="sub" style="margin:12px 0 0">Vorhandene Räder behalten ihre Nummer. Falsch vergebene Nummern: Rad öffnen → Bearbeiten → „Nummer ändern“.</p></div>';
   return h;
 }
-function radNrVorschauText(){
-  const v = $("rnVorlage") ? wert("rnVorlage").toUpperCase().replace(/\s+/g, "") : radVorlage();
-  const n = $("rnStellen") ? Number(wert("rnStellen")) : radStellen();
+/** Vorschau für Vorlage v und Stellen n (beim Zeichnen aus der Datenbank, beim Tippen aus den Feldern). */
+function radNrVorschauText(v, n){
+  v = String(v || "").toUpperCase().replace(/\s+/g, "");
   if(v && !/^[A-Z0-9]+(-[A-Z0-9]+){0,3}$/.test(v)) return '<span style="color:var(--sprint)">Nur Buchstaben und Ziffern, Teile mit Bindestrich, z. B. HSG-TR.</span>';
   const t = (v ? v + "-" : "");
   return 'Bahnrad: <strong class="mono">' + esc(t + "BR-" + "42".padStart(n, "0")) + '</strong> · Straßenrad: <strong class="mono">' + esc(t + "SR-" + "7".padStart(n, "0")) + '</strong>';
 }
-function radNrVorschau(){ const e = $("rnVorschau"); if(e) e.innerHTML = radNrVorschauText(); }
+function radNrVorschau(){ const e = $("rnVorschau"); if(e) e.innerHTML = radNrVorschauText(wert("rnVorlage"), Number(wert("rnStellen")) || 2); }
 
 const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
 const zahlOderNull = id => { const v = wert(id); return v === "" ? null : Number(v.replace(",", ".")); };

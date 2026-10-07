@@ -1,11 +1,10 @@
 # Version
 
-**19.0.0** — 07.10.2026
+**19.0.1** — 07.10.2026
 
-Rad-Nummern mit fester Vorlage je Standort (z. B. HSG-TR-BR-0042, getippt
-wird nur die Zahl), eigene Nummern in freiem Format, „Nummer ändern“ für
-Artikel, Einzelstücke und Räder. Mit Datenbankänderung
-(db/migration_19.0.0.sql).
+Mehr → Rad-Nummern: Vorschau zeigte nach einem Fehler alte Eingaben;
+verständliche Meldung, wenn der Datenbank eine Funktion fehlt (Migration /
+Schema-Cache). Keine Datenbankänderung.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -16,6 +15,7 @@ damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 19.0.1 | 07.10.2026 | Rad-Nummern: Vorschau korrigiert, deutsche Meldung bei fehlender Datenbank-Funktion |
 | 19.0.0 | 07.10.2026 | Rad-Nummern-Vorlage je Standort, Nummer ändern, eigene Nummern frei (Migration) |
 | 18.0.0 | 07.10.2026 | Mehrere Rollen je Konto, Rollen ändern, Trainer legen Kategorien/Tags an (Migration) |
 | 17.1.0 | 06.10.2026 | Artikelformular: Werkstatt / Bekleidung getrennt, Anfangsbestand je Größe |

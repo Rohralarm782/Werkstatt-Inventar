@@ -112,6 +112,8 @@ async function rest(pfad, opt){
     m = m || ("Datenbank: HTTP " + r.status);
     if(/Nicht angemeldet/.test(m) && sitzung){ sitzungEntfernen(sitzung.konto_id); throw new AbgemeldetFehler("Abgemeldet — bitte neu anmelden."); }
     if(/row-level security|permission denied/i.test(m)) m = "Keine Berechtigung für diese Änderung.";
+    else if(/Could not find the function/i.test(m))
+      m = "Die Datenbank kennt diese Funktion noch nicht (" + (String(pfad).match(/^\/rpc\/([a-z_0-9]+)/) || [, "?"])[1] + ") – Migration in Neon ausführen und danach Data API → „Refresh schema cache“.";
     else if(/duplicate key.*(artikel_pkey|stueck_pkey|rad_pkey)/i.test(m)) m = "Die Nummer ist schon vergeben (vielleicht an einem anderen Standort).";
     throw new Error(m);
   }
