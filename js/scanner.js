@@ -25,13 +25,18 @@ function scanTreffer(ziel, code){
   // QR-Code eines Rads enthält einen Link (…?rad=BR-01)
   const mRad = /[?&]rad=([^&#]+)/.exec(code);
   if(mRad) code = decodeURIComponent(mRad[1]);
+  // Etikett ohne Standort-Kürzel (z. B. HSG-TR-SR-0042): mit Kürzel suchen, wenn es das gibt
+  if(!artikel(code) && !rad(code) && !stueckNr(code)){
+    const m = mitKuerzel(code);
+    if(artikel(m) || rad(m) || stueckNr(m)) code = m;
+  }
   // Codes tragen das Kürzel des Standorts; Etiketten anderer Standorte nicht verwechseln
   const fremd = /^([A-Z]{2,3})-[A-Z]{1,3}-[0-9]+$/.exec(code);
   if(fremd && kuerzel() && fremd[1] !== kuerzel() && !artikel(code) && !rad(code) && !stueckNr(code)){
     const st = ((aktiveSitzung() || {}).standorte || []).find(x => x.kuerzel === fremd[1]);
     piep(false); toast("Das Etikett gehört zu " + (st ? st.name : "einem anderen Standort (" + fremd[1] + ")") + ".", true); return;
   }
-  if(!artikel(code) && !rad(code) && !stueckNr(code)) code = mitKuerzel(code);
+  if(!artikel(code) && !rad(code) && !stueckNr(code) && /^[A-Z]{1,3}-[0-9]+$/.test(code)) code = mitKuerzel(code);
   // Scan-Knopf oben: wirkt dort, wo man gerade ist
   if(ziel === "kontextNeu") ziel = artikel(code) ? "neuMaterial" : "neuRad";
   if(ziel === "kontextTicket") ziel = artikel(code) ? "ticketMaterial" : "global";

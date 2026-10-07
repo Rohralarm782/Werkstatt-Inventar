@@ -86,7 +86,7 @@ const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlau
   "zeigAus","katFilter","ukFilter","katKlapp","katAlle","serieAuf","ukKatAuf","ukKatZu","fehlerZeigen","fehlerVerwerfen","invFilter"];
 const RECHNEN_NUR = ["rechnungErstellen","rechnungStatus","rStorno","rStornoOk"];
 const MANAGER_NUR = ["terminWeg","fotoLoeschen","ukHoch","ukUmbenennen","ukNameSpeichern","ukLoeschen","katUmbenennen","katNameSpeichern",
-  "stueckLoeschen","serieLoeschen"];
+  "stueckLoeschen","serieLoeschen","radNrSpeichern"];
 const LESEN_C_OK = ["suche","uzTag","etVorlage","logoDatei"];
 function aktionErlaubt(a){
   if(IMMER_OK.indexOf(a) >= 0) return true;

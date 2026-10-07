@@ -25,6 +25,7 @@ document.addEventListener("input", ev => {
   if(c === "nProblem" || c === "nAnlass") C[c](el.value);
   if(c === "nrVorschau") vorschauNummer();
   if(c === "aGroessen") grBestandFelder();
+  if(c === "radNrVorschau") radNrVorschau();
   if(c === "nrBuch" || c === "nrKatName") C[c](el.value, el.dataset.x, el);
   if(c === "nWahlSuche"){ neu.wahlSuche = el.value; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); }
   if(c === "tsSuche"){ tsSuche = el.value; const t = ticket(view.ticket), l = $("tsListe"); if(l && t) l.innerHTML = tsListe(t); }

@@ -134,7 +134,7 @@ async function stueckeAnTickets(tickets){
   tickets.forEach(t => t.stuecke = z.filter(x => x.ticket_id === t.id).map(x => x.nummer).sort(sort));
   return true;
 }
-const STANDORT_SPALTEN = "id,name,kuerzel,aktiv,rg_empfaenger,rg_absender,rg_kopf,rg_fuss,rg_text,iban,bic,bank,zahlungsziel_tage";
+const STANDORT_SPALTEN = "id,name,kuerzel,aktiv,rg_empfaenger,rg_absender,rg_kopf,rg_fuss,rg_text,iban,bic,bank,zahlungsziel_tage,rad_vorlage,rad_stellen";
 async function ladeAlles(){
   // Wer ist angemeldet, welche Rolle am Standort? (Sitzung abgelaufen → nächste Person oder Anmeldung)
   const ich = await rpc("ich");
@@ -172,7 +172,8 @@ async function ladeAlles(){
     rest("/ticket?status=in.(offen,angenommen)&order=id"),
     rest("/v_koffer?order=ort,code"),
     rest("/termin?datum=gte." + tag + "&order=datum"),
-    rest("/standort?select=" + STANDORT_SPALTEN),
+    // Rad-Nummern-Vorlage (ab 19.0.0)
+    rest("/standort?select=" + STANDORT_SPALTEN).catch(ohneTabelle),
     rest("/rechnung?order=id.desc&limit=100"),
     rest("/v_offene_posten?order=zeit"),
     rest("/zaehlung"),
@@ -196,6 +197,8 @@ async function ladeAlles(){
     throw new Error("Für 15.0.0 muss die Datenbank aktualisiert werden: db/migration_15.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
   if(!Array.isArray(groesseRoh) || !Array.isArray(ausgeliehen))
     throw new Error("Für 16.0.0 muss die Datenbank aktualisiert werden: db/migration_16.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
+  if(!Array.isArray(standort))
+    throw new Error("Für 19.0.0 muss die Datenbank aktualisiert werden: db/migration_19.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
   const groesseBestand = {};   // { code: { ort: { groesse|"": menge } } }
   groesseRoh.forEach(z => { const c = groesseBestand[z.code] = groesseBestand[z.code] || {}; (c[z.ort] = c[z.ort] || {})[z.groesse || ""] = num(z.menge); });
   const bestandOrt = {};

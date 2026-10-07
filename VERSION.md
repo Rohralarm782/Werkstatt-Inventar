@@ -1,11 +1,11 @@
 # Version
 
-**18.0.0** — 07.10.2026
+**19.0.0** — 07.10.2026
 
-Mehrere Rollen je Konto (z. B. Trainer/Mechaniker + Sportler), Rollen lassen
-sich unter Mehr → Konten & Rollen per Häkchen ändern. Trainer/Mechaniker
-dürfen neue Kategorien und Tags anlegen. Mit Datenbankänderung
-(db/migration_18.0.0.sql).
+Rad-Nummern mit fester Vorlage je Standort (z. B. HSG-TR-BR-0042, getippt
+wird nur die Zahl), eigene Nummern in freiem Format, „Nummer ändern“ für
+Artikel, Einzelstücke und Räder. Mit Datenbankänderung
+(db/migration_19.0.0.sql).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -16,6 +16,7 @@ damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 19.0.0 | 07.10.2026 | Rad-Nummern-Vorlage je Standort, Nummer ändern, eigene Nummern frei (Migration) |
 | 18.0.0 | 07.10.2026 | Mehrere Rollen je Konto, Rollen ändern, Trainer legen Kategorien/Tags an (Migration) |
 | 17.1.0 | 06.10.2026 | Artikelformular: Werkstatt / Bekleidung getrennt, Anfangsbestand je Größe |
 | 17.0.1 | 06.10.2026 | Lager-Karte kompakter (ein Raum ausgeblendet, Bekleidung raus, keine Erklärtexte) |

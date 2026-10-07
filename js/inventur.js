@@ -54,7 +54,13 @@ function kuerzel(){ return (STANDORT && STANDORT.kuerzel) || ""; }
 /** Kategorie-Buchstabe: SN-B-101 → B (auch ohne Kürzel: B-101 → B) */
 function codeBuchstabe(c){ const m = /^(?:[A-Z]{2,3}-)?([A-Z]{1,3})-[0-9]/.exec(c || ""); return m ? m[1] : ""; }
 /** Eingetippte Nummer ohne Kürzel (B-120, BR-01) bekommt das Kürzel dieses Standorts. */
-function mitKuerzel(c){ c = String(c || "").trim().toUpperCase(); return /^[A-Z]{1,3}-[0-9]+$/.test(c) && kuerzel() ? kuerzel() + "-" + c : c; }
+/** Eingabe ohne Standort-Kürzel → mit Kürzel (B-120 → SN-B-120, HSG-TR-SR-0042 → SN-HSG-TR-SR-0042).
+    Steht das Kürzel schon vorne, bleibt die Eingabe, wie sie ist. */
+function mitKuerzel(c){
+  c = String(c || "").trim().toUpperCase().replace(/\s+/g, "");
+  const k = kuerzel();
+  return c && k && c.indexOf(k + "-") !== 0 ? k + "-" + c : c;
+}
 function invBuchstabe(code){ return codeBuchstabe(code) || "?"; }
 function invFortschritt(){
   let stellen = 0, gezaehlt = 0, abw = 0;

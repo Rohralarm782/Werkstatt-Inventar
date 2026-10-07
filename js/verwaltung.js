@@ -197,6 +197,7 @@ function mehrGruppen(){
   ];
   if(darf("manager")) g[2][1].push(["lagerorte", "Lagerorte", () => { const r = raumOrte().length, k = kofferOrte().length; return r + (r === 1 ? " Raum" : " Räume") + " · " + k + " Koffer/Werkzeugkästen"; }]);
   if(darf("manager")) g[2][1].push(["konten", "Konten &amp; Rollen", () => "Personen einladen, PIN zurücksetzen"]);
+  if(darf("manager")) g[2][1].push(["radnummern", "Rad-Nummern", () => radVorlage() ? "Vorlage " + radPraefix("Bahn") + "1".padStart(radStellen(), "0") + " …" : "Standard (" + radPraefix("Bahn") + "01) · eigene Vorlage möglich"]);
   if(darf("rechnen")) g[2][1].push(["briefkopf", "Briefkopf &amp; Bank", () => (STANDORT && STANDORT.iban) ? "für die Rechnungen" : "IBAN noch nicht eingetragen"]);
   if(darf("admin")) g[2][1].push(["standorte", "Standorte", () => "Übersicht, Werkstatt-Manager einladen · Gesamt-Admin"]);
   return g.filter(x => x[1].length);
@@ -207,7 +208,7 @@ function mehrView(){
     let h = '<button class="btn small zurueck" data-a="mehrZu">← Mehr</button><h2 class="sec" style="margin-top:0">' + (titel ? titel[1] : "") + '</h2>';
     if(offline) return h + '<div class="leer">Offline — erst wieder mit Netz.</div>';
     const v = view.mehr;
-    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "tags" ? ukVerw() : v === "konten" ? kontenVerw() : v === "briefkopf" ? briefkopfVerw() : v === "standorte" ? standorteVerw() : v === "lagerorte" ? lagerorteVerw() :
+    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "tags" ? ukVerw() : v === "konten" ? kontenVerw() : v === "briefkopf" ? briefkopfVerw() : v === "radnummern" ? radNummernVerw() : v === "standorte" ? standorteVerw() : v === "lagerorte" ? lagerorteVerw() :
                 v === "etiketten" ? etikettenVerw() : v === "termine" ? termineView() : exportVerw());
   }
   let h = "";
@@ -511,12 +512,41 @@ function ukFormWert(){
   const k = formKat();
   return tagsImFormular().filter(id => { const t = tagNachId(id); return t && t.buchstabe === k; });
 }
-/** Nummernfeld für neue Artikel/Einzelstücke/Räder: automatisch (Standard) oder eigene Nummer. */
-function nummernWahl(typ, gruppe){
-  nrForm = { typ, modus:"auto" };
+/* ---------------------------------------------------------------
+   Rad-Nummern (ab 19.0.0): Jeder Standort kann eine Vorlage festlegen
+   (Mehr → Rad-Nummern), z. B. HSG-TR. Dann heißen Räder
+   <Kürzel>-HSG-TR-BR-0042; eingetippt wird nur die Zahl, das Kürzel
+   und der feste Teil kommen automatisch davor.
+----------------------------------------------------------------*/
+const RAD_KUERZEL = { "Bahn":"BR", "Straße":"SR", "Zeitfahren":"ZF", "Cross":"CX", "Sonstiges":"SO" };
+function radVorlage(){ return (STANDORT && STANDORT.rad_vorlage) || ""; }
+function radStellen(){ return Number(STANDORT && STANDORT.rad_stellen) || 2; }
+/** Fester Teil der Rad-ID ohne Kürzel, z. B. „HSG-TR-BR-“ (ohne Vorlage „BR-“). */
+function radPraefix(typ){ return (radVorlage() ? radVorlage() + "-" : "") + (RAD_KUERZEL[typ] || "SO") + "-"; }
+/** Rad-ID ohne Standort-Kürzel (für Anzeige und Eingabe). */
+function ohneKuerzel(id){ const k = kuerzel() + "-"; return id && kuerzel() && String(id).indexOf(k) === 0 ? String(id).slice(k.length) : String(id || ""); }
+/** Eingabe → volle Rad-ID. Nur Ziffern (mit Vorlage): fester Teil davor, mit Nullen aufgefüllt.
+    Sonst wie eingetippt, das Kürzel kommt davor. */
+function radIdAusEingabe(eingabe, typ){
+  const t = String(eingabe || "").trim().toUpperCase().replace(/\s+/g, "");
+  if(!t) return "";
+  if(radVorlage() && /^[0-9]+$/.test(t)) return kuerzel() + "-" + radPraefix(typ) + t.padStart(radStellen(), "0");
+  return mitKuerzel(t);
+}
+const NUMMER_FORMAT = /^[A-Z0-9]+(-[A-Z0-9]+)*$/;
+/** Eingabefeld für die Rad-Nummer mit Vorlage: fester Teil davor, nur die Zahl eintippen. */
+function radNummerFeld(typ, wertZahl){
+  return '<div class="row" style="gap:6px;align-items:center;flex-wrap:nowrap"><span class="mono" id="nrPraefix" style="white-space:nowrap">' + esc(radPraefix(typ)) + '</span>' +
+         '<input type="text" id="nrEigenWert" data-c="nrEigen" inputmode="numeric" autocomplete="off" value="' + esc(wertZahl || "") + '" placeholder="' + "0".repeat(Math.max(radStellen() - 1, 0)) + '1" style="flex:1;min-width:0"></div>';
+}
+/** Nummernfeld für neue Artikel/Einzelstücke/Räder: automatisch (Standard) oder eigene Nummer.
+    Räder mit Vorlage: „eigene Nummer“ ist vorgewählt (die Räder haben schon Nummern). */
+function nummernWahl(typ, gruppe, radTyp){
+  const vorlage = typ === "rad" && !!radVorlage(), modus = vorlage ? "eigen" : "auto";
+  nrForm = { typ, modus };
   let h = '<div class="feld"><span class="lbl">' + (typ === "rad" ? "Rad-ID" : typ === "stueck" ? "Nummer" : "Code") + '</span>';
-  h += '<div class="seg" style="margin-bottom:8px">' + segBtn("nrModus", "auto", "automatisch", "auto") + segBtn("nrModus", "eigen", "eigene Nummer", "auto") + '</div>';
-  h += '<div id="nrAuto">';
+  h += '<div class="seg" style="margin-bottom:8px">' + segBtn("nrModus", "auto", "automatisch", modus) + segBtn("nrModus", "eigen", "eigene Nummer", modus) + '</div>';
+  h += '<div id="nrAuto"' + (modus === "auto" ? '' : ' hidden') + '>';
   if(typ !== "rad"){
     h += '<span class="lbl">Kategorie</span><select id="nrKat" data-c="nrKat">' + kategorieOptionen(gruppe) + '</select>';
     h += '<input type="hidden" id="nrGruppe" value="' + gruppe + '">';
@@ -527,8 +557,10 @@ function nummernWahl(typ, gruppe){
          '<input type="text" id="nrBuch" maxlength="3" autocapitalize="characters" placeholder="1–3 Buchstaben, z. B. O" data-c="nrBuch"></div>';
   }
   h += '<p class="sub" style="margin:6px 0 0" id="nrVorschau">' + (typ === "rad" ? "" : "Kategorie wählen …") + '</p></div>';
-  h += '<div id="nrEigen" hidden><input type="text" id="nrEigenWert" data-c="nrEigen" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : "z. B. B-120") + ' — ' + esc(kuerzel()) + '- wird ergänzt"></div>';
-  return h + '</div>';
+  h += '<div id="nrEigen"' + (modus === "eigen" ? '' : ' hidden') + '>';
+  if(vorlage) h += radNummerFeld(radTyp || "Bahn") + '<p class="sub" style="margin:6px 0 0">Nur die Zahl eintragen, z. B. 42 → ' + esc("42".padStart(radStellen(), "0")) + '. Der Teil davor folgt aus dem Typ.</p>';
+  else h += '<input type="text" id="nrEigenWert" data-c="nrEigen" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : typ === "stueck" ? "z. B. L-201 oder eigene Nummer" : "z. B. B-120") + ' — ' + esc(kuerzel()) + '- wird ergänzt">';
+  return h + '</div></div>';
 }
 /** Anzahl im Einzelstück-Formular (1, wenn es das Feld nicht gibt). Bei mehreren Stück gilt die Seriennummer nicht. */
 function serienAnzahl(){
@@ -670,7 +702,9 @@ function artikelForm(code, zweck){
     (code ? auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) : '<input type="hidden" id="aAktiv" value="true">') +
     '<p class="sub" data-zeig="K">Bestand wird je Größe geführt; ausgegeben wird als Leihgabe an Sportler (nie berechnet).</p>' +
     (code ? '' : '<p class="sub" data-zeig="W">Die Ziffer richtet sich nach der Art: Stück 1xx, Vorrat 5xx, Pauschale 9xx.</p>') +
-    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="artikelSpeichern" data-x="' + esc(code || "") + '">Speichern</button></div>');
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
+    (code && darf("arbeiten") ? '<button class="btn small" data-a="nrAendern" data-x="artikel|' + esc(code) + '">Code ändern</button>' : '') +
+    '<span class="sp"></span><button class="btn primary" data-a="artikelSpeichern" data-x="' + esc(code || "") + '">Speichern</button></div>');
   artikelSichtbar();
   grBestandFelder();
 }
@@ -681,12 +715,14 @@ function radForm(id){
   const typFeld = '<div class="feld"><span class="lbl">Typ</span><select id="rTyp" data-c="nrVorschau">' +
     ["Bahn","Straße","Zeitfahren","Cross","Sonstiges"].map(x => '<option' + (r.typ === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
   modal('<h3>' + (id ? "Rad bearbeiten · " + esc(id) : "Neues Rad") + '</h3>' +
-    typFeld + (id ? "" : nummernWahl("rad")) +
+    typFeld + (id ? "" : nummernWahl("rad", 0, r.typ)) +
     '<div class="grid2">' + feld("Bezeichnung", "rBez", r.bezeichnung, "text", ' placeholder="z. B. Bahnrad 01"') + feld("Marke", "rMarke", r.marke, "text", ' list="markenDL" placeholder="z. B. Look"') + '</div>' + markenDL() +
     '<div class="grid2">' + feld("Rahmennummer", "rRahmen", r.rahmennummer) + feld("Größe", "rGr", r.groesse) + '</div>' +
     auswahl("Eigentümer (zahlt Material am Rad)", "rEig", eig, r.eigentuemer_id) +
     feld("Notiz", "rNotiz", r.notiz) + auswahl("Status", "rAktiv", [["true","aktiv"],["false","inaktiv"]], String(r.aktiv)) +
-    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="radSpeichern" data-x="' + esc(id || "") + '">Speichern</button></div>');
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
+    (id && darf("arbeiten") ? '<button class="btn small" data-a="nrAendern" data-x="rad|' + esc(id) + '">Nummer ändern</button>' : '') +
+    '<span class="sp"></span><button class="btn primary" data-a="radSpeichern" data-x="' + esc(id || "") + '">Speichern</button></div>');
 }
 function stueckForm(nr){
   const s = nr ? (DB.stueck||[]).find(x => x.nummer === nr) : { nummer:"", typ:"", marke:"", detail:"", seriennummer:"", kaufdatum:"", wert:"", notiz:"" };
@@ -701,9 +737,67 @@ function stueckForm(nr){
     '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + kaufFeld("eKauf", s.kaufdatum) + '</div>' +
     feld("Notiz", "eNotiz", s.notiz) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
-    (nr ? '<button class="btn small" data-a="stueckLoeschen" data-x="' + esc(nr) + '">Löschen</button><button class="btn small" data-a="stueckEtikett" data-x="' + esc(nr) + '">Etikett</button>' : '') +
+    (nr ? '<button class="btn small" data-a="stueckLoeschen" data-x="' + esc(nr) + '">Löschen</button><button class="btn small" data-a="stueckEtikett" data-x="' + esc(nr) + '">Etikett</button>' +
+          (darf("arbeiten") ? '<button class="btn small" data-a="nrAendern" data-x="stueck|' + esc(nr) + '">Nummer ändern</button>' : '') : '') +
     '<span class="sp"></span><button class="btn primary" data-a="stueckSpeichern" data-x="' + esc(nr || "") + '">Speichern</button></div>');
 }
+/* ---------------------------------------------------------------
+   Nummer ändern (ab 19.0.0): Artikel, Einzelstück oder Rad bekommt eine
+   neue Nummer, alles Verknüpfte zieht in der Datenbank mit
+   (nummer_aendern). Trainer/Mechaniker dürfen das, solange noch nichts
+   gebucht bzw. kein Ticket abgeschlossen ist — sonst der Werkstatt-Manager.
+----------------------------------------------------------------*/
+const NR_ART_TEXT = { artikel:"Artikel", stueck:"Einzelstück", rad:"Rad" };
+function nummerAendernForm(art, alt){
+  const r = art === "rad" ? rad(alt) : null;
+  if(art === "rad" && !r) return;
+  const kurz = ohneKuerzel(alt), p = r ? radPraefix(r.typ) : "";
+  const mitVorlage = !!(r && radVorlage());
+  let feldH;
+  if(mitVorlage){
+    const zahl = kurz.indexOf(p) === 0 && /^[0-9]+$/.test(kurz.slice(p.length)) ? kurz.slice(p.length) : "";
+    feldH = radNummerFeld(r.typ, zahl) + '<p class="sub" style="margin:6px 0 0">Nur die Zahl. Der Teil davor folgt aus Vorlage und Typ (' + esc(r.typ) + ') — stimmt der Typ nicht, erst im Rad ändern und speichern.</p>';
+  } else {
+    feldH = '<input type="text" id="nrEigenWert" autocapitalize="characters" autocomplete="off" value="' + esc(kurz) + '">' +
+            '<p class="sub" style="margin:6px 0 0">' + esc(kuerzel()) + '- wird ergänzt.' + (art === "artikel" ? ' Format wie B-120.' : '') + '</p>';
+  }
+  modal('<h3>' + (art === "artikel" ? "Code" : "Nummer") + ' ändern · ' + esc(alt) + '</h3>' +
+    '<p class="sub" style="margin-top:0">' + NR_ART_TEXT[art] + ': Buchungen, Tickets, Tags und Zuordnungen ziehen mit. Das alte Etikett passt danach nicht mehr — neues drucken.</p>' +
+    '<div class="feld"><span class="lbl">Neue ' + (art === "artikel" ? "Code" : "Nummer") + '</span>' + feldH + '</div>' +
+    (darf("manager") ? '' : '<p class="sub">Ist schon etwas gebucht oder ein Ticket abgeschlossen, ändert das nur der Werkstatt-Manager.</p>') +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>' +
+    '<button class="btn primary" data-a="nrAendernOk" data-x="' + esc(art + "|" + alt) + '">Ändern</button></div>');
+  const e = $("nrEigenWert"); if(e){ e.focus(); try{ e.select(); }catch(x){} }
+}
+/** Neue Nummer aus dem Formular „Nummer ändern“ (voll, mit Kürzel). */
+function nummerAusFormular(art, alt){
+  const eing = wert("nrEigenWert");
+  if(art === "rad"){ const r = rad(alt); return radIdAusEingabe(eing, r ? r.typ : "Sonstiges"); }
+  return mitKuerzel(eing);
+}
+
+/* ---------- Mehr → Rad-Nummern (Werkstatt-Manager) ---------- */
+function radNummernVerw(){
+  const S = STANDORT || {};
+  let h = '<div class="card"><p class="sub" style="margin-top:0">Haben eure Räder schon feste Nummern, z. B. HSG-TR-BR-0042, hier den gleichbleibenden Teil eintragen (HSG-TR). ' +
+          'Beim Anlegen wird dann nur noch die Zahl eingetippt; Bahn/Straße usw. kommt aus dem Typ. Das Standort-Kürzel ' + esc(kuerzel()) + '- steht intern immer davor, damit kein Etikett mit einem anderen Standort verwechselt wird.</p>';
+  h += '<div class="grid2">' + feld("Fester Teil (leer = Standard)", "rnVorlage", S.rad_vorlage || "", "text", ' autocapitalize="characters" maxlength="20" placeholder="z. B. HSG-TR" data-c="radNrVorschau"') +
+       '<div class="feld"><span class="lbl">Stellen der Zahl</span><select id="rnStellen" data-c="radNrVorschau">' +
+       [2,3,4,5,6].map(n => '<option' + (n === radStellen() ? " selected" : "") + '>' + n + '</option>').join("") + '</select></div></div>';
+  h += '<p class="sub" id="rnVorschau" style="margin:0 0 12px">' + radNrVorschauText() + '</p>';
+  h += '<button class="btn primary" data-a="radNrSpeichern">Speichern</button>';
+  h += '<p class="sub" style="margin:12px 0 0">Vorhandene Räder behalten ihre Nummer. Falsch vergebene Nummern: Rad öffnen → Bearbeiten → „Nummer ändern“.</p></div>';
+  return h;
+}
+function radNrVorschauText(){
+  const v = $("rnVorlage") ? wert("rnVorlage").toUpperCase().replace(/\s+/g, "") : radVorlage();
+  const n = $("rnStellen") ? Number(wert("rnStellen")) : radStellen();
+  if(v && !/^[A-Z0-9]+(-[A-Z0-9]+){0,3}$/.test(v)) return '<span style="color:var(--sprint)">Nur Buchstaben und Ziffern, Teile mit Bindestrich, z. B. HSG-TR.</span>';
+  const t = (v ? v + "-" : "");
+  return 'Bahnrad: <strong class="mono">' + esc(t + "BR-" + "42".padStart(n, "0")) + '</strong> · Straßenrad: <strong class="mono">' + esc(t + "SR-" + "7".padStart(n, "0")) + '</strong>';
+}
+function radNrVorschau(){ const e = $("rnVorschau"); if(e) e.innerHTML = radNrVorschauText(); }
+
 const wert = id => { const e = $(id); return e ? e.value.trim() : ""; };
 const zahlOderNull = id => { const v = wert(id); return v === "" ? null : Number(v.replace(",", ".")); };
 

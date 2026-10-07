@@ -396,7 +396,8 @@ const A = {
     if(Number(wert("eAnzahl") || 1) > 1){ toast("Mehrere Stück auf einmal nur mit automatischer Nummer.", true); return; }
     const nr = mitKuerzel(wert("nrEigenWert"));
     if(!nr){ toast("Nummer fehlt.", true); return; }
-    if(nummerVergeben(nr)){ toast(nr + " ist schon vergeben.", true); return; }
+    if(!NUMMER_FORMAT.test(nr)){ toast("Nummer: nur Buchstaben, Ziffern und Bindestriche.", true); return; }
+    if(nummerVergeben(nr) || rad(nr)){ toast(nr + " ist schon vergeben.", true); return; }
     aktion(async () => { await neuIn("stueck", Object.assign({ nummer:nr }, d)); await tagsSetzen([nr]); }, nr + " angelegt");
   },
 
@@ -415,9 +416,10 @@ const A = {
       aktion(() => rpc("rad_anlegen", { p_daten:d }), id => d.bezeichnung + " angelegt als " + id);
       return;
     }
-    const id = mitKuerzel(wert("nrEigenWert"));
-    if(!id){ toast("Rad-ID fehlt.", true); return; }
-    if(rad(id)){ toast(id + " ist schon vergeben.", true); return; }
+    const id = radIdAusEingabe(wert("nrEigenWert"), d.typ);
+    if(!id){ toast(radVorlage() ? "Bitte die Nummer (Zahl) eintragen." : "Rad-ID fehlt.", true); return; }
+    if(!NUMMER_FORMAT.test(id)){ toast("Rad-ID: nur Buchstaben, Ziffern und Bindestriche.", true); return; }
+    if(rad(id) || nummerVergeben(id)){ toast(id + " ist schon vergeben.", true); return; }
     aktion(() => neuIn("rad", Object.assign({ id }, d)), d.bezeichnung + " angelegt");
   },
   artikelNeu: x => artikelForm(null, x),
@@ -796,6 +798,29 @@ const A = {
   },
 
   /* Nummernvergabe */
+  nrAendern: x => { const i = x.indexOf("|"); nummerAendernForm(x.slice(0, i), x.slice(i + 1)); },
+  nrAendernOk: x => {
+    const i = x.indexOf("|"), art = x.slice(0, i), alt = x.slice(i + 1);
+    const nr = nummerAusFormular(art, alt);
+    if(!nr || nr === kuerzel() + "-"){ toast("Neue Nummer fehlt.", true); return; }
+    if(nr === alt){ modalZu(); return; }
+    if(!NUMMER_FORMAT.test(nr)){ toast("Nur Buchstaben, Ziffern und Bindestriche.", true); return; }
+    if(art === "artikel" && !/^[A-Z]{2,3}-[A-Z]{1,3}-[0-9]+$/.test(nr)){ toast("Code im Format B-120.", true); return; }
+    if(nummerVergeben(nr) || rad(nr)){ toast(nr + " ist schon vergeben.", true); return; }
+    if(!confirm(alt + " → " + nr + "\n\nNummer ändern? Das alte Etikett passt danach nicht mehr.")) return;
+    aktion(() => rpc("nummer_aendern", { p_art:art, p_alt:alt, p_neu:nr }), n => alt + " → " + n)
+      .then(n => {
+        if(!n) return;
+        if(view.rad === alt){ view.rad = n; render(); }
+        const et = art === "rad" ? (rad(n) && etikettRad(rad(n))) : art === "stueck" ? (stueckNr(n) && etikettStueck(stueckNr(n))) : (artikel(n) && etikettArtikel(artikel(n)));
+        if(et) etikettDialog([et], alt + " → " + n + " — neues Etikett drucken?");
+      });
+  },
+  radNrSpeichern: () => {
+    const v = wert("rnVorlage").toUpperCase().replace(/\s+/g, ""), n = Number(wert("rnStellen"));
+    if(v && !/^[A-Z0-9]+(-[A-Z0-9]+){0,3}$/.test(v)){ toast("Fester Teil: Buchstaben und Ziffern, Teile mit Bindestrich, z. B. HSG-TR.", true); return; }
+    aktion(() => rpc("rad_nummern_setzen", { p_vorlage:v || null, p_stellen:n }), "Rad-Nummern gespeichert");
+  },
   nrModus: (x, el) => {
     if(!nrForm) return;
     nrForm.modus = x;
@@ -849,7 +874,11 @@ const C = {
     else { const p = neu.pos[Number(x)]; if(p) p.menge = n; }
     render();
   },
-  nrVorschau: () => { vorschauNummer(); ukBoxAktualisieren(); },
+  nrVorschau: () => {
+    const p = $("nrPraefix"), t = $("rTyp"); if(p && t) p.textContent = radPraefix(t.value);
+    vorschauNummer(); ukBoxAktualisieren();
+  },
+  radNrVorschau: () => radNrVorschau(),
   nrBuch: (v, x, el) => { if(el) el.dataset.selbst = el.value ? "1" : ""; vorschauNummer(); ukBoxAktualisieren(); },
   /* Name der neuen Kategorie: schlägt den Anfangsbuchstaben vor, solange er frei ist
      und der Buchstabe nicht selbst eingetragen wurde. */
