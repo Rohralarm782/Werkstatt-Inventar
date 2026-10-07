@@ -49,6 +49,15 @@ document.addEventListener("change", ev => {
   if(f) f(el.value, el.dataset.x, el);
 });
 
+/* Standort-Kürzel in der Anzeige ausblenden (siehe core.js): alles, was neu
+   in die Seite kommt — Ansichten, Fenster, Meldungen, Druckbereich. */
+new MutationObserver(liste => {
+  liste.forEach(m => {
+    if(m.type === "characterData") kuerzelAusblenden(m.target);
+    else m.addedNodes.forEach(n => kuerzelAusblenden(n));
+  });
+}).observe(document.body, { childList:true, subtree:true, characterData:true });
+
 /* ===============================================================
    Start
    ===============================================================*/

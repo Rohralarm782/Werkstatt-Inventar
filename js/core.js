@@ -606,6 +606,43 @@ function renderBanner(){
 }
 
 /* ---------------------------------------------------------------
+   Standort-Kürzel ausblenden (ab 19.1.0): Alle Nummern tragen intern das
+   Kürzel des Standorts (HGW-HSG-TR-BR-0042, SN-B-101). Angezeigt und auf
+   Etiketten als Text gedruckt wird die Nummer ohne das eigene Kürzel
+   (HSG-TR-BR-0042, B-101). Im QR-Code, in data-x, in Eingabefeldern, im
+   Export und in der Datenbank bleibt die volle Nummer, damit die Zuordnung
+   zum Standort fest bleibt. Umgesetzt als ein Durchgang über die Textknoten
+   (start.js beobachtet die Seite), damit keine Anzeige vergessen wird.
+----------------------------------------------------------------*/
+let kuerzelMuster = null, kuerzelMusterFuer = "";
+function kuerzelRegex(){
+  const k = typeof kuerzel === "function" ? kuerzel() : "";
+  if(!/^[A-Z]{2,3}$/.test(k)) return null;
+  if(k !== kuerzelMusterFuer){
+    // nur ganze Nummern: Kürzel-, dann Teile aus A–Z/0–9, letzte endet auf einer Ziffer
+    kuerzelMuster = new RegExp("(^|[^A-Za-z0-9-])" + k + "-((?:[A-Z0-9]+-)*[A-Z0-9]*[0-9])(?![A-Za-z0-9-])", "g");
+    kuerzelMusterFuer = k;
+  }
+  return kuerzelMuster;
+}
+const KUERZEL_NICHT_IN = { TEXTAREA:1, SCRIPT:1, STYLE:1, INPUT:1 };
+/** Entfernt das eigene Kürzel aus den Textknoten unter root (nur Anzeige). */
+function kuerzelAusblenden(root){
+  const re = kuerzelRegex(); if(!re || !root) return;
+  const pruefe = t => {
+    const el = t.parentNode;
+    if(!el || KUERZEL_NICHT_IN[el.nodeName] || (el.closest && el.closest("[contenteditable],textarea"))) return;
+    re.lastIndex = 0;
+    if(!re.test(t.nodeValue)) return;
+    t.nodeValue = t.nodeValue.replace(re, "$1$2");
+  };
+  if(root.nodeType === 3){ pruefe(root); return; }
+  if(root.nodeType !== 1 || KUERZEL_NICHT_IN[root.nodeName]) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n; while((n = w.nextNode())) pruefe(n);
+}
+
+/* ---------------------------------------------------------------
    Modal
 ----------------------------------------------------------------*/
 function modal(html){ $("modal").innerHTML = '<div class="overlay" data-a="modalHintergrund"><div class="sheet">' + html + '</div></div>'; }
