@@ -1,10 +1,11 @@
 # Version
 
-**20.2.2** — 08.10.2026
+**20.3.0** — 08.10.2026
 
-Scanner stellt besser scharf: Dauer-Autofokus und 2-fach Zoom (wo das
-Handy es kann), Zoom-Knopf 1×/2×/3× im Kamerabild, Hinweis „15–20 cm
-Abstand“. Keine Datenbankänderung.
+Größere Barcode-Striche: Neue Druckoption „Barcode ohne Standort-Kürzel“
+(Standard an) — z. B. C-206 statt SN-C-206, Striche 50 % dicker; Striche
+etwas höher. Scanner liest nur noch QR, Code 128 und Data Matrix (keine
+Fehllesungen als EAN mehr). Keine Datenbankänderung.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -23,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.3.0 | 08.10.2026 | Barcode ohne Standort-Kürzel (dickere Striche), höhere Striche; Scanner ohne EAN/UPC/Code 39 |
 | 20.2.2 | 08.10.2026 | Scanner: Autofokus, 2-fach Zoom mit Umschalter, Abstandshinweis |
 | 20.2.1 | 08.10.2026 | Scanner: Barcodes hochkant und bei ausgefranstem Thermodruck lesbar, höhere Kameraauflösung |
 | 20.2.0 | 08.10.2026 | Morgen-Benachrichtigungen (Push) mit eigenen Einstellungen je Person, App installierbar (Migration) |

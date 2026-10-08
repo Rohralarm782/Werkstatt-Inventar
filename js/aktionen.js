@@ -548,13 +548,13 @@ const A = {
     const v = vorlage(wert("etVorlage")), start = Math.min(felderJeSeite(v), Math.max(1, Number(wert("etStart") || 1)));
     const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
     const wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
-    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); }catch(e){}
+    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); if($("etKurz")) localStorage.setItem("wEtikettKurz", $("etKurz").checked ? "1" : "0"); }catch(e){}
     const items = etikettAuftrag || [], quelle = etikettQuelle, leeren = !!($("etLeeren") && $("etLeeren").checked);
     let schmal = 0;
     if(art === "bar"){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
       if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
-      schmal = Math.min.apply(null, items.map(it => barModulMm(it.bc, barBreiteMm(v))));
+      schmal = Math.min.apply(null, items.map(it => barModulMm(barText(it), barBreiteMm(v))));
     }
     modalZu();
     if(quelle === "druckliste" && leeren){ drucklisteSpeichern([]); render(); }
@@ -563,7 +563,7 @@ const A = {
   },
   etBilder: () => {
     const v = vorlage(wert("etVorlage")), wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
-    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); }catch(e){}
+    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); if($("etKurz")) localStorage.setItem("wEtikettKurz", $("etKurz").checked ? "1" : "0"); }catch(e){}
     const items = etikettAuftrag || [];
     if(art === "bar"){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });

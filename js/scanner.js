@@ -12,10 +12,11 @@ async function scanStart(ziel){
         '<button class="btn voll" data-a="modalZu">Abbrechen</button>');
   try{
     // TRY_HARDER: sucht viele Bildzeilen ab statt nur ~15 um die Mitte — nötig für Thermodruck mit
-    // ausgefransten Strichkanten. Nur die Formate, die hier vorkommen (spart Rechenzeit).
+    // ausgefransten Strichkanten. Nur die Formate der eigenen Etiketten: EAN/UPC/Code 39 haben schwache
+    // Prüfziffern und lieferten aus unscharfen Code-128-Bildern Fehllesungen (z. B. „13784041“ als EAN-8).
     const F = ZXing.BarcodeFormat, hinweise = new Map();
     hinweise.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    hinweise.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.EAN_8, F.UPC_A, F.DATA_MATRIX]);
+    hinweise.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.QR_CODE, F.CODE_128, F.DATA_MATRIX]);
     leser = new ZXing.BrowserMultiFormatReader(hinweise, 300);
     leser.decode = scanBildLesen;
     let fertig = false;

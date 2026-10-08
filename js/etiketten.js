@@ -62,7 +62,7 @@ function etikettDialog(items, titel, mitKopien, quelle){
        '</select><button class="btn small" data-a="vorlagenVerwalten">eigene …</button></div></div>';
   h += '<div class="feld"><span class="lbl">Code</span><div class="row" style="gap:16px">' +
        [["qr","QR-Code"],["bar","Barcode (für schmale Etiketten)"]].map(o => '<label class="row" style="gap:6px"><input type="radio" name="etCode" value="' + o[0] + '"' + (codeArt() === o[0] ? " checked" : "") + '> ' + o[1] + '</label>').join("") +
-       '</div></div>';
+       '</div><label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" id="etKurz"' + (barKurz() ? " checked" : "") + '> Barcode ohne Standort-Kürzel (dickere Striche, besser lesbar)</label></div>';
   h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (v.seite === "A4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld</span>' +
        '<input type="number" id="etStart" value="1" min="1" max="' + felderJeSeite(v) + '" inputmode="numeric"></div>';
   h += mitKopien ? feld("Anzahl je Etikett", "etKopien", 1, "number", ' min="1" max="50" inputmode="numeric"') : '';
@@ -78,6 +78,11 @@ function etikettDialog(items, titel, mitKopien, quelle){
 
 /** Gewählte Code-Art auf diesem Gerät: "qr" oder "bar". */
 function codeArt(){ try{ return localStorage.getItem("wEtikettCode") === "bar" ? "bar" : "qr"; }catch(e){ return "qr"; } }
+/** Barcode ohne eigenes Standort-Kürzel? (Gerät merkt es sich; Standard: ja.) Kürzerer Inhalt = dickere Striche.
+    Der Scanner ergänzt das Kürzel des eigenen Standorts (scanTreffer). Der QR-Code behält immer die volle Nummer. */
+function barKurz(){ try{ return localStorage.getItem("wEtikettKurz") !== "0"; }catch(e){ return true; } }
+/** Text, der im Barcode steht. */
+function barText(it){ return barKurz() ? anzeigeNummer(it.bc) : String(it.bc); }
 
 /* ---- Barcode Code 128 (liest der Scanner der App, ebenso jedes Handscanner-Gerät) ----
    Muster je Zeichenwert 0–106 als Strich-/Lückenbreiten in Modulen; 106 = Stopp. */
@@ -145,7 +150,7 @@ function barLayout(it, v){
   const W = barBreiteMm(v), H = rund ? d * 0.6 : h - 2 * Math.min(2, b * 0.05, h * 0.08);
   const pad = rund ? 0 : Math.min(2, b * 0.05, h * 0.08);
   const titel = String(it.titel || it.bc);
-  const t = Math.max(1.6, Math.min(4.5, H * 0.24, W / (anzeigeNummer(titel).length * 0.7)));
+  const t = Math.max(1.6, Math.min(4.5, H * 0.2, W / (anzeigeNummer(titel).length * 0.7)));
   const mitZeile = !!it.zeile && H >= 14, z = Math.max(1.6, Math.min(2.8, H * 0.12));
   const mitFuss = !!it.fuss && !rund && H >= 26;
   const strich = Math.max(2, H - t * 1.15 - (mitZeile ? z * 1.3 : 0) - (mitFuss ? z * 1.1 : 0) - 0.6);
@@ -156,7 +161,7 @@ function barcodeInhalt(it, v, cache){
   const L = barLayout(it, v), mm = x => x.toFixed(2) + "mm";
   return { cls:"hoch barcode" + (L.rund ? " rund" : ""), stil:"padding:" + mm(L.pad),
     html:(L.mitZeile ? '<div class="z" style="font-size:' + mm(L.z) + ';max-width:' + mm(L.W) + '">' + esc(it.zeile) + '</div>' : '') +
-         '<div class="bar" style="width:' + mm(L.W) + ';height:' + mm(L.strich) + '">' + barSvg(it.bc, cache) + '</div>' +
+         '<div class="bar" style="width:' + mm(L.W) + ';height:' + mm(L.strich) + '">' + barSvg(barText(it), cache) + '</div>' +
          '<div class="t" style="font-size:' + mm(L.t) + ';margin-top:' + mm(0.4) + '">' + esc(L.titel) + '</div>' +
          (L.mitFuss ? '<div class="z" style="font-size:' + mm(L.z * 0.8) + '">' + esc(it.fuss) + '</div>' : '') };
 }
@@ -182,9 +187,16 @@ function bildQr(ctx, text, x, y, groesse){
   const n = m.getWidth(), k = Math.max(1, Math.floor(groesse / n)), ox = Math.round(x + (groesse - n * k) / 2), oy = Math.round(y + (groesse - n * k) / 2);
   for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(m.get(c, r) === 1) ctx.fillRect(ox + c * k, oy + r * k, k, k);
 }
+/** Druckpunkte je Strich-Modul für text auf breitePx: Ruhezone 10 Module; werden die Striche mit 5 Modulen
+    einen Punkt dicker, dann 5 — dazu kommt der weiße Etikettenrand (barLayout.pad), zusammen rund 8 Module.
+    ZXing braucht vor dem Startzeichen mind. 5,5 Module Weiß. */
+function barPunkte(text, breitePx){
+  const m = code128Breiten(text).reduce((s, w) => s + w, 0);
+  return Math.max(1, Math.floor(breitePx / (m + 20)), Math.floor(breitePx / (m + 10)));
+}
 function bildBarcode(ctx, text, x, y, breite, hoehe){
-  const br = code128Breiten(text), n = br.reduce((m, w) => m + w, 0) + 20, k = Math.max(1, Math.floor(breite / n));
-  let cx = Math.round(x + (breite - n * k) / 2) + 10 * k;
+  const br = code128Breiten(text), m = br.reduce((s, w) => s + w, 0), k = barPunkte(text, breite);
+  let cx = Math.round(x + (breite - m * k) / 2);
   br.forEach((w, i) => { if(i % 2 === 0) ctx.fillRect(cx, Math.round(y), w * k, Math.round(hoehe)); cx += w * k; });
 }
 /** Zeichnet ein Etikett auf eine Leinwand; art "qr" oder "bar". */
@@ -201,7 +213,7 @@ function etikettBild(it, v, art){
     const hoch = (L.mitZeile ? L.z * 1.3 : 0) + L.strich + 0.4 + L.t * 1.15 + (L.mitFuss ? L.z * 1.1 : 0);
     let y = (h - hoch) / 2;
     if(L.mitZeile){ bildText(ctx, it.zeile, b * P / 2, (y + L.z) * P, L.W * P, L.z * P, false); y += L.z * 1.3; }
-    bildBarcode(ctx, it.bc, (b - L.W) / 2 * P, y * P, L.W * P, L.strich * P); y += L.strich + 0.4;
+    bildBarcode(ctx, barText(it), (b - L.W) / 2 * P, y * P, L.W * P, L.strich * P); y += L.strich + 0.4;
     bildText(ctx, titel, b * P / 2, (y + L.t * 0.95) * P, L.W * P, L.t * P, true); y += L.t * 1.15;
     if(L.mitFuss) bildText(ctx, it.fuss, b * P / 2, (y + L.z * 0.8) * P, L.W * P, L.z * 0.8 * P, false);
     return cv;
@@ -241,7 +253,7 @@ async function etikettBilderZeigen(items, v, art){
     etikettBilder.push({ name:bildDateiname(it), blob, url:URL.createObjectURL(blob) });
   }
   // Barcode: Striche unter 2 Druckpunkten (0,25 mm) liest die Kamera schlecht
-  const fein = art === "bar" && items.some(it => it.bc && Math.floor(barBreiteMm(v) * BILD_PX_MM / code128Module(it.bc)) < 2);
+  const fein = art === "bar" && items.some(it => it.bc && barPunkte(barText(it), barBreiteMm(v) * BILD_PX_MM) < 2);
   const teilen = !!(navigator.canShare && navigator.share && navigator.canShare({ files:[new File([etikettBilder[0].blob], etikettBilder[0].name, { type:"image/png" })] }));
   let h = '<h3>Etiketten als Bild</h3><p class="sub" style="margin-top:-6px">' + etikettBilder.length + ' Bild' + (etikettBilder.length === 1 ? '' : 'er') + ' · ' +
           esc(String(v.b).replace(".", ",") + " × " + String(v.h).replace(".", ",")) + ' mm · 203 dpi. In der App des Etikettendruckers als Bild einfügen und auf die volle Etikettengröße ziehen.</p>';
