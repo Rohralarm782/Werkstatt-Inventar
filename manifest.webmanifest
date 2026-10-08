@@ -1,0 +1,16 @@
+{
+  "name": "Werkstatt · LV Radsport MV",
+  "short_name": "Werkstatt",
+  "description": "Tickets, Lager und Inventar der Werkstatt",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F5F2",
+  "theme_color": "#15181C",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

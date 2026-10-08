@@ -82,6 +82,7 @@ async function start(){
   $("ver").textContent = APP_VERSION;
   einladungAusLink();
   if(anm || !aktiveSitzung() || !GERAET.standort){ render(); return; }
+  standortAusLink();   // aus einer Benachrichtigung für einen anderen Standort (push.js)
   app.innerHTML = '<div class="leer">Lädt…</div>';
   $("stand").textContent = "lädt…";
   try{
@@ -89,6 +90,7 @@ async function start(){
     await ladeAlles();
     render();
     radAusLink();
+    zielAusLink();       // aus einer Benachrichtigung: Tickets oder Bestellliste (push.js)
     sendeWarteschlange();
   }catch(e){
     if(e instanceof AbgemeldetFehler){ DB = null; render(); toast(e.message, true); return; }

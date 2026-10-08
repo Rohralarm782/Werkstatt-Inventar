@@ -184,7 +184,7 @@ const A = {
   rt: x => { view.rt = x; view.suche = ""; render(); },
   radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
   radZu: () => { view.rad = null; render(); window.scrollTo(0,0); },
-  geheMehr: x => { if(x === "standorte") standorteCache = undefined; if(x === "konten") kontenCache = undefined; view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  geheMehr: x => { if(x === "standorte") standorteCache = undefined; if(x === "konten") kontenCache = undefined; if(x === "benachrichtigungen") pushCache = undefined; view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
   mehrZu: () => { view.mehr = null; view.ukKat = null; render(); window.scrollTo(0,0); },
   ticketRad: x => { modalZu(); ticketFuerRad(x); },
   ticketStueck: x => { modalZu(); neuStart(); view.tab = "neu"; view.ticket = null; neuStueckWaehlen(x); window.scrollTo(0,0); },

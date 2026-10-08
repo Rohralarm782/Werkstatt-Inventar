@@ -207,6 +207,8 @@ function mehrGruppen(){
   if(darf("manager")) g[2][1].push(["radnummern", "Rad-Nummern", () => radVorlage() ? "Vorlage " + radPraefix("Bahn") + "1".padStart(radStellen(), "0") + " …" : "Standard (" + radPraefix("Bahn") + "01) · eigene Vorlage möglich"]);
   if(darf("rechnen")) g[2][1].push(["briefkopf", "Briefkopf &amp; Bank", () => (STANDORT && STANDORT.iban) ? "für die Rechnungen" : "IBAN noch nicht eingetragen"]);
   if(darf("admin")) g[2][1].push(["standorte", "Standorte", () => "Übersicht, Werkstatt-Manager einladen · Gesamt-Admin"]);
+  // Morgen-Benachrichtigungen (ab 20.2.0, js/push.js): Werkstatt-Manager und Trainer/Mechaniker
+  if(darf("arbeiten")) g.unshift(["Mein Konto", [["benachrichtigungen", "Benachrichtigungen", pushMehrText]]]);
   return g.filter(x => x[1].length);
 }
 function mehrView(){
@@ -215,7 +217,7 @@ function mehrView(){
     let h = '<button class="btn small zurueck" data-a="mehrZu">← Mehr</button><h2 class="sec" style="margin-top:0">' + (titel ? titel[1] : "") + '</h2>';
     if(offline) return h + '<div class="leer">Offline — erst wieder mit Netz.</div>';
     const v = view.mehr;
-    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "tags" ? ukVerw() : v === "konten" ? kontenVerw() : v === "briefkopf" ? briefkopfVerw() : v === "radnummern" ? radNummernVerw() : v === "standorte" ? standorteVerw() : v === "lagerorte" ? lagerorteVerw() :
+    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "tags" ? ukVerw() : v === "konten" ? kontenVerw() : v === "briefkopf" ? briefkopfVerw() : v === "radnummern" ? radNummernVerw() : v === "standorte" ? standorteVerw() : v === "lagerorte" ? lagerorteVerw() : v === "benachrichtigungen" ? pushVerw() :
                 v === "etiketten" ? etikettenVerw() : v === "termine" ? termineView() : exportVerw());
   }
   let h = "";

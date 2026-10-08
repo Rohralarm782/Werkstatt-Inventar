@@ -291,3 +291,18 @@
   .pinfeld{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:300px;margin:0 auto}
   .pinfeld .btn{min-height:54px;font-size:20px}
   .codegross{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:36px;letter-spacing:.1em}
+
+  /* Mehr → Benachrichtigungen (ab 20.2.0, js/push.js) */
+  .pz-stapel{display:flex;flex-direction:column;gap:12px}
+  .pz-stapel select{width:100%}
+  .pz-tage{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;background:#E7E3DD;padding:4px;border-radius:12px;margin-bottom:4px}
+  .pz-tage button{min-height:42px;border:none;background:transparent;border-radius:9px;font-size:14px;font-weight:600;color:#5F6670;cursor:pointer;padding:0}
+  .pz-tage button[aria-pressed="true"]{background:var(--ink);color:#fff}
+  .pz-tage button:focus-visible{outline:3px solid var(--steher);outline-offset:2px}
+  .pz-wahl{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line);cursor:pointer}
+  .pz-wahl:first-child{border-top:none;padding-top:2px}
+  .pz-wahl:last-child{padding-bottom:2px}
+  .pz-wahl input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--ink);flex:0 0 auto}
+  .pz-wahl .txt{flex:1;min-width:0}
+  .pz-wahl strong{display:block;font-weight:600}
+  .pz-hinweis{background:#E3ECF8;color:#1B3A6E;border-radius:10px;padding:10px 12px;font-size:14px}
