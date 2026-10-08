@@ -556,15 +556,24 @@ function pufferText(t){
   if(p === null) return { txt:"—", farbe:"var(--ink-2)" };
   return { txt:p + " T", farbe: p <= 1 ? "var(--sprint)" : p <= 4 ? "var(--warn)" : "var(--ok)" };
 }
+/** Reihenfolge der offenen Tickets: „nächstmöglich“ zuerst, dann nach „soll fertig“
+    (frühestes zuerst, ohne Termin ans Ende). Bei gleichem Termin der größere
+    Arbeitsaufwand zuerst (Stufe, dann geschätzte Minuten), dann stehendes Rad
+    vor fahrendem, zuletzt das ältere Ticket. */
 function sortiert(list){
+  const min = t => { const x = typeof schaetzung === "function" ? schaetzung(positionen(t.id)) : null; return x ? x.min : 0; };
   return list.slice().sort((a,b) => {
-    if(a.naechstmoeglich !== b.naechstmoeglich) return a.naechstmoeglich ? -1 : 1;
-    if(a.naechstmoeglich) return a.id - b.id;
-    const pa = puffer(a), pb = puffer(b);
-    if(pa === null && pb === null) return a.id - b.id;
-    if(pa === null) return 1;
-    if(pb === null) return -1;
-    return pa - pb;
+    if(!!a.naechstmoeglich !== !!b.naechstmoeglich) return a.naechstmoeglich ? -1 : 1;
+    if(!a.naechstmoeglich){
+      const da = a.soll_fertig || "", db = b.soll_fertig || "";
+      if(da !== db){ if(!da) return 1; if(!db) return -1; return da < db ? -1 : 1; }
+    }
+    const aa = AUFWAND[a.aufwand] || 0, ab = AUFWAND[b.aufwand] || 0;
+    if(aa !== ab) return ab - aa;
+    const ma = min(a), mb = min(b);
+    if(ma !== mb) return mb - ma;
+    if(!!a.fahrbereit !== !!b.fahrbereit) return a.fahrbereit ? 1 : -1;
+    return a.id - b.id;
   });
 }
 function offeneTickets(){ return DB.tickets || []; }

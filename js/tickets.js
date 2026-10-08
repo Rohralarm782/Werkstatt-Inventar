@@ -10,31 +10,23 @@ function boardView(){
   const q = view.suche.toLowerCase();
   const meins = t => t.status === "angenommen" && !!bearbeiter && t.uebernommen_von === bearbeiter;
   if(q) liste = liste.filter(t => (wer(t) + " " + ticketObjekt(t) + " " + tStuecke(t).join(" ") + " " + t.problem + " " + schritte(t.id).map(schrittName).join(" ")).toLowerCase().indexOf(q) >= 0);
-  if(view.filter === "steht") liste = liste.filter(t => !t.fahrbereit);
-  if(view.filter === "material") liste = liste.filter(t => fehlend(t).length > 0);
   if(view.filter === "ich") liste = liste.filter(meins);
   const alle = offeneTickets();
 
   let h = '<div class="row" style="gap:8px;margin-bottom:12px"><button class="btn primary" style="flex:1" data-a="tab" data-x="neu">+ Neues Ticket</button>' +
           '<button class="btn" data-a="filter" data-x="verlauf">Verlauf</button></div>';
   h += '<div class="seg" style="margin-bottom:10px">';
-  h += segBtn("filter", "offen",    "Offen · " + alle.length, view.filter);
-  h += segBtn("filter", "steht",    "Steht · " + alle.filter(t => !t.fahrbereit).length, view.filter);
-  h += segBtn("filter", "material", "Material · " + alle.filter(t => fehlend(t).length > 0).length, view.filter);
-  h += segBtn("filter", "ich",      "Ich · " + alle.filter(meins).length, view.filter);
+  h += segBtn("filter", "offen", "Alle · " + alle.length, view.filter);
+  h += segBtn("filter", "ich",   "Ich · " + alle.filter(meins).length, view.filter);
   h += '</div><div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad, Problem, Schritt" value="' + esc(view.suche) + '"></div>';
 
   const summe = liste.reduce((m, t) => { const x = schaetzung(positionen(t.id)); return m + (x ? x.min : 0); }, 0);
   if(summe) h += '<p class="sub" style="margin:0 0 4px">Noch offene Arbeit in dieser Auswahl: <strong>' + dauerText(summe) + '</strong> (nur Schritte mit Arbeitszeit)</p>';
-  const steht = sortiert(liste.filter(t => !t.fahrbereit));
-  const faehrt = sortiert(liste.filter(t => t.fahrbereit && !istAllgemein(t)));
-  const allg = sortiert(liste.filter(t => t.fahrbereit && istAllgemein(t)));
-  h += '<h2 class="sec alarm">Rad steht</h2>';
-  h += steht.length ? steht.map(t => ticketKarte(t, true)).join("") : '<div class="leer">Kein Rad steht.</div>';
-  h += '<h2 class="sec">Fahrbereit</h2>';
-  h += faehrt.length ? faehrt.map(t => ticketKarte(t, false)).join("") : '<div class="leer">' + (view.filter === "ich" ? "Du hast nichts übernommen." : "Nichts offen.") + '</div>';
-  if(allg.length) h += '<h2 class="sec">Allgemein</h2>' + allg.map(t => ticketKarte(t, false)).join("");
-  h += '<p class="sub" style="margin-top:14px">Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit. „Sofort“ steht immer oben.</p>';
+  // Eine Liste für alles (Rad steht, fahrbereit, allgemein) — stehende Räder bleiben rot markiert.
+  const sortiertListe = sortiert(liste);
+  h += sortiertListe.length ? sortiertListe.map(t => ticketKarte(t, !t.fahrbereit)).join("")
+     : '<div class="leer">' + (view.suche ? "Nichts gefunden." : view.filter === "ich" ? "Du hast nichts übernommen." : "Nichts offen.") + '</div>';
+  h += '<p class="sub" style="margin-top:14px">Reihenfolge: „Sofort“ oben, dann nach „soll fertig“, bei gleichem Termin größerer Arbeitsaufwand zuerst. Rot = Rad steht. Puffer = Tage bis „soll fertig“ − Arbeitsaufwand − Beschaffungszeit.</p>';
   return h;
 }
 /* ---------------------------------------------------------------
@@ -171,6 +163,7 @@ function ticketKarte(t, steht){
   h += '<span class="kopf"><span class="big">' + esc(wer(t)) + '</span><span class="sub">' + esc(ticketObjekt(t)) + '</span>';
   h += '<span class="puffer mono" style="color:' + p.farbe + '">' + p.txt + '</span></span>';
   h += '<p class="prob">' + esc(t.problem) + '</p><span class="chips">';
+  if(steht) h += '<span class="chip alarm">' + (t.rad_id ? 'Rad steht' : 'steht') + '</span>';
   if(!alle.length) h += '<span class="chip grau">keine Schritte</span>';
   else if(fertig) h += '<span class="chip blau">' + fertig + ' von ' + alle.length + ' erledigt</span>';
   if(f.length) h += '<span class="chip warn">' + (b > 0 ? 'Bestellen · ' + werktageText(b) : 'Fehlt · ' + f.length) + '</span>';
