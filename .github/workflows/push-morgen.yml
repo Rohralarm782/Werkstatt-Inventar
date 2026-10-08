@@ -1,10 +1,12 @@
-# Morgen-Benachrichtigungen (ab 20.2.0)
+# Benachrichtigungen (ab 20.2.0; ab 20.5.0 07:00–18:00, halbstündlich)
 #
-# Läuft alle 15 Minuten zwischen 5 und 12 Uhr UTC (= 7–13 Uhr Sommerzeit,
-# 6–13 Uhr Winterzeit); das Skript prüft selbst die Berliner Uhrzeit und
-# schickt jedem, dessen eingestellte Zeit erreicht ist, höchstens eine
-# Nachricht pro Standort und Tag. GitHub startet geplante Läufe oft einige
-# Minuten später; ein verspäteter Lauf holt die Nachricht nach.
+# Angestoßen wird der Lauf von cron-job.org: alle 30 Minuten von 7:00 bis
+# 18:30 Uhr (Europe/Berlin) über die GitHub-API (workflow_dispatch). Einen
+# Zeitplan in GitHub gibt es nicht mehr: der startete stark verspätet oder
+# gar nicht, und jeder zusätzliche Lauf weckt die Datenbank.
+# Das Skript prüft selbst die Berliner Uhrzeit und schickt jedem, dessen
+# eingestellte Zeit erreicht ist, höchstens eine Nachricht pro Standort und
+# Tag — ein doppelter Anstoß schadet also nicht.
 #
 # Einmalig einrichten: Settings → Secrets and variables → Actions →
 #   NEON_DATABASE_URL  = Verbindung aus Neon (Connect → Connection string)
@@ -19,8 +21,6 @@
 name: Morgen-Benachrichtigungen
 
 on:
-  schedule:
-    - cron: "*/15 5-11 * * *"
   workflow_dispatch:
     inputs:
       test_an:
