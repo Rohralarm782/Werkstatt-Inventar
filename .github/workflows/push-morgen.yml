@@ -1,0 +1,70 @@
+# Morgen-Benachrichtigungen (ab 20.2.0)
+#
+# Läuft alle 15 Minuten zwischen 5 und 12 Uhr UTC (= 7–13 Uhr Sommerzeit,
+# 6–13 Uhr Winterzeit); das Skript prüft selbst die Berliner Uhrzeit und
+# schickt jedem, dessen eingestellte Zeit erreicht ist, höchstens eine
+# Nachricht pro Standort und Tag. GitHub startet geplante Läufe oft einige
+# Minuten später; ein verspäteter Lauf holt die Nachricht nach.
+#
+# Einmalig einrichten: Settings → Secrets and variables → Actions →
+#   NEON_DATABASE_URL  = Verbindung aus Neon (Connect → Connection string)
+#   VAPID_PRIVATE_KEY  = privater Push-Schlüssel (separate Datei, nicht im Repo)
+#
+# Von Hand (Actions → „Morgen-Benachrichtigungen“ → „Run workflow“):
+#   - ohne Eingabe: normaler Lauf
+#   - „Test an“ = Name: schickt dieser Person sofort ihre Nachricht
+#     (auch wenn heute schon gesendet), markiert nichts als erledigt
+#   - „Nur anzeigen“: nichts senden, nur ins Protokoll schreiben
+
+name: Morgen-Benachrichtigungen
+
+on:
+  schedule:
+    - cron: "*/15 5-11 * * *"
+  workflow_dispatch:
+    inputs:
+      test_an:
+        description: "Test an (Name, leer = normaler Lauf)"
+        required: false
+        default: ""
+      nur_anzeigen:
+        description: "Nur anzeigen, nichts senden"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+# Nie zwei Läufe gleichzeitig (sonst doppelte Nachrichten)
+concurrency:
+  group: push-morgen
+  cancel-in-progress: false
+
+jobs:
+  senden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Europe/Berlin
+    steps:
+      - name: Stand von main holen
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Abhängigkeiten
+        run: npm install --no-save --no-package-lock --no-audit --no-fund --prefix tools pg@8.13.1 web-push@3.6.7
+
+      - name: Benachrichtigungen senden
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          PUSH_TEST_NAME: ${{ github.event.inputs.test_an }}
+          PUSH_TROCKEN: ${{ github.event.inputs.nur_anzeigen == 'true' && '1' || '' }}
+        run: node tools/push-morgen.js
