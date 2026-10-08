@@ -1,7 +1,8 @@
 /* tools/push-morgen.js — Morgenlauf für die Benachrichtigungen (ab 20.2.0).
-   Läuft über GitHub Actions (.github/workflows/push-morgen.yml) alle 15 Minuten
-   zwischen 7 und 13 Uhr (Berlin) und schickt jedem, dessen Uhrzeit erreicht ist,
-   höchstens eine Nachricht pro Standort und Tag.
+   Läuft über GitHub Actions (.github/workflows/push-morgen.yml) alle 30 Minuten
+   zwischen 7 und 18:30 Uhr (Berlin), angestoßen von cron-job.org über einen
+   …/dispatches-Aufruf (ab 20.5.0). Schickt jedem, dessen Uhrzeit (07:00–18:00)
+   erreicht ist, höchstens eine Nachricht pro Standort und Tag.
 
    Damit App und Nachricht nie unterschiedlich rechnen, lädt der Lauf den Code
    der App selbst (js/core.js … js/push.js) in eine abgeschottete Umgebung,
@@ -166,8 +167,9 @@ function nachricht(e, r){
 /* ---------- Ablauf ---------- */
 async function main(){
   const jetzt = berlinJetzt();
-  if(!TEST_NAME && (jetzt.uhr < "07:00" || jetzt.uhr >= "13:00")){
-    console.log("Berlin " + jetzt.tag + " " + jetzt.uhr + " — außerhalb 07:00–13:00, nichts zu tun.");
+  // Außerhalb des Fensters die Datenbank gar nicht erst wecken (bis 19:00 als Reserve für verspätete Läufe)
+  if(!TEST_NAME && (jetzt.uhr < "07:00" || jetzt.uhr >= "19:00")){
+    console.log("Berlin " + jetzt.tag + " " + jetzt.uhr + " — außerhalb 07:00–19:00, nichts zu tun.");
     return 0;
   }
   if(!process.env.NEON_DATABASE_URL) throw new Error("NEON_DATABASE_URL fehlt (GitHub → Settings → Secrets and variables → Actions).");

@@ -213,6 +213,7 @@ const A = {
   nRadTypAuf: x => { neu.radTypOffen = neu.radTypOffen || {}; neu.radTypOffen[x] = !neu.radTypOffen[x]; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); },
   nFahrbereit: x => { neu.fahrbereit = x === "ja"; render(); },
   nOrt: x => { neu.arbeitsort = x; render(); },
+  nAufwand: x => { neu.aufwand = x; render(); },
   nTermin: x => { Object.assign(neu, terminWert(x)); render(); },
   nMatWeg: x => { neu.pos.splice(Number(x), 1); render(); },
   nSchrittText: () => {
@@ -953,6 +954,7 @@ const C = {
     render();
   },
   nOrtWahl: v => { neu.arbeitsort = v; render(); },
+  nZuweisen: v => { neu.zuweisen = v; render(); },
   grOrt: v => { if(grForm) formGroessen(grForm.code, grForm.art, v); },
   leihSportler: v => { if(leih) leih.sportler = v; },
   leihOrt: v => { if(leih){ leih.ort = v; leihZeichnen(); } },

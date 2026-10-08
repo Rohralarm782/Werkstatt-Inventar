@@ -28,7 +28,7 @@ Live: https://rohralarm782.github.io/Werkstatt-Inventar/
 | `db/migration_X.Y.Z.sql` | Änderungen für die bestehende Datenbank, der Reihe nach |
 | `updates/vX.Y.Z.md` | Protokoll je Version |
 | `.github/workflows/veroeffentlichen.yml` | Veröffentlichung auf GitHub Pages (nachts automatisch oder per Knopf) |
-| `.github/workflows/push-morgen.yml` | Morgen-Benachrichtigungen, alle 15 Minuten von 7 bis 13 Uhr |
+| `.github/workflows/push-morgen.yml` | Benachrichtigungen, alle 30 Minuten von 7 bis 18:30 Uhr (angestoßen von cron-job.org) |
 
 Alle Skripte sind normale `<script>`-Dateien ohne Module und ohne
 Build-Schritt; sie teilen sich den globalen Bereich wie zuvor die eine
@@ -56,7 +56,7 @@ aktuellen Stand von `main` jede Nacht automatisch (ca. 3:15 Uhr im Sommer,
 ## Morgen-Benachrichtigungen (seit 20.2.0)
 
 - Jede Person stellt unter **Mehr → Benachrichtigungen** ein, ob, wann
-  (07:00–12:00) und an welchen Tagen sie eine Nachricht bekommt und was
+  (07:00–18:00, volle und halbe Stunden; ab 20.5.0) und an welchen Tagen sie eine Nachricht bekommt und was
   darin steht (dringende Tickets, baldige Tickets, Bestellen). Nur für
   Werkstatt-Manager und Trainer/Mechaniker; Bestellen nur für Werkstatt-Manager.
 - Verschickt werden die Nachrichten vom Workflow **„Morgen-Benachrichtigungen“**
@@ -70,3 +70,9 @@ aktuellen Stand von `main` jede Nacht automatisch (ca. 3:15 Uhr im Sommer,
   „Test an“ einen Namen eintragen. Die Person bekommt sofort ihre Nachricht.
 - iPhone/iPad: nur aus der installierten App (Safari → Teilen → „Zum
   Home-Bildschirm“), ab iOS 16.4; dort einmal neu anmelden.
+- Anstoß (seit 20.5.0): cron-job.org ruft alle 30 Minuten von 7:00 bis
+  18:30 Uhr die GitHub-API auf (`POST …/actions/workflows/push-morgen.yml/dispatches`,
+  Body `{"ref":"main"}`, Fine-grained Token nur für dieses Repo mit
+  „Actions: Read and write“). Einen Zeitplan in GitHub gibt es nicht mehr.
+  Läuft der Token ab, kommen keine Nachrichten mehr (cron-job.org meldet
+  dann Fehler 401).

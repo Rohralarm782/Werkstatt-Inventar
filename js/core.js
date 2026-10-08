@@ -192,9 +192,12 @@ async function ladeAlles(){
     rest("/v_bestand_ort").catch(ohneTabelle),
     // Bekleidung (ab 16.0.0)
     rest("/v_bestand_groesse").catch(ohneTabelle),
-    rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle)
+    rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle),
+    // Werkstatt-Personen für „Wer macht es?“ beim neuen Ticket (ab 20.5.0).
+    // Fehlt die Funktion noch, gibt es die Auswahl einfach nicht.
+    rpc("werkstatt_personen").catch(ohneTabelle)
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, standort, rechnungen, offenePosten, zaehlung, bestellungen, tags, artikelTags, stueckTags, kats, lagerorteRoh, bestandOrtRoh, groesseRoh, ausgeliehen] = await Promise.all(q);
+  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, standort, rechnungen, offenePosten, zaehlung, bestellungen, tags, artikelTags, stueckTags, kats, lagerorteRoh, bestandOrtRoh, groesseRoh, ausgeliehen, personen] = await Promise.all(q);
   if(!Array.isArray(lagerorteRoh) || !Array.isArray(bestandOrtRoh))
     throw new Error("Für 15.0.0 muss die Datenbank aktualisiert werden: db/migration_15.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
   if(!Array.isArray(groesseRoh) || !Array.isArray(ausgeliehen))
@@ -218,7 +221,7 @@ async function ladeAlles(){
   DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, termine, rechnungen, offenePosten, zaehlung, bestellungen,
          koffer:koffer.filter(k => kofferAktiv.indexOf(k.ort) >= 0), lagerorte:lagerorteRoh, bestandOrt, groesseBestand, ausgeliehen,
          tags:mitTags ? tags : null, artikelTags:mitTags ? artikelTags : [], stueckTags:mitTags ? stueckTags : [], tsDa,
-         kategorien:Array.isArray(kats) ? kats : null };
+         kategorien:Array.isArray(kats) ? kats : null, personen:Array.isArray(personen) ? personen : null };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB, ICH, STANDORT, konto:aktivKonto, standort:GERAET.standort })); }catch(e){}

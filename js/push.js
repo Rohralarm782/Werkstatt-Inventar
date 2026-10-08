@@ -110,7 +110,7 @@ function pushKategorien(e, d){
 /** Untertitel unter Mehr */
 function pushMehrText(){
   const d = pushDaten();
-  if(!d || !d.einstellung) return "Morgens aufs Handy: dringende und baldige Tickets" + (darf("manager") ? ", Bestellen" : "");
+  if(!d || !d.einstellung) return "Aufs Handy: dringende und baldige Tickets" + (darf("manager") ? ", Bestellen" : "");
   if(!d.geraete.length) return "Kein Gerät eingeschaltet";
   const e = d.einstellung;
   return e.uhrzeit + " · " + pushTageText(e.tage) + " · " + pushKategorien(e, d);
@@ -145,13 +145,13 @@ function pushVerw(){
 
   // Wann
   let opt = "";
-  for(let m = 7 * 60; m <= 12 * 60; m += 15){
+  for(let m = 7 * 60; m <= 18 * 60; m += 30){   // 07:00–18:00, halbstündlich (ab 20.5.0) — muss zur Prüfung in der Datenbank passen
     const t = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
     opt += '<option value="' + t + '"' + (t === e.uhrzeit ? " selected" : "") + '>' + t + ' Uhr</option>';
   }
   h += '<h2 class="sec">Wann</h2><div class="card pz-stapel">' +
        '<div><label class="lbl" for="pzUhr">Uhrzeit</label><select id="pzUhr">' + opt + '</select>' +
-       '<span class="sub">07:00–12:00 im Viertelstunden-Takt. Die Nachricht kommt bis ca. 15 Minuten später.</span></div>' +
+       '<span class="sub">07:00–18:00, zur vollen oder halben Stunde. Die Nachricht kommt meist 1–2 Minuten danach.</span></div>' +
        '<div><span class="lbl">Tage</span><div class="pz-tage" role="group" aria-label="Tage">' +
        PUSH_TAGE.map((t, i) => '<button type="button" data-a="pushTag" data-x="' + (i + 1) + '" aria-pressed="' + (e.tage.indexOf(i + 1) >= 0) + '">' + t + '</button>').join("") +
        '</div><span class="sub">Tippen zum An- und Abwählen.</span></div></div>';

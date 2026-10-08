@@ -362,7 +362,7 @@ function zeile(l, r){ return '<div class="row" style="padding:4px 0"><span>' + l
 /* ===============================================================
    Neues Ticket
    ===============================================================*/
-function neuStart(){ neu = { art:"rad", rad:"", stuecke:[], problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[] }; }
+function neuStart(){ neu = { art:"rad", rad:"", stuecke:[], problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[], zuweisen:"", aufwand:null }; }
 function neuView(){
   if(!neu) neuStart();
   if(!neu.art) neu.art = "rad";
@@ -425,9 +425,36 @@ function neuView(){
   if(neu.fotos.length < FOTOS_PRO_TICKET) h += '<label class="btn small">+ Foto<input type="file" accept="image/*" multiple hidden data-c="nFoto"></label>';
   else h += '<p class="sub" style="margin:0">Höchstens ' + FOTOS_PRO_TICKET + ' Fotos pro Ticket.</p>';
   if(offline) h += '<p class="sub" style="margin:6px 0 0">Offline: höchstens ' + FOTOS_OFFLINE + ' Fotos, sie werden mit dem Ticket nachgesendet.</p>';
-  h += '</div><p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Übernehmen.</p>';
+  h += '</div>' + zuweisenFeld(schN);
   h += '<button class="btn primary voll" data-a="anlegen">Ticket anlegen</button></div>';
   return h;
+}
+
+/* ---------------------------------------------------------------
+   „Wer macht es?“ im neuen Ticket (ab 20.5.0): gleich jemandem aus der
+   Werkstatt zuweisen — dann ist das Ticket sofort in Arbeit, mit Aufwand.
+   Ohne Datenbank-Update (DB.personen fehlt) bleibt alles wie bisher.
+----------------------------------------------------------------*/
+function zuweisenPersonen(){
+  if(!Array.isArray(DB.personen)) return null;
+  const l = DB.personen.slice();
+  if(bearbeiter && l.indexOf(bearbeiter) < 0) l.unshift(bearbeiter);   // Gesamt-Admin u. ä.
+  return l;
+}
+function zuweisenFeld(sch){
+  const l = zuweisenPersonen();
+  if(!l) return '<p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Übernehmen.</p>';
+  if(neu.zuweisen && l.indexOf(neu.zuweisen) < 0) neu.zuweisen = "";
+  let h = '<div class="feld"><span class="lbl">Wer macht es?</span><select data-c="nZuweisen">' +
+          '<option value=""' + (neu.zuweisen ? '' : ' selected') + '>Noch offen — übernimmt später jemand</option>';
+  if(bearbeiter) h += '<option value="' + esc(bearbeiter) + '"' + (neu.zuweisen === bearbeiter ? ' selected' : '') + '>Ich (' + esc(bearbeiter) + ')</option>';
+  l.filter(n => n !== bearbeiter).forEach(n => h += '<option value="' + esc(n) + '"' + (neu.zuweisen === n ? ' selected' : '') + '>' + esc(n) + '</option>');
+  h += '</select></div>';
+  if(!neu.zuweisen) return h + '<p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Übernehmen.</p>';
+  const vorschlag = sch ? aufwandVorschlag(sch.min) : null, akt = neu.aufwand || vorschlag || "klein";
+  h += '<div class="feld"><span class="lbl">Arbeitsaufwand' + (vorschlag && !neu.aufwand ? ' <span class="sub">· Vorschlag laut Schritten</span>' : '') + '</span><div class="seg">' +
+       ["klein","mittel","groß"].map(k => segBtn("nAufwand", k, k + " · " + AUFWAND[k] + " T", akt)).join("") + '</div></div>';
+  return h + '<p class="sub">Das Ticket ist dann gleich in Arbeit bei ' + (neu.zuweisen === bearbeiter ? 'dir' : esc(neu.zuweisen)) + '.</p>';
 }
 
 /* ---------------------------------------------------------------
@@ -583,6 +610,12 @@ async function ticketAnlegen(){
   if(!allg && neu.stuecke.length === 1) op.p_stueck = neu.stuecke[0];
   else if(!allg && neu.stuecke.length > 1) op.p_stuecke = neu.stuecke.slice();
   if(neu.fotos && neu.fotos.length) op._fotos = neu.fotos;
+  // Gleich zuweisen (nur mitschicken, wenn gewählt — ältere Datenbank kennt die Angaben nicht)
+  if(neu.zuweisen && zuweisenPersonen()){
+    const schZ = schaetzung(neu.pos);
+    op.p_zuweisen = neu.zuweisen;
+    op.p_aufwand = neu.aufwand || (schZ ? aufwandVorschlag(schZ.min) : null) || "klein";
+  }
   const r = op.p_rad ? rad(op.p_rad) : null, name = r ? (r.fahrer || r.bezeichnung) : (op.p_stueck || op.p_stuecke ? stueckeKurz(neu.stuecke) : "");
   if(!op.p_rad) op.p_fahrbereit = true;   // ohne Rad gibt es kein „Rad steht“
   if(offline){
@@ -598,7 +631,8 @@ async function ticketAnlegen(){
   const erg = await aktion(async () => {
     try{ return await ticketSenden(op); }
     catch(e){ if(e instanceof NetzFehler){ mitFotos = inWarteschlange(op); return "wartet"; } throw e; }
-  }, x => x !== "wartet" ? (name ? "Ticket für " + name : "Allgemeines Ticket") + " angelegt" + (op._fotos ? " · " + op._fotos.length + " Foto" + (op._fotos.length === 1 ? "" : "s") : "")
+  }, x => x !== "wartet" ? (name ? "Ticket für " + name : "Allgemeines Ticket") + " angelegt" +
+        (op.p_zuweisen ? " · " + (op.p_zuweisen === bearbeiter ? "bei dir in Arbeit" : "zugewiesen an " + op.p_zuweisen) : "") + (op._fotos ? " · " + op._fotos.length + " Foto" + (op._fotos.length === 1 ? "" : "s") : "")
         : mitFotos ? "Verbindung weg — Ticket gespeichert, wird nachgesendet" : "Verbindung weg — Ticket wird nachgesendet, Fotos passten nicht in den Gerätespeicher");
   if(erg !== undefined){ neu = null; view.tab = "tickets"; view.ticket = null; render(); }
 }

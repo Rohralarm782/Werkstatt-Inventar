@@ -1,12 +1,13 @@
 # Version
 
-**20.4.0** — 08.10.2026
+**20.5.0** — 08.10.2026
 
-Neue Etiketten-Art „Laufradtaschen-Tag · A4 · 2 × 5 · 80 × 53 mm“ für die
-Klarsichttaschen an den Laufradtaschen: Kopfband „Radsport-Verband
-Mecklenburg-Vorpommern“, Typ groß, Marke und Nummer ohne Standort-Kürzel.
-Auf normales Papier, mit Schnittmarken zum Schneiden per Hand. Keine
-Datenbankänderung.
+Sammel-Update der noch nicht veröffentlichten Änderungen vom 08.10.:
+Ticket beim Anlegen gleich zuweisen („Wer macht es?“ mit Aufwand);
+Benachrichtigungen 07:00–18:00 zur vollen oder halben Stunde, Anstoß über
+cron-job.org statt GitHub-Zeitplan; neues App-Symbol (leicht platter
+Reifen); Scanner übernimmt Strichcodes erst nach zweimal gleichem Lesen.
+Datenbank: db/migration_20.5.0.sql (Funktionen, Uhrzeit-Prüfung).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -25,6 +26,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.5.0 | 08.10.2026 | Ticket beim Anlegen zuweisen, Benachrichtigungen 07–18 Uhr halbstündlich (cron-job.org), neues App-Symbol, Scanner liest Strichcodes doppelt (Migration) |
 | 20.4.0 | 08.10.2026 | Etiketten-Art Laufradtaschen-Tag 80 × 53 mm (A4, Schnittmarken, Nummer ohne Kürzel) |
 | 20.3.0 | 08.10.2026 | Barcode ohne Standort-Kürzel (dickere Striche), höhere Striche; Scanner ohne EAN/UPC/Code 39 |
 | 20.2.2 | 08.10.2026 | Scanner: Autofokus, 2-fach Zoom mit Umschalter, Abstandshinweis |

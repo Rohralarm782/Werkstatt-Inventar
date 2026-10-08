@@ -17,15 +17,23 @@ async function scanStart(ziel){
     const F = ZXing.BarcodeFormat, hinweise = new Map();
     hinweise.set(ZXing.DecodeHintType.TRY_HARDER, true);
     hinweise.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.QR_CODE, F.CODE_128, F.DATA_MATRIX]);
-    leser = new ZXing.BrowserMultiFormatReader(hinweise, 300);
+    leser = new ZXing.BrowserMultiFormatReader(hinweise, 150);
     leser.decode = scanBildLesen;
-    let fertig = false;
+    let fertig = false, vorher = null;
     // Rückkamera mit höherer Auflösung (Standard wären 640 × 480) — für feine Striche schmaler Etiketten
     const kamera = { video:{ facingMode:"environment", width:{ ideal:1280 }, height:{ ideal:720 } } };
     await leser.decodeFromConstraints(kamera, "cam", erg => {
       if(!erg || fertig) return;
-      fertig = true;
       const code = erg.getText().trim();
+      // Strichcodes erst übernehmen, wenn derselbe Inhalt zweimal kurz nacheinander gelesen wurde (ab 20.5.0):
+      // Code 128 hat nur eine einfache Prüfsumme, aus unscharfen Bildern (Fokus/Zoom stellen sich noch ein)
+      // kam z. B. „C#F&4“. QR-Codes und Data Matrix haben starke Fehlerkorrektur und gelten sofort.
+      if(erg.getBarcodeFormat() === ZXing.BarcodeFormat.CODE_128){
+        const jetzt = Date.now(), ok = vorher && vorher.code === code && jetzt - vorher.zeit < 2500;
+        vorher = { code, zeit:jetzt };
+        if(!ok) return;
+      }
+      fertig = true;
       modalZu(); piep(true);
       scanTreffer(ziel, code);
     });

@@ -1,14 +1,14 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 20.2.0 — für eine NEUE, leere Datenbank.
+--  Stand 20.5.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
 --   db/migration_14.3.0.sql, db/migration_15.0.0.sql, db/migration_16.0.0.sql,
 --   db/migration_18.0.0.sql, db/migration_19.0.0.sql,
---   db/migration_20.0.0.sql, db/migration_20.1.0.sql und
---   db/migration_20.2.0.sql.)
+--   db/migration_20.0.0.sql, db/migration_20.1.0.sql,
+--   db/migration_20.2.0.sql und db/migration_20.5.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -454,8 +454,9 @@ create table push_einstellung (
   konto_id      bigint not null references konto (id) on delete cascade,
   standort_id   bigint not null references standort (id),
   uhrzeit       time not null default '07:30'
-                check (uhrzeit between time '07:00' and time '12:00'
-                       and extract(minute from uhrzeit)::int % 15 = 0 and extract(second from uhrzeit) = 0),
+                constraint push_einstellung_uhrzeit_check   -- 07:00–18:00, volle und halbe Stunden (ab 20.5.0)
+                check (uhrzeit between time '07:00' and time '18:00'
+                       and extract(minute from uhrzeit)::int % 30 = 0 and extract(second from uhrzeit) = 0),
   tage          integer[] not null default '{1,2,3,4,5}'      -- ISO-Wochentage: 1 = Mo … 7 = So
                 check (tage <@ array[1, 2, 3, 4, 5, 6, 7] and cardinality(tage) <= 7),
   dringend      boolean not null default true,     -- „sofort“ und Puffer ≤ 0 Tage
@@ -1008,6 +1009,24 @@ begin
       ) x), '[]'::jsonb);
 end $$;
 
+-- Werkstatt-Personen am gewählten Standort (aktive Konten mit Rolle Manager
+-- oder Trainer), nach Name — für „Wer macht es?“ beim neuen Ticket (ab 20.5.0).
+-- Nur Namen, für alle mit Werkstatt-Rolle.
+create or replace function werkstatt_personen() returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare
+  v_st  bigint := akt_standort();
+begin
+  if ich_id() is null then raise exception 'Nicht angemeldet – bitte neu anmelden' using errcode = '28000'; end if;
+  if v_st is null or not rolle_in('admin', 'manager', 'trainer') then raise exception 'Keine Berechtigung'; end if;
+  return coalesce((
+    select jsonb_agg(k.name order by lower(k.name))
+      from konto k
+     where k.aktiv
+       and exists (select 1 from konto_rolle r where r.konto_id = k.id and r.standort_id = v_st
+                                               and r.rolle in ('manager', 'trainer'))), '[]'::jsonb);
+end $$;
+
 -- Gibt es den Namen an diesem Standort schon (außer bei p_ausser)?
 create or replace function name_vergeben(p_standort bigint, p_name text, p_ausser bigint default null) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
@@ -1480,12 +1499,16 @@ end $$;
 -- Sportler dürfen Tickets für ihre eigenen Räder anlegen — ohne Material und
 -- Arbeitsschritte, nur in der Werkstatt, und pro Rad nur, solange dort kein
 -- Ticket offen ist.
+-- Ab 20.5.0: p_zuweisen = Name einer Person mit Werkstatt-Rolle (Manager oder
+-- Trainer) an diesem Standort — das Ticket ist dann gleich übernommen, mit
+-- p_aufwand (klein | mittel | groß). Sportler können nicht zuweisen.
 create or replace function ticket_anlegen(
   p_rad text, p_problem text, p_fahrbereit boolean,
   p_soll_fertig date default null, p_naechstmoeglich boolean default false,
   p_anlass text default null, p_arbeitsort text default 'Werkstatt',
   p_positionen jsonb default '[]'::jsonb, p_bearbeiter text default null,
-  p_client_id uuid default null, p_stueck text default null, p_stuecke text[] default null
+  p_client_id uuid default null, p_stueck text default null, p_stuecke text[] default null,
+  p_zuweisen text default null, p_aufwand text default null
 ) returns bigint
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -1499,6 +1522,8 @@ declare
   v_stuecke  text[];
   v_fehlt    text;
   v_raeder   text[];
+  v_wer      text;
+  v_aufwand  text;
 begin
   if ich_id() is null then raise exception 'Nicht angemeldet – bitte neu anmelden' using errcode = '28000'; end if;
   v_st := akt_standort();
@@ -1552,6 +1577,19 @@ begin
   p_arbeitsort := coalesce(nullif(trim(p_arbeitsort), ''), 'Werkstatt');
   perform ort_pruefen(v_st, p_arbeitsort);
 
+  -- Gleich jemandem zuweisen (nur Werkstatt-Rolle, nur an Manager/Trainer hier)
+  if v_rolle = 'werkstatt' and nullif(trim(coalesce(p_zuweisen, '')), '') is not null then
+    select k.name into v_wer
+      from konto k
+     where k.aktiv and lower(trim(k.name)) = lower(trim(p_zuweisen))
+       and exists (select 1 from konto_rolle r where r.konto_id = k.id and r.standort_id = v_st
+                                               and r.rolle in ('manager', 'trainer'))
+     order by k.id limit 1;
+    if v_wer is null then raise exception 'Zuweisen geht nur an Werkstatt-Personen dieses Standorts: %', p_zuweisen; end if;
+    v_aufwand := coalesce(nullif(trim(coalesce(p_aufwand, '')), ''), 'klein');
+    if v_aufwand not in ('klein', 'mittel', 'groß') then raise exception 'Unbekannter Aufwand: %', p_aufwand; end if;
+  end if;
+
   if v_rad is not null then
     select eigentuemer_id into v_kt from rad where id = v_rad and standort_id = v_st;
     if not found then raise exception 'Unbekanntes Rad: %', v_rad; end if;
@@ -1559,9 +1597,11 @@ begin
   end if;
 
   insert into ticket (rad_id, fahrer_id, problem, fahrbereit, soll_fertig, naechstmoeglich,
-                      anlass, kostentraeger_id, arbeitsort, angelegt_von, client_id, standort_id)
+                      anlass, kostentraeger_id, arbeitsort, angelegt_von, client_id, standort_id,
+                      status, uebernommen_von, aufwand)
   values (v_rad, v_fahrer, trim(p_problem), coalesce(p_fahrbereit, true), p_soll_fertig, coalesce(p_naechstmoeglich, false),
-          nullif(trim(p_anlass), ''), v_kt, p_arbeitsort, p_bearbeiter, p_client_id, v_st)
+          nullif(trim(p_anlass), ''), v_kt, p_arbeitsort, p_bearbeiter, p_client_id, v_st,
+          case when v_wer is null then 'offen' else 'angenommen' end, v_wer, coalesce(v_aufwand, 'klein'))
   on conflict (client_id) do nothing
   returning id into v_id;
 
@@ -2793,12 +2833,12 @@ begin
   if coalesce(p_bestellen, false) and not push_darf(v_k, v_st, 'bestellen') then
     raise exception '„Bestellen“ können nur Werkstatt-Manager abonnieren.';
   end if;
-  if coalesce(p_uhrzeit, '') !~ '^([01][0-9]|2[0-3]):(00|15|30|45)$' then
-    raise exception 'Uhrzeit bitte im Viertelstunden-Takt (z. B. 07:30).';
+  if coalesce(p_uhrzeit, '') !~ '^([01][0-9]|2[0-3]):(00|30)$' then
+    raise exception 'Uhrzeit bitte zur vollen oder halben Stunde (z. B. 07:30). Bitte die App neu laden.';
   end if;
   v_t := p_uhrzeit::time;
-  if v_t < time '07:00' or v_t > time '12:00' then
-    raise exception 'Uhrzeit bitte zwischen 07:00 und 12:00.';
+  if v_t < time '07:00' or v_t > time '18:00' then
+    raise exception 'Uhrzeit bitte zwischen 07:00 und 18:00.';
   end if;
   if exists (select 1 from unnest(coalesce(p_tage, '{}')) d where d is null or d not between 1 and 7) then
     raise exception 'Ungültiger Wochentag';
@@ -3137,7 +3177,8 @@ grant execute on function
   umbuchen(text, numeric, text, text, text, text),
   inventur(text, text, numeric, text),
   inventur_buchen(text, jsonb, text, uuid),
-  ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid, text, text[]),
+  ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid, text, text[], text, text),
+  werkstatt_personen(),
   ticket_abschliessen(bigint, text),
   ticket_stuecke_aendern(bigint, text[], text[]),
   ticket_stornieren(bigint, text),
