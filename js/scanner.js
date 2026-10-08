@@ -6,7 +6,9 @@
 ----------------------------------------------------------------*/
 let leser = null;
 async function scanStart(ziel){
-  modal('<h3>Scannen</h3><div class="scanbox"><video id="cam" playsinline muted></video><div class="reticle"></div></div>' +
+  modal('<h3>Scannen</h3><div class="scanbox"><video id="cam" playsinline muted></video><div class="reticle"></div>' +
+        '<button type="button" id="scanZoom" class="scanzoom" hidden></button></div>' +
+        '<p class="sub" style="margin:-4px 0 10px;text-align:center">Etwa 15–20 cm Abstand — näher wird es unscharf.</p>' +
         '<button class="btn voll" data-a="modalZu">Abbrechen</button>');
   try{
     // TRY_HARDER: sucht viele Bildzeilen ab statt nur ~15 um die Mitte — nötig für Thermodruck mit
@@ -26,7 +28,38 @@ async function scanStart(ziel){
       modalZu(); piep(true);
       scanTreffer(ziel, code);
     });
+    scanKameraEinstellen();
   }catch(e){ modalZu(); toast("Kamera nicht verfügbar: " + e.message, true); }
+}
+/* Schärfe: Handykameras stellen erst ab ca. 10–15 cm scharf. Deshalb Dauer-Autofokus an und, wo das Gerät
+   es kann, 2-fach Zoom — dann hält man das Handy weiter weg, und das Etikett ist trotzdem groß im Bild.
+   Knopf unten rechts im Bild wechselt 1× / 2× / 3×. Geht das alles nicht (z. B. ältere iPhones), bleibt es wie bisher. */
+const SCAN_ZOOM_STUFEN = [1, 2, 3];
+let scanZoomWahl = 2;
+async function scanKameraEinstellen(){
+  const v = document.getElementById("cam"), spur = v && v.srcObject && v.srcObject.getVideoTracks ? v.srcObject.getVideoTracks()[0] : null;
+  if(!spur || !spur.getCapabilities) return;
+  let caps = {};
+  try{ caps = spur.getCapabilities() || {}; }catch(e){ return; }
+  if(Array.isArray(caps.focusMode) && caps.focusMode.indexOf("continuous") >= 0){
+    try{ await spur.applyConstraints({ advanced:[{ focusMode:"continuous" }] }); }catch(e){}
+  }
+  const z = caps.zoom;
+  if(!z || !(z.max > 1)) return;
+  const stufen = SCAN_ZOOM_STUFEN.filter(x => x <= z.max);
+  const setze = async wert => {
+    const w = Math.max(z.min || 1, Math.min(z.max, wert));
+    try{ await spur.applyConstraints({ advanced:[{ zoom:w }] }); scanZoomWahl = wert; }catch(e){}
+    const k = document.getElementById("scanZoom");
+    if(k){ k.textContent = String(scanZoomWahl).replace(".", ",") + "×"; k.hidden = false; }
+  };
+  await setze(stufen.indexOf(scanZoomWahl) >= 0 ? scanZoomWahl : stufen[stufen.length - 1]);
+  const knopf = document.getElementById("scanZoom");
+  if(knopf) knopf.addEventListener("click", ev => {
+    ev.stopPropagation();
+    const i = stufen.indexOf(scanZoomWahl);
+    setze(stufen[(i + 1) % stufen.length]);
+  });
 }
 /* Ein Kamerabild lesen — ersetzt leser.decode (ZXing ruft es in seiner Scan-Schleife auf; this = leser).
    Abwechselnd normal und um 90° gedreht: Strichcodes liest ZXing nur mit senkrechten Strichen, und seine

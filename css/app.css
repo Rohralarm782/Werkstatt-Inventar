@@ -266,6 +266,7 @@
   .bildvorschau{display:flex;flex-wrap:wrap;gap:8px;max-height:46vh;overflow:auto;margin:8px 0;padding:8px;background:#fff;border:1px solid var(--line);border-radius:8px}
   .bildvorschau img{width:46%;max-width:220px;height:auto;border:1px solid #ddd;image-rendering:pixelated}
   .reticle{position:absolute;inset:18% 14%;border:2px solid rgba(255,255,255,.5);border-radius:8px}
+  .scanzoom{position:absolute;right:10px;bottom:10px;min-width:44px;height:36px;padding:0 10px;border-radius:18px;border:1px solid rgba(255,255,255,.5);background:rgba(14,17,20,.6);color:#fff;font:inherit;font-weight:600}
   .reticle::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:var(--sprint);box-shadow:0 0 12px var(--sprint)}
 
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;

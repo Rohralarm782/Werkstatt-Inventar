@@ -1,10 +1,10 @@
 # Version
 
-**20.2.1** — 08.10.2026
+**20.2.2** — 08.10.2026
 
-Scanner liest Barcodes jetzt in jeder Lage (auch hochkant gehaltene
-Etiketten) und zuverlässiger bei Thermodruck mit ausgefransten
-Strichkanten. Schärferes Kamerabild (1280 × 720). Keine Datenbankänderung.
+Scanner stellt besser scharf: Dauer-Autofokus und 2-fach Zoom (wo das
+Handy es kann), Zoom-Knopf 1×/2×/3× im Kamerabild, Hinweis „15–20 cm
+Abstand“. Keine Datenbankänderung.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -23,6 +23,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.2.2 | 08.10.2026 | Scanner: Autofokus, 2-fach Zoom mit Umschalter, Abstandshinweis |
 | 20.2.1 | 08.10.2026 | Scanner: Barcodes hochkant und bei ausgefranstem Thermodruck lesbar, höhere Kameraauflösung |
 | 20.2.0 | 08.10.2026 | Morgen-Benachrichtigungen (Push) mit eigenen Einstellungen je Person, App installierbar (Migration) |
 | 20.1.0 | 07.10.2026 | Lieferzeit in Werktagen (Mo–Fr), Standard 3 für neue Artikel, Schwerin-Bestand auf 3 (Migration, nur Daten) |
