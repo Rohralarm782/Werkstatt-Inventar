@@ -533,6 +533,15 @@ const A = {
     if(!confirm("Bestellung zurücknehmen?")) return;
     aktion(() => loeschen("bestellung", "id=eq." + Number(x)), "Bestellung zurückgenommen");
   },
+  bestellWarenkorb: x => {
+    const w = warenkorbPositionen(x); if(!w.mit.length) return;
+    if(!w.ohne.length){ warenkorbSenden(w.mit); toast(w.mit.length + " Positionen an den Warenkorb geschickt"); return; }
+    modal('<h3>In Warenkorb legen</h3><p>' + w.mit.length + ' Artikel kommen in den Warenkorb. Ohne Produkt-Link (bitte von Hand dazulegen):</p>' +
+          '<ul>' + w.ohne.map(y => '<li>' + zahl(y.rest) + ' ' + esc(y.a.einheit) + ' ' + esc(y.a.name) + '</li>').join("") + '</ul>' +
+          '<p class="sub">Damit ein Artikel automatisch mitkommt, als Shop-Link die Form <span class="mono">bike-discount.de/de/detail/&lt;Produkt-ID&gt;</span> eintragen.</p>' +
+          '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="bestellWarenkorbOk" data-x="' + esc(x) + '">Warenkorb öffnen</button></div>');
+  },
+  bestellWarenkorbOk: x => { const n = warenkorbSenden(warenkorbPositionen(x).mit); modalZu(); if(n) toast(n + " Positionen an den Warenkorb geschickt"); },
   bestellKopieren: async x => {
     const t = bestellText(x);
     try{ await navigator.clipboard.writeText(t); toast("Bestellliste kopiert"); }

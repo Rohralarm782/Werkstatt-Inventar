@@ -287,6 +287,7 @@ function bestellView(){
     const g = gruppen[lief], offenGes = g.filter(x => x.rest > 0);
     h += '<div class="row wrapr" style="gap:8px;margin:16px 0 8px"><h2 class="sec" style="margin:0">' + esc(lief || "Ohne Lieferant") + '</h2><span class="sp"></span>';
     if(offenGes.length){
+      if(offenGes.some(x => bdProduktId(x.a.shop_link))) h += '<button class="btn small" data-a="bestellWarenkorb" data-x="' + esc(lief) + '">In Warenkorb legen</button>';
       h += '<button class="btn small" data-a="bestellKopieren" data-x="' + esc(lief) + '">Liste kopieren</button>';
       h += '<button class="btn small" data-a="bestellAlle" data-x="' + esc(lief) + '"' + gesperrt + '>alle bestellt</button>';
     }
@@ -312,6 +313,40 @@ function bestellView(){
 }
 /** Shop-Link als Webadresse: ohne http(s) wird https:// davorgesetzt, andere Schemata nicht zugelassen. */
 function shopUrl(l){ l = String(l || "").trim(); return /^https?:\/\//i.test(l) ? l : "https://" + l.replace(/^[a-z][a-z0-9+.-]*:\/*/i, ""); }
+/* Sammel-Warenkorb bei Bike-Discount (Shopware 6).
+   Der Shop-Link muss die Form https://www.bike-discount.de/de/detail/<Produkt-ID> haben
+   (32 Zeichen 0–9/a–f, bei Varianten die ID der Variante). Der Link öffnet ganz normal die
+   Produktseite; zusätzlich schickt „In Warenkorb legen“ alle Positionen in einem Formular
+   an den Shop. Es ist das normale Formular des „In den Warenkorb“-Buttons, keine offizielle
+   Schnittstelle – ändert Bike-Discount sein Shopsystem, kann das ausfallen. */
+const BD_WARENKORB = "https://www.bike-discount.de/de/checkout/line-item/add";
+function bdProduktId(link){
+  const m = /bike-discount\.de\/(?:[a-z]{2}\/)?detail\/([0-9a-f]{32})(?:[\/?#]|$)/i.exec(String(link || "").trim());
+  return m ? m[1].toLowerCase() : "";
+}
+/** Offene Positionen eines Lieferanten: mit Produkt-ID (für den Warenkorb) und ohne. */
+function warenkorbPositionen(lief){
+  const g = bestellBedarf().filter(x => (x.a.lieferant || "") === lief && x.rest > 0);
+  return { mit: g.filter(x => bdProduktId(x.a.shop_link)), ohne: g.filter(x => !bdProduktId(x.a.shop_link)) };
+}
+/** Schickt die Positionen als ein Formular in einem neuen Tab an Bike-Discount.
+    Mengen werden auf ganze Stück aufgerundet; gleiche Produkt-ID wird zusammengezählt. */
+function warenkorbSenden(liste){
+  const mengen = {};
+  liste.forEach(x => { const id = bdProduktId(x.a.shop_link); if(id) mengen[id] = (mengen[id] || 0) + Math.max(1, Math.ceil(num(x.rest))); });
+  const ids = Object.keys(mengen); if(!ids.length) return 0;
+  const f = document.createElement("form");
+  f.method = "post"; f.action = BD_WARENKORB; f.target = "_blank"; f.style.display = "none";
+  const feldDazu = (n, v) => { const i = document.createElement("input"); i.type = "hidden"; i.name = n; i.value = v; f.appendChild(i); };
+  feldDazu("redirectTo", "frontend.checkout.cart.page");
+  ids.forEach(id => {
+    const p = "lineItems[" + id + "]";
+    feldDazu(p + "[id]", id); feldDazu(p + "[referencedId]", id); feldDazu(p + "[type]", "product");
+    feldDazu(p + "[stackable]", "1"); feldDazu(p + "[removable]", "1"); feldDazu(p + "[quantity]", String(mengen[id]));
+  });
+  document.body.appendChild(f); f.submit(); f.remove();
+  return ids.length;
+}
 function bestellText(lief){
   const g = bestellBedarf().filter(x => (x.a.lieferant || "") === lief && x.rest > 0);
   return "Bestellung LV Radsport M-V" + (lief ? " bei " + lief : "") + "\n\n" +
