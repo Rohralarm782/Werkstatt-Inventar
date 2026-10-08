@@ -188,6 +188,16 @@
   #druck .etikett .t{font-weight:700;line-height:1.05;letter-spacing:.02em;white-space:nowrap}
   #druck .etikett .z{line-height:1.2}
   #druck .etikett .nr{font-size:4mm;color:#888}
+  #druck .tband, #druck .schnitt{position:absolute;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #druck .schnitt{background:#000}
+  #druck .etikett.tasche{flex-direction:column;align-items:stretch;color:#042C53}
+  #druck .tasche .kopf{flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;color:#fff;line-height:1.15}
+  #druck .tasche .v1{font-size:2.6mm;letter-spacing:.08em}
+  #druck .tasche .v2{font-size:4.2mm;font-weight:700}
+  #druck .tasche .typ{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;line-height:1.05;letter-spacing:-.01em}
+  #druck .tasche .fuss{flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:3mm}
+  #druck .tasche .marke{font-size:3mm;color:#444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #druck .tasche .nr{font-size:6.5mm;font-weight:700;color:#042C53;letter-spacing:.02em;white-space:nowrap}
   #druck .rechnung{width:210mm;height:297mm;box-sizing:border-box;padding:0 17mm;position:relative;overflow:hidden;background:#fff;color:#1a1a1a;
      font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;line-height:1.4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #druck .rechnung, #druck .rechnung *{text-align:left}

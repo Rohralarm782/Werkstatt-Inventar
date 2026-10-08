@@ -12,7 +12,9 @@
 const ETIKETT_VORLAGEN = [
   { id:"a4_70x37",  name:"A4 · 3 × 8 · 70 × 37 mm",            form:"rechteck", seite:"A4", b:70,   h:37,   sp:3, ze:8, ro:0,     li:0,    ah:0,   av:0 },
   { id:"a4_63x38",  name:"A4 · 3 × 7 · 63,5 × 38,1 mm",        form:"rechteck", seite:"A4", b:63.5, h:38.1, sp:3, ze:7, ro:15.15, li:7.25, ah:2.5, av:0 },
-  { id:"rolle_62x29", name:"Etikettendrucker · 62 × 29 mm",     form:"rechteck", seite:"einzeln", b:62, h:29 }
+  { id:"rolle_62x29", name:"Etikettendrucker · 62 × 29 mm",     form:"rechteck", seite:"einzeln", b:62, h:29 },
+  // Für die Klarsichttaschen an den Laufradtaschen: normales Papier, per Hand schneiden (siehe taschen… unten)
+  { id:"a4_tasche_80x53", name:"Laufradtaschen-Tag · A4 · 2 × 5 · 80 × 53 mm", form:"rechteck", seite:"A4", b:80, h:53, sp:2, ze:5, ro:10, li:25, ah:0, av:3, tasche:true }
 ];
 function eigeneVorlagen(){ try{ return JSON.parse(localStorage.getItem("wEtikettVorlagen") || "[]"); }catch(e){ return []; } }
 function eigeneSpeichern(l){ localStorage.setItem("wEtikettVorlagen", JSON.stringify(l)); }
@@ -26,7 +28,7 @@ function felderJeSeite(v){ return v.seite === "A4" ? v.sp * v.ze : 1; }
 let etikettAuftrag = null, etikettQuelle = null;
 function appUrl(){ return location.origin + location.pathname; }
 function radQrText(id){ return appUrl() + "?rad=" + encodeURIComponent(id); }
-function etikettStueck(s){ return { typ:"stueck", id:s.nummer, qr:s.nummer, bc:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : "") }; }
+function etikettStueck(s){ return { typ:"stueck", id:s.nummer, qr:s.nummer, bc:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : ""), art:s.typ, marke:s.marke || "" }; }
 function etikettArtikel(a){ return { typ:"artikel", id:a.code, qr:a.code, bc:a.code, titel:a.code, zeile:a.name }; }
 function etikettRad(r){ return { typ:"rad", id:r.id, qr:radQrText(r.id), bc:r.id, titel:r.id, zeile:r.bezeichnung, fuss:"Problem? Scannen → Ticket" }; }
 /** Eintrag der Druckliste → Etikett mit aktuellen Daten (oder null, wenn es das nicht mehr gibt). */
@@ -60,14 +62,15 @@ function etikettDialog(items, titel, mitKopien, quelle){
   h += '<div class="feld"><span class="lbl">Etiketten-Art</span><div class="row" style="gap:8px"><select id="etVorlage" data-c="etVorlage" style="flex:1">' +
        alleVorlagen().map(x => '<option value="' + esc(x.id) + '"' + (x.id === v.id ? " selected" : "") + '>' + esc(vorlageText(x)) + '</option>').join("") +
        '</select><button class="btn small" data-a="vorlagenVerwalten">eigene …</button></div></div>';
-  h += '<div class="feld"><span class="lbl">Code</span><div class="row" style="gap:16px">' +
+  h += '<div class="feld" id="etCodeFeld"' + (v.tasche ? " hidden" : "") + '><span class="lbl">Code</span><div class="row" style="gap:16px">' +
        [["qr","QR-Code"],["bar","Barcode (für schmale Etiketten)"]].map(o => '<label class="row" style="gap:6px"><input type="radio" name="etCode" value="' + o[0] + '"' + (codeArt() === o[0] ? " checked" : "") + '> ' + o[1] + '</label>').join("") +
        '</div><label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" id="etKurz"' + (barKurz() ? " checked" : "") + '> Barcode ohne Standort-Kürzel (dickere Striche, besser lesbar)</label></div>';
   h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (v.seite === "A4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld</span>' +
        '<input type="number" id="etStart" value="1" min="1" max="' + felderJeSeite(v) + '" inputmode="numeric"></div>';
   h += mitKopien ? feld("Anzahl je Etikett", "etKopien", 1, "number", ' min="1" max="50" inputmode="numeric"') : '';
   h += '</div><p class="sub">Bei einem angefangenen Bogen das erste freie Feld angeben — gezählt wird zeilenweise von links oben. ' +
-       '„als Bild“: für Etikettendrucker mit Handy-App — vorher eine eigene Etiketten-Art „einzeln“ in der Größe des Bands anlegen.</p>';
+       '„als Bild“: für Etikettendrucker mit Handy-App — vorher eine eigene Etiketten-Art „einzeln“ in der Größe des Bands anlegen. ' +
+       'Laufradtaschen-Tag: auf normales Papier, im Druckdialog „Hintergrundgrafiken“ einschalten, an den Schnittmarken schneiden.</p>';
   if(quelle === "druckliste") h += '<label class="row" style="gap:8px;margin-bottom:10px"><input type="checkbox" id="etLeeren" checked> Druckliste danach leeren</label>';
   h += '<div class="row wrapr" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>';
   if(quelle !== "druckliste") h += '<button class="btn" data-a="etSammeln">auf Druckliste</button>';
@@ -277,6 +280,54 @@ async function etikettBilderTeilen(art){
   }, i * 300));
 }
 
+/* ---- Laufradtaschen-Tag (80 × 53 mm, Klarsichttasche): Kopfband mit Verband, Typ groß, Nummer ohne Standort-Kürzel.
+   Bogen: 2 Spalten ohne Lücke (die Bänder stoßen aneinander, ein Schnitt in der Mitte), Zeilen mit 3 mm Lücke.
+   Das Band läuft 2 mm über den Rand nach oben und außen (Beschnitt), damit schiefe Schnitte keine weißen Blitzer geben. ---- */
+const TASCHE = { verband1:"RADSPORT-VERBAND", verband2:"Mecklenburg-Vorpommern", farbe:"#0C447C", band:14, beschnitt:2 };
+/** Typ einpassen: eine Zeile, bei langem Text zwei Zeilen an der Leerstelle nahe der Mitte. Gibt { zeilen, mm }. */
+function taschenTyp(text, breite, hoehe){
+  text = String(text || "").trim() || "Laufrad";
+  const zb = 0.62;   // mittlere Zeichenbreite fett in em (großzügig, Großbuchstaben sind breiter)
+  const eine = Math.min(13, breite / (text.length * zb), hoehe * 0.8);
+  if(eine >= 8 || text.indexOf(" ") < 0) return { zeilen:[text], mm:Math.max(4, eine) };
+  const mitte = text.length / 2;
+  let pos = -1;
+  for(let i = 0; i < text.length; i++) if(text[i] === " " && (pos < 0 || Math.abs(i - mitte) < Math.abs(pos - mitte))) pos = i;
+  const z = [text.slice(0, pos), text.slice(pos + 1)], lang = Math.max(z[0].length, z[1].length);
+  const zwei = Math.min(11, breite / (lang * zb), hoehe / 2.3);
+  return zwei > eine ? { zeilen:z, mm:Math.max(4, zwei) } : { zeilen:[text], mm:Math.max(4, eine) };
+}
+function taschenInhalt(it, v){
+  const b = Number(v.b), h = Number(v.h), mm = x => x.toFixed(2) + "mm", rand = 4, fuss = 9;
+  const nummer = anzeigeNummer(it.titel || it.bc || "");
+  const typ = taschenTyp(it.art || it.zeile || "", b - 2 * rand, h - TASCHE.band - fuss - 2);
+  return { cls:"tasche", stil:"",
+    html:'<div class="kopf" style="height:' + mm(TASCHE.band) + ';padding:0 ' + mm(rand) + '"><div class="v1">' + esc(TASCHE.verband1) + '</div><div class="v2">' + esc(TASCHE.verband2) + '</div></div>' +
+         '<div class="typ" style="font-size:' + mm(typ.mm) + ';padding:0 ' + mm(rand) + '">' + typ.zeilen.map(esc).join("<br>") + '</div>' +
+         '<div class="fuss" style="height:' + mm(fuss) + ';padding:0 ' + mm(rand) + ' ' + mm(2.5) + '"><span class="marke">' + esc(it.marke || "") + '</span>' +
+         '<span class="nr">' + esc(nummer) + '</span></div>' };
+}
+/** Farbiges Band eines Tags samt Beschnitt (liegt unter dem Etikett); sp/ze = Position im Raster. */
+function taschenBand(v, x, y, sp){
+  const mm = n => Number(n).toFixed(2) + "mm", k = TASCHE.beschnitt;
+  const links = sp === 0 ? k : 0, rechts = sp === v.sp - 1 ? k : 0;
+  return '<div class="tband" style="left:' + mm(x - links) + ';top:' + mm(y - k) + ';width:' + mm(Number(v.b) + links + rechts) + ';height:' + mm(TASCHE.band + k) + ';background:' + TASCHE.farbe + '"></div>';
+}
+/** Schnittmarken im Rand: senkrechte Schnitte oben/unten, waagerechte links/rechts. Nie im Bereich eines Tags samt Beschnitt. */
+function taschenMarken(v){
+  const mm = n => Number(n).toFixed(2) + "mm", b = Number(v.b), h = Number(v.h), k = TASCHE.beschnitt;
+  const li = Number(v.li), ro = Number(v.ro), ah = Number(v.ah), av = Number(v.av);
+  const rechts = li + v.sp * b + (v.sp - 1) * ah, unten = ro + v.ze * h + (v.ze - 1) * av;
+  const xs = [], ys = [];
+  for(let s = 0; s < v.sp; s++){ const x = li + s * (b + ah); if(!xs.includes(x)) xs.push(x); xs.push(x + b); }
+  for(let z = 0; z < v.ze; z++){ const y = ro + z * (h + av); ys.push(y, y + h); }
+  let r = "";
+  const linie = (x, y, w, hh) => r += '<div class="schnitt" style="left:' + mm(x) + ';top:' + mm(y) + ';width:' + mm(w) + ';height:' + mm(hh) + '"></div>';
+  [...new Set(xs)].forEach(x => { linie(x - 0.1, 1.5, 0.2, ro - k - 2); linie(x - 0.1, unten + 1.5, 0.2, 296 - unten - 2); });
+  ys.forEach(y => { linie(3, y - 0.1, li - k - 4.5, 0.2); linie(rechts + k + 1.5, y - 0.1, 210 - rechts - k - 4.5, 0.2); });
+  return r;
+}
+
 function qrSvg(text, cache){
   if(cache[text]) return cache[text];
   const hints = new Map(); hints.set(ZXing.EncodeHintType.MARGIN, 0);
@@ -286,6 +337,7 @@ function qrSvg(text, cache){
 }
 /** Inhalt eines Etiketts passend zur Größe: quer (QR links, Text rechts) oder hoch/rund (QR oben, Nummer darunter). */
 function etikettInhalt(it, v, cache, art){
+  if(v.tasche) return taschenInhalt(it, v);
   if(art === "bar" && it.bc) return barcodeInhalt(it, v, cache);
   const b = Number(v.b), h = Number(v.h), rund = v.form === "rund";
   const mm = x => x.toFixed(2) + "mm";
@@ -316,10 +368,11 @@ function etikettenDrucken(items, v, start, kopien, test, art){
     const jeSeite = v.sp * v.ze;
     const felder = test ? Array.from({ length:jeSeite }, (_, i) => i + 1) : Array(Math.max(0, start - 1)).fill(null).concat(liste);
     for(let i = 0; i < felder.length; i += jeSeite){
-      html += '<div class="seite" style="width:210mm;height:296mm">';
+      html += '<div class="seite" style="width:210mm;height:296mm">' + (v.tasche && !test ? taschenMarken(v) : "");
       felder.slice(i, i + jeSeite).forEach((it, k) => {
         if(it === null) return;
         const sp = k % v.sp, ze = Math.floor(k / v.sp);
+        if(v.tasche && !test) html += taschenBand(v, Number(v.li) + sp * (b + Number(v.ah)), Number(v.ro) + ze * (h + Number(v.av)), sp);
         const pos = "left:" + mm(Number(v.li) + sp * (b + Number(v.ah))) + ";top:" + mm(Number(v.ro) + ze * (h + Number(v.av))) + ";width:" + mm(b) + ";height:" + mm(h) + ";";
         if(test){ html += '<div class="etikett umriss hoch' + (v.form === "rund" ? " rund" : "") + '" style="' + pos + '"><span class="nr">' + it + '</span></div>'; return; }
         const c = etikettInhalt(it, v, cache, art);

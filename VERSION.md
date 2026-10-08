@@ -1,11 +1,12 @@
 # Version
 
-**20.3.0** — 08.10.2026
+**20.4.0** — 08.10.2026
 
-Größere Barcode-Striche: Neue Druckoption „Barcode ohne Standort-Kürzel“
-(Standard an) — z. B. C-206 statt SN-C-206, Striche 50 % dicker; Striche
-etwas höher. Scanner liest nur noch QR, Code 128 und Data Matrix (keine
-Fehllesungen als EAN mehr). Keine Datenbankänderung.
+Neue Etiketten-Art „Laufradtaschen-Tag · A4 · 2 × 5 · 80 × 53 mm“ für die
+Klarsichttaschen an den Laufradtaschen: Kopfband „Radsport-Verband
+Mecklenburg-Vorpommern“, Typ groß, Marke und Nummer ohne Standort-Kürzel.
+Auf normales Papier, mit Schnittmarken zum Schneiden per Hand. Keine
+Datenbankänderung.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -24,6 +25,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.4.0 | 08.10.2026 | Etiketten-Art Laufradtaschen-Tag 80 × 53 mm (A4, Schnittmarken, Nummer ohne Kürzel) |
 | 20.3.0 | 08.10.2026 | Barcode ohne Standort-Kürzel (dickere Striche), höhere Striche; Scanner ohne EAN/UPC/Code 39 |
 | 20.2.2 | 08.10.2026 | Scanner: Autofokus, 2-fach Zoom mit Umschalter, Abstandshinweis |
 | 20.2.1 | 08.10.2026 | Scanner: Barcodes hochkant und bei ausgefranstem Thermodruck lesbar, höhere Kameraauflösung |

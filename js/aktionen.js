@@ -551,20 +551,21 @@ const A = {
     try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); if($("etKurz")) localStorage.setItem("wEtikettKurz", $("etKurz").checked ? "1" : "0"); }catch(e){}
     const items = etikettAuftrag || [], quelle = etikettQuelle, leeren = !!($("etLeeren") && $("etLeeren").checked);
     let schmal = 0;
-    if(art === "bar"){
+    if(art === "bar" && !v.tasche){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
       if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
       schmal = Math.min.apply(null, items.map(it => barModulMm(barText(it), barBreiteMm(v))));
     }
     modalZu();
     if(quelle === "druckliste" && leeren){ drucklisteSpeichern([]); render(); }
-    if(art === "bar" && schmal < 0.19) toast("Achtung: Der Barcode wird sehr fein (Strich " + schmal.toFixed(2).replace(".", ",") + " mm) — ggf. breitere Etiketten oder QR-Code nehmen.", true);
+    if(art === "bar" && !v.tasche && schmal < 0.19) toast("Achtung: Der Barcode wird sehr fein (Strich " + schmal.toFixed(2).replace(".", ",") + " mm) — ggf. breitere Etiketten oder QR-Code nehmen.", true);
     etikettenDrucken(items, v, v.seite === "A4" ? start : 1, k, false, art);
   },
   etBilder: () => {
     const v = vorlage(wert("etVorlage")), wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
     try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); if($("etKurz")) localStorage.setItem("wEtikettKurz", $("etKurz").checked ? "1" : "0"); }catch(e){}
     const items = etikettAuftrag || [];
+    if(v.tasche){ toast("Laufradtaschen-Tags gibt es nur zum Drucken auf A4 — bitte „Drucken“ nehmen.", true); return; }
     if(art === "bar"){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
       if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
@@ -910,7 +911,7 @@ const C = {
     vorschauNummer(); ukBoxAktualisieren();
   },
   nrEigen: () => ukBoxAktualisieren(),
-  etVorlage: v => { const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"); if(f) f.hidden = vo.seite !== "A4"; if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; } },
+  etVorlage: v => { const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"), c = $("etCodeFeld"); if(f) f.hidden = vo.seite !== "A4"; if(c) c.hidden = !!vo.tasche; if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; } },
   artGruppe: v => {
     artikelSichtbar();
     const g = $("nrGruppe"), k = $("nrKat");
