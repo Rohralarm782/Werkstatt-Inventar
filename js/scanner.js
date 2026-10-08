@@ -9,9 +9,17 @@ async function scanStart(ziel){
   modal('<h3>Scannen</h3><div class="scanbox"><video id="cam" playsinline muted></video><div class="reticle"></div></div>' +
         '<button class="btn voll" data-a="modalZu">Abbrechen</button>');
   try{
-    leser = new ZXing.BrowserMultiFormatReader();
+    // TRY_HARDER: sucht viele Bildzeilen ab statt nur ~15 um die Mitte — nötig für Thermodruck mit
+    // ausgefransten Strichkanten. Nur die Formate, die hier vorkommen (spart Rechenzeit).
+    const F = ZXing.BarcodeFormat, hinweise = new Map();
+    hinweise.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    hinweise.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.EAN_8, F.UPC_A, F.DATA_MATRIX]);
+    leser = new ZXing.BrowserMultiFormatReader(hinweise, 300);
+    leser.decode = scanBildLesen;
     let fertig = false;
-    await leser.decodeFromVideoDevice(null, "cam", erg => {
+    // Rückkamera mit höherer Auflösung (Standard wären 640 × 480) — für feine Striche schmaler Etiketten
+    const kamera = { video:{ facingMode:"environment", width:{ ideal:1280 }, height:{ ideal:720 } } };
+    await leser.decodeFromConstraints(kamera, "cam", erg => {
       if(!erg || fertig) return;
       fertig = true;
       const code = erg.getText().trim();
@@ -19,6 +27,26 @@ async function scanStart(ziel){
       scanTreffer(ziel, code);
     });
   }catch(e){ modalZu(); toast("Kamera nicht verfügbar: " + e.message, true); }
+}
+/* Ein Kamerabild lesen — ersetzt leser.decode (ZXing ruft es in seiner Scan-Schleife auf; this = leser).
+   Abwechselnd normal und um 90° gedreht: Strichcodes liest ZXing nur mit senkrechten Strichen, und seine
+   eingebaute Drehung (TRY_HARDER) versagt in dieser Version beim Videobild. Gelesen wird der mittlere
+   Ausschnitt (80 % × 80 %), dort liegt der Rahmen — weniger Rechenzeit je Bild. */
+let scanLw = null, scanGedreht = false;
+function scanBildLesen(video){
+  const W = video.videoWidth, H = video.videoHeight;
+  if(!W || !H) throw new ZXing.NotFoundException();
+  const aw = Math.round(W * 0.8), ah = Math.round(H * 0.8), ax = Math.round((W - aw) / 2), ay = Math.round((H - ah) / 2);
+  scanGedreht = !scanGedreht;
+  if(!scanLw) scanLw = document.createElement("canvas");
+  const c = scanLw;
+  c.width = scanGedreht ? ah : aw; c.height = scanGedreht ? aw : ah;
+  const ctx = c.getContext("2d", { willReadFrequently:true });
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if(scanGedreht){ ctx.translate(ah, 0); ctx.rotate(Math.PI / 2); }
+  ctx.drawImage(video, ax, ay, aw, ah, 0, 0, aw, ah);
+  const bild = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c, false)));
+  return this.decodeBitmap(bild);
 }
 function scanStopp(){ try{ if(leser) leser.reset(); }catch(e){} leser = null; }
 function scanTreffer(ziel, code){

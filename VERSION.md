@@ -1,13 +1,10 @@
 # Version
 
-**20.2.0** — 08.10.2026
+**20.2.1** — 08.10.2026
 
-Morgen-Benachrichtigungen aufs Handy: Jeder stellt unter Mehr →
-Benachrichtigungen Uhrzeit (07:00–12:00), Wochentage und Kategorien
-(dringende Tickets, baldige Tickets, Bestellen) ein. Die App ist dafür
-installierbar (Home-Bildschirm). Verschickt wird über einen neuen
-GitHub-Workflow. Datenbank: db/migration_20.2.0.sql (neue Tabellen und
-Funktionen, nur hinzufügend).
+Scanner liest Barcodes jetzt in jeder Lage (auch hochkant gehaltene
+Etiketten) und zuverlässiger bei Thermodruck mit ausgefransten
+Strichkanten. Schärferes Kamerabild (1280 × 720). Keine Datenbankänderung.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -26,6 +23,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.2.1 | 08.10.2026 | Scanner: Barcodes hochkant und bei ausgefranstem Thermodruck lesbar, höhere Kameraauflösung |
 | 20.2.0 | 08.10.2026 | Morgen-Benachrichtigungen (Push) mit eigenen Einstellungen je Person, App installierbar (Migration) |
 | 20.1.0 | 07.10.2026 | Lieferzeit in Werktagen (Mo–Fr), Standard 3 für neue Artikel, Schwerin-Bestand auf 3 (Migration, nur Daten) |
 | 20.0.1 | 07.10.2026 | Nächtliche Veröffentlichung über GitHub Actions, sofort per „Run workflow“ |
