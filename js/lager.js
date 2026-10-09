@@ -276,6 +276,17 @@ function bestellBedarf(){
   });
   return liste;
 }
+/** Packungen für eine Menge (ab 20.7.0): steht am Artikel ein Packungsinhalt (z. B. 500 ml je
+    Kanister), wird auf ganze Packungen aufgerundet. Ohne Packungsinhalt: null (Menge = Stück im Shop). */
+function packungen(a, menge){
+  const inh = num(a && a.packungsinhalt); if(!(inh > 0)) return null;
+  const n = Math.max(1, Math.ceil(num(menge) / inh - 1e-9));
+  return { n, inhalt:inh, menge:n * inh };
+}
+/** „1 Packung à 500 ml“ / „2 Packungen à 500 ml“ */
+function packungText(a, pk){ return zahl(pk.n) + (pk.n === 1 ? " Packung" : " Packungen") + " à " + zahl(pk.inhalt) + " " + a.einheit; }
+/** Vorgeschlagene Bestellmenge in der Einheit des Artikels: auf ganze Packungen aufgerundet, sonst der offene Bedarf. */
+function bestellVorschlag(x){ const pk = packungen(x.a, x.rest); return pk ? pk.menge : x.rest; }
 function bestellView(){
   const gesperrt = offline ? " disabled" : "";
   const liste = bestellBedarf();
@@ -296,6 +307,8 @@ function bestellView(){
       const a = x.a;
       h += '<div class="eintrag"><div class="txt"><strong>' + esc(a.name) + '</strong> <span class="sub">' + esc(a.code) + (a.bestellnummer ? ' · Best.-Nr. ' + esc(a.bestellnummer) : '') + '</span>' +
            '<br><span class="sub">' + esc(x.gruende.join(" · ")) + '</span>';
+      const pk = x.rest > 0 ? packungen(a, x.rest) : null;
+      if(pk) h += '<br><span class="sub">bestellen: ' + esc(packungText(a, pk)) + '</span>';
       x.offen.forEach(o => h += '<br><span class="sub" style="color:var(--ok)">bestellt ' + zahl(o.menge) + ' ' + esc(a.einheit) + ' am ' + de(o.bestellt_am) + (o.bearbeiter ? ' · ' + esc(o.bearbeiter) : '') + '</span> ' +
                                   '<button class="btn small link" data-a="bestellZurueck" data-x="' + o.id + '"' + gesperrt + '>zurücknehmen</button>');
       h += '</div>';
@@ -330,10 +343,15 @@ function warenkorbPositionen(lief){
   return { mit: g.filter(x => bdProduktId(x.a.shop_link)), ohne: g.filter(x => !bdProduktId(x.a.shop_link)) };
 }
 /** Schickt die Positionen als ein Formular in einem neuen Tab an Bike-Discount.
-    Mengen werden auf ganze Stück aufgerundet; gleiche Produkt-ID wird zusammengezählt. */
+    Mengen werden auf ganze Stück aufgerundet, bei Artikeln mit Packungsinhalt auf ganze
+    Packungen (500 ml Bremsöl mit Packungsinhalt 500 = 1 Kanister); gleiche Produkt-ID wird zusammengezählt. */
 function warenkorbSenden(liste){
   const mengen = {};
-  liste.forEach(x => { const id = bdProduktId(x.a.shop_link); if(id) mengen[id] = (mengen[id] || 0) + Math.max(1, Math.ceil(num(x.rest))); });
+  liste.forEach(x => {
+    const id = bdProduktId(x.a.shop_link); if(!id) return;
+    const pk = packungen(x.a, x.rest);   // mit Packungsinhalt: ganze Packungen statt Einheiten (ab 20.7.0)
+    mengen[id] = (mengen[id] || 0) + (pk ? pk.n : Math.max(1, Math.ceil(num(x.rest))));
+  });
   const ids = Object.keys(mengen); if(!ids.length) return 0;
   const f = document.createElement("form");
   f.method = "post"; f.action = BD_WARENKORB; f.target = "_blank"; f.style.display = "none";
@@ -350,7 +368,10 @@ function warenkorbSenden(liste){
 function bestellText(lief){
   const g = bestellBedarf().filter(x => (x.a.lieferant || "") === lief && x.rest > 0);
   return "Bestellung LV Radsport M-V" + (lief ? " bei " + lief : "") + "\n\n" +
-    g.map(x => "- " + zahl(x.rest) + " " + x.a.einheit + " " + x.a.name + (x.a.bestellnummer ? " (Best.-Nr. " + x.a.bestellnummer + ")" : "")).join("\n");
+    g.map(x => {
+      const pk = packungen(x.a, x.rest);
+      return "- " + (pk ? packungText(x.a, pk) : zahl(x.rest) + " " + x.a.einheit) + " " + x.a.name + (x.a.bestellnummer ? " (Best.-Nr. " + x.a.bestellnummer + ")" : "");
+    }).join("\n");
 }
 
 /* ===============================================================

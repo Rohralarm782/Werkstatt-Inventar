@@ -1,11 +1,11 @@
 # Version
 
-**20.6.1** — 08.10.2026
+**20.7.0** — 09.10.2026
 
-Ticket-Übersicht entschlackt: nur noch „Alle“ und „Ich“, alle offenen Tickets
-in einer Liste (stehende Räder rot markiert), sortiert nach „nächstmöglich“,
-dann „soll fertig“, bei gleichem Termin größter Arbeitsaufwand zuerst.
-Keine Datenbankänderung.
+Packungsinhalt für die Bestellung: Artikel, die in einer anderen Einheit
+geführt als gekauft werden (Bremsöl in ml, Shop verkauft 500-ml-Kanister),
+kommen als ganze Packungen in den Bike-Discount-Warenkorb und in die
+kopierte Bestellliste. Neue Spalte `artikel.packungsinhalt` (Migration).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -24,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.7.0 | 09.10.2026 | Packungsinhalt: Warenkorb und Bestellliste in ganzen Packungen (Migration) |
 | 20.6.1 | 08.10.2026 | Ticket-Übersicht: nur „Alle“/„Ich“, eine Liste, Sortierung nach Termin und Aufwand |
 | 20.6.0 | 08.10.2026 | Bestellliste: Sammel-Warenkorb bei Bike-Discount |
 | 20.5.0 | 08.10.2026 | Ticket beim Anlegen zuweisen, Benachrichtigungen 07–18 Uhr halbstündlich (cron-job.org), neues App-Symbol, Scanner liest Strichcodes doppelt (Migration) |

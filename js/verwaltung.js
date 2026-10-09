@@ -677,7 +677,7 @@ function artikelForm(code, zweck){
   artZweck = code ? (hatGroessen(code) ? "kleidung" : "werkstatt") : (zweck === "kleidung" && ko.length ? "kleidung" : "werkstatt");
   const wahl = ko.length || artZweck === "kleidung";
   const preisGesperrt = code && !darf("manager");
-  const bestellOffen = !!(a.lieferant || a.bestellnummer || a.shop_link || (num(a.lieferzeit_tage) && num(a.lieferzeit_tage) !== LIEFERZEIT_STANDARD));
+  const bestellOffen = !!(a.lieferant || a.bestellnummer || a.shop_link || a.packungsinhalt || (num(a.lieferzeit_tage) && num(a.lieferzeit_tage) !== LIEFERZEIT_STANDARD));
   const artFeld = '<div class="feld" data-zeig="W"><span class="lbl">Art</span><select id="aArt" data-c="artGruppe">' +
     ["Stück","Vorrat","Pauschale"].map(x => '<option' + (a.art === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
   modal('<h3>' + (code ? "Artikel bearbeiten · " + esc(code) : "Neuer Artikel") + '</h3>' +
@@ -707,7 +707,10 @@ function artikelForm(code, zweck){
     // Bestellangaben aufklappbar
     '<details class="mehrfelder" data-zeig="L"' + (bestellOffen ? " open" : "") + '><summary>Bestellangaben' + (a.lieferant ? ' · ' + esc(a.lieferant) : '') + '</summary>' +
       '<div class="grid2">' + feld("Lieferant", "aLief", a.lieferant) + feld("Bestellnummer", "aBest", a.bestellnummer) + '</div>' +
-      '<div class="grid2">' + feld("Lieferzeit (Werktage Mo–Fr)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') + feld("Shop-Link", "aLink", a.shop_link) + '</div></details>' +
+      '<div class="grid2">' + feld("Lieferzeit (Werktage Mo–Fr)", "aLz", a.lieferzeit_tage, "number", ' step="1" min="0"') +
+        feld("Inhalt je Packung (in Einheit)", "aPack", a.packungsinhalt, "number", ' step="any" min="0" inputmode="decimal" placeholder="leer = 1"') + '</div>' +
+      feld("Shop-Link", "aLink", a.shop_link) +
+      '<p class="sub">Inhalt je Packung: z. B. 500, wenn der Shop das Bremsöl als 500-ml-Kanister verkauft und die Einheit ml ist. Der Warenkorb bestellt dann ganze Packungen.</p></details>' +
     (code ? auswahl("Status", "aAktiv", [["true","aktiv"],["false","inaktiv"]], String(a.aktiv)) : '<input type="hidden" id="aAktiv" value="true">') +
     '<p class="sub" data-zeig="K">Bestand wird je Größe geführt; ausgegeben wird als Leihgabe an Sportler (nie berechnet).</p>' +
     (code ? '' : '<p class="sub" data-zeig="W">Die Ziffer richtet sich nach der Art: Stück 1xx, Vorrat 5xx, Pauschale 9xx.</p>') +

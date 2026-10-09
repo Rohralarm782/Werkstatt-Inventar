@@ -139,7 +139,8 @@ create table artikel (
   dauer_min        integer check (dauer_min is null or dauer_min >= 0),  -- Arbeitszeit je Stück bzw. Leistung
   standort_id  bigint not null references standort (id),
   groessen  text[] check (groessen is null or cardinality(groessen) between 1 and 40),   -- Bekleidung: Größen (ab 16.0.0), sonst leer
-  geaendert_am  timestamptz not null default now()   -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
+  geaendert_am  timestamptz not null default now(),  -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
+  packungsinhalt  numeric check (packungsinhalt is null or packungsinhalt > 0)   -- Inhalt einer Shop-Packung in der Einheit des Artikels (ab 20.7.0), z. B. 500 bei Bremsöl in ml
 );
 create index artikel_standort on artikel (standort_id);
 
@@ -2090,7 +2091,8 @@ begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_code := naechster_code(p_buchstabe, p_gruppe);
   insert into artikel (code, name, einheit, preis, mindestbestand, lieferzeit_tage, art,
-                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min, standort_id, groessen)
+                       verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min, standort_id, groessen,
+                       packungsinhalt)
   values (v_code,
           p_daten ->> 'name',
           coalesce(nullif(p_daten ->> 'einheit', ''), 'Stück'),
@@ -2107,7 +2109,8 @@ begin
           (p_daten ->> 'dauer_min')::integer,
           v_st,
           case when jsonb_typeof(p_daten -> 'groessen') = 'array' and jsonb_array_length(p_daten -> 'groessen') > 0
-               then array(select jsonb_array_elements_text(p_daten -> 'groessen')) end);
+               then array(select jsonb_array_elements_text(p_daten -> 'groessen')) end,
+          (p_daten ->> 'packungsinhalt')::numeric);
   insert into artikel_tag (code, tag_id)
     select v_code, t.id from tag t
      where t.buchstabe = p_buchstabe and t.standort_id = v_st

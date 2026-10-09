@@ -430,7 +430,7 @@ const A = {
     const d = { name:wert("aName"), einheit:wert("aEinheit") || "Stück", preis:zahlOderNull("aPreis") || 0, mindestbestand:zahlOderNull("aMin") || 0,
                 lieferzeit_tage: !kleid && wert("aArt") === "Pauschale" ? 0 : Math.max(0, Math.round(zahlOderNull("aLz") || 0)), art:kleid ? "Stück" : wert("aArt"), verbraucht_code:wert("aVerb") || null,
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
-                shop_link:wert("aLink") || null, aktiv: wert("aAktiv") === "true",
+                shop_link:wert("aLink") || null, packungsinhalt: zahlOderNull("aPack") > 0 ? zahlOderNull("aPack") : null, aktiv: wert("aAktiv") === "true",
                 dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
     // Werkstatt-Artikel haben keine Größen; Bekleidung braucht welche
     let gr = null;
@@ -516,8 +516,9 @@ const A = {
   bestellZu: () => { view.mat = "lager"; render(); },
   bestellMarkieren: x => {
     const e = bestellBedarf().find(y => y.a.code === x); if(!e) return;
-    modal('<h3>Als bestellt markieren</h3><p class="sub" style="margin-top:-6px">' + esc(e.a.name) + ' · ' + esc(e.a.code) + '</p>' +
-          feld("Bestellte Menge (" + esc(e.a.einheit) + ")", "bMenge", e.rest, "number", ' min="0" step="any" inputmode="decimal"') +
+    const pk = packungen(e.a, e.rest);
+    modal('<h3>Als bestellt markieren</h3><p class="sub" style="margin-top:-6px">' + esc(e.a.name) + ' · ' + esc(e.a.code) + (pk ? ' · ' + esc(packungText(e.a, pk)) : '') + '</p>' +
+          feld("Bestellte Menge (" + esc(e.a.einheit) + ")", "bMenge", bestellVorschlag(e), "number", ' min="0" step="any" inputmode="decimal"') +
           '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="bestellSpeichern" data-x="' + esc(x) + '">Bestellt</button></div>');
   },
   bestellSpeichern: x => {
@@ -527,7 +528,7 @@ const A = {
   bestellAlle: x => {
     const g = bestellBedarf().filter(y => (y.a.lieferant || "") === x && y.rest > 0);
     if(!g.length || !confirm(g.length + " Artikel" + (x ? " bei " + x : "") + " als bestellt markieren (jeweils die vorgeschlagene Menge)?")) return;
-    aktion(() => neuIn("bestellung", g.map(y => ({ code:y.a.code, menge:y.rest, bearbeiter:bearbeiter || null }))), g.length + " Artikel als bestellt markiert");
+    aktion(() => neuIn("bestellung", g.map(y => ({ code:y.a.code, menge:bestellVorschlag(y), bearbeiter:bearbeiter || null }))), g.length + " Artikel als bestellt markiert");
   },
   bestellZurueck: x => {
     if(!confirm("Bestellung zurücknehmen?")) return;
@@ -537,7 +538,7 @@ const A = {
     const w = warenkorbPositionen(x); if(!w.mit.length) return;
     if(!w.ohne.length){ warenkorbSenden(w.mit); toast(w.mit.length + " Positionen an den Warenkorb geschickt"); return; }
     modal('<h3>In Warenkorb legen</h3><p>' + w.mit.length + ' Artikel kommen in den Warenkorb. Ohne Produkt-Link (bitte von Hand dazulegen):</p>' +
-          '<ul>' + w.ohne.map(y => '<li>' + zahl(y.rest) + ' ' + esc(y.a.einheit) + ' ' + esc(y.a.name) + '</li>').join("") + '</ul>' +
+          '<ul>' + w.ohne.map(y => '<li>' + (packungen(y.a, y.rest) ? esc(packungText(y.a, packungen(y.a, y.rest))) : zahl(y.rest) + ' ' + esc(y.a.einheit)) + ' ' + esc(y.a.name) + '</li>').join("") + '</ul>' +
           '<p class="sub">Damit ein Artikel automatisch mitkommt, als Shop-Link die Form <span class="mono">bike-discount.de/de/detail/&lt;Produkt-ID&gt;</span> eintragen.</p>' +
           '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="bestellWarenkorbOk" data-x="' + esc(x) + '">Warenkorb öffnen</button></div>');
   },
