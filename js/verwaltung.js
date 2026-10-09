@@ -124,6 +124,7 @@ function radSeite(id){
   h += '<div class="card"><div class="row wrapr"><span class="big" style="font-size:26px">' + esc(r.bezeichnung) + '</span><span class="sp"></span>' +
        (!r.aktiv ? '<span class="chip grau">inaktiv</span>' : steht ? '<span class="chip alarm">steht</span>' : '<span class="chip ok">fährt</span>') + '</div>';
   h += '<p class="sub" style="margin:2px 0 10px">' + esc([r.id, r.typ, r.marke, r.groesse ? "Größe " + r.groesse : "", r.rahmennummer ? "Rahmen " + r.rahmennummer : "", r.eigentuemer_id ? "gehört " + sportlerName(r.eigentuemer_id) : ""].filter(Boolean).join(" · ")) + '</p>';
+  if(r.notiz && String(r.notiz).trim()) h += '<p style="margin:0 0 10px;white-space:pre-wrap;overflow-wrap:anywhere"><span class="lbl" style="display:inline;margin:0 6px 0 0">Notiz</span>' + esc(String(r.notiz).trim()) + '</p>';
   h += '<div class="row" style="gap:8px"><span class="lbl" style="margin:0">Fahrer</span><select data-c="radFahrer" data-x="' + esc(r.id) + '" style="flex:1"' + gesperrt + '><option value="">— kein Fahrer —</option>';
   (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
   h += '</select></div>';
