@@ -214,6 +214,7 @@ const A = {
   nFahrbereit: x => { neu.fahrbereit = x === "ja"; render(); },
   nOrt: x => { neu.arbeitsort = x; render(); },
   nAufwand: x => { neu.aufwand = x; render(); },
+  nAufwandWahl: () => { neu.aufwandWahl = true; render(); },
   nTermin: x => { Object.assign(neu, terminWert(x)); render(); },
   nMatWeg: x => { neu.pos.splice(Number(x), 1); render(); },
   nSchrittText: () => {

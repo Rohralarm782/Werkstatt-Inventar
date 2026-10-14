@@ -355,7 +355,7 @@ function zeile(l, r){ return '<div class="row" style="padding:4px 0"><span>' + l
 /* ===============================================================
    Neues Ticket
    ===============================================================*/
-function neuStart(){ neu = { art:"rad", rad:"", stuecke:[], problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[], zuweisen:"", aufwand:null }; }
+function neuStart(){ neu = { art:"rad", rad:"", stuecke:[], problem:"", fahrbereit:false, soll_fertig:null, naechstmoeglich:false, anlass:"", arbeitsort:"Werkstatt", pos:[], fotos:[], zuweisen:"", aufwand:null, aufwandWahl:false }; }
 function neuView(){
   if(!neu) neuStart();
   if(!neu.art) neu.art = "rad";
@@ -406,7 +406,7 @@ function neuView(){
        '<input type="number" id="nSchrittMin" min="0" step="1" inputmode="numeric" placeholder="min" aria-label="Minuten (optional)" style="width:70px">' +
        '<button class="btn small" data-a="nSchrittText">+</button></div>';
   const schN = schaetzung(neu.pos);
-  if(schN) h += '<p class="sub" style="margin:8px 0 0">Geschätzter Arbeitsaufwand: <strong>' + schaetzText(schN) + '</strong></p>';
+  if(schN && !neu.zuweisen) h += '<p class="sub" style="margin:8px 0 0">Geschätzte Dauer: <strong>' + schaetzText(schN) + '</strong></p>';
   h += '</div>';
   if(!neu.fotos) neu.fotos = [];
   h += '<div class="feld"><span class="lbl">Fotos (optional)</span>';
@@ -445,8 +445,16 @@ function zuweisenFeld(sch){
   h += '</select></div>';
   if(!neu.zuweisen) return h + '<p class="sub">Den Arbeitsaufwand schätzt die Werkstatt beim Übernehmen.</p>';
   const vorschlag = sch ? aufwandVorschlag(sch.min) : null, akt = neu.aufwand || vorschlag || "klein";
-  h += '<div class="feld"><span class="lbl">Arbeitsaufwand' + (vorschlag && !neu.aufwand ? ' <span class="sub">· Vorschlag laut Schritten</span>' : '') + '</span><div class="seg">' +
-       ["klein","mittel","groß"].map(k => segBtn("nAufwand", k, k + " · " + AUFWAND[k] + " T", akt)).join("") + '</div></div>';
+  if(vorschlag && !neu.aufwandWahl){
+    // Ab 20.7.2: Mit Minuten an den Schritten wird die Stufe daraus berechnet —
+    // nur eine Zeile statt Dauer-Text und Knöpfen; per „ändern“ doch von Hand.
+    h += '<div class="feld"><span class="lbl">Arbeitsaufwand</span><div class="row" style="gap:8px;align-items:center">' +
+         '<div style="flex:1">' + schaetzText(sch) + ' → <strong>' + esc(akt) + ' · ' + AUFWAND[akt] + ' T</strong></div>' +
+         '<button class="btn small" data-a="nAufwandWahl">ändern</button></div></div>';
+  } else {
+    h += '<div class="feld"><span class="lbl">Arbeitsaufwand' + (vorschlag && !neu.aufwand ? ' <span class="sub">· Vorschlag laut Schritten</span>' : '') + '</span><div class="seg">' +
+         ["klein","mittel","groß"].map(k => segBtn("nAufwand", k, k + " · " + AUFWAND[k] + " T", akt)).join("") + '</div></div>';
+  }
   return h + '<p class="sub">Das Ticket ist dann gleich in Arbeit bei ' + (neu.zuweisen === bearbeiter ? 'dir' : esc(neu.zuweisen)) + '.</p>';
 }
 
