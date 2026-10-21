@@ -328,6 +328,7 @@ function tagAnzahl(id){
 function ukVerw(){
   if(!tagDa()) return '<div class="card"><p style="margin:0">Für Tags muss die Datenbank einmal aktualisiert werden: <span class="mono">db/migration_11.0.0.sql</span> im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.</p></div>';
   const k = view.ukKat;
+  if(k && k.charAt(0) === "#") return globVerw(k.slice(1));
   if(!k){
     let h = '<div class="card" style="padding-top:0;padding-bottom:0">';
     kategorien("artikel").forEach(([b, name]) => {
@@ -335,7 +336,15 @@ function ukVerw(){
       h += '<button class="zeile-btn" data-a="ukKatAuf" data-x="' + esc(b) + '"><span class="txt"><span class="titel">' + esc(name || "Kategorie " + b) + ' <span class="sub">· ' + esc(b) + '</span></span>' +
            '<span class="sub">' + (l.length ? esc(l.map(t => t.name).join(", ")) : "keine Tags") + '</span></span>' + SVG_PFEIL + '</button>';
     });
-    return h + '</div><p class="sub">Tags gehören zu einer Kategorie (dem Buchstaben im Code). Ein Artikel oder Teil kann mehrere Tags seiner Kategorie haben, z. B. Kettenblattschrauben unter „Kurbel“ und „Kleinteile“. Codes und Etiketten bleiben gleich.</p>';
+    h += '</div><p class="sub">Tags gehören zu einer Kategorie (dem Buchstaben im Code). Ein Artikel oder Teil kann mehrere Tags seiner Kategorie haben, z. B. Kettenblattschrauben unter „Kurbel“ und „Kleinteile“. Codes und Etiketten bleiben gleich.</p>';
+    if(!globDa()) return h + '<div class="card"><p style="margin:0">Für übergreifende Tags (Marke, Baugruppe, Disziplin) muss die Datenbank einmal aktualisiert werden: <span class="mono">db/migration_20.8.0.sql</span> im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.</p></div>';
+    h += '<h2 class="sec">Übergreifende Tags</h2><div class="card" style="padding-top:0;padding-bottom:0">';
+    TAG_GRUPPEN.forEach(g => {
+      const l = globListe(g);
+      h += '<button class="zeile-btn" data-a="ukKatAuf" data-x="#' + g + '"><span class="txt"><span class="titel">' + g + '</span>' +
+           '<span class="sub">' + (l.length ? esc(l.slice(0, 8).map(t => t.name).join(", ") + (l.length > 8 ? " … (" + l.length + ")" : "")) : "noch keine") + '</span></span>' + SVG_PFEIL + '</button>';
+    });
+    return h + '</div><p class="sub">Übergreifende Tags passen zu jeder Kategorie — z. B. eine Bremsscheibe (Bremse) mit „Laufrad“ und „Shimano“. Marken entstehen aus dem Feld „Marke“ an Artikeln und Einzelstücken.</p>';
   }
   const l = tagListe(k);
   let h = '<button class="btn small zurueck" data-a="ukKatZu">← alle Kategorien</button>' +
@@ -355,7 +364,7 @@ function ukVerw(){
   h += '</div>' + (darf("manager") ? '<p class="sub" style="margin:8px 0 0">Name antippen: umbenennen oder löschen. ↑ ändert die Reihenfolge der Filter und Überschriften.</p>' : '') +
        '<div class="row" style="gap:8px;margin-top:10px"><input type="text" id="ukNeuName" placeholder="Neuer Tag, z. B. Schläuche" style="flex:1">' +
        '<button class="btn primary" data-a="ukNeu" data-x="' + esc(k) + '">Hinzufügen</button></div></div>';
-  if(l.length){
+  if(l.length || globWahlListe().length){
     const ohneA = (DB.artikel||[]).filter(a => a.aktiv && stueckKategorie(a.code) === k && !tagsVon("artikel", a.code).length).length;
     const ohneS = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert" && stueckKategorie(s.nummer) === k && !tagsVon("stueck", s.nummer).length).length;
     h += '<h2 class="sec">Zuordnen</h2><div class="card" style="padding-top:0;padding-bottom:0">' +
@@ -364,16 +373,39 @@ function ukVerw(){
   }
   return h;
 }
+/** Wählbare übergreifende Tags (Baugruppe, Disziplin), nach Gruppe und Name. */
+function globWahlListe(){ return TAG_GRUPPEN_WAHL.reduce((l, g) => l.concat(globListe(g)), []); }
+/** Mehr → Tags → eine Gruppe übergreifender Tags (Marke, Baugruppe, Disziplin). */
+function globVerw(g){
+  const l = globListe(g), mgr = darf("manager");
+  let h = '<button class="btn small zurueck" data-a="ukKatZu">← alle Tags</button>' +
+          '<h3 style="margin:4px 0 10px">' + esc(g) + ' <span class="sub">· übergreifend</span></h3><div class="card"><div class="liste">';
+  if(!l.length) h += '<div class="sub">Noch keine.</div>';
+  l.forEach(t => {
+    const n = tagAnzahl(t.id);
+    const txt = [n.a ? n.a + " Artikel" : "", n.s ? n.s + " Teile" : ""].filter(Boolean).join(" · ") || "leer";
+    h += '<div class="eintrag">' + (mgr
+           ? '<button class="lzeile" data-a="ukUmbenennen" data-x="' + t.id + '"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></button>'
+           : '<div class="txt"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></div>') + '</div>';
+  });
+  h += '</div>' + (mgr ? '<p class="sub" style="margin:8px 0 0">Name antippen: umbenennen' + (g === "Marke" ? ' oder zusammenführen' : '') + ', löschen.</p>' : '') +
+       '<div class="row" style="gap:8px;margin-top:10px"><input type="text" id="ukNeuName" placeholder="' + (g === "Marke" ? "Neue Marke, z. B. Campagnolo" : g === "Baugruppe" ? "Neu, z. B. Laufrad" : "Neu, z. B. Bahn") + '" style="flex:1">' +
+       '<button class="btn primary" data-a="ukNeu" data-x="#' + esc(g) + '">Hinzufügen</button></div></div>';
+  h += g === "Marke"
+    ? '<p class="sub">Marken setzt das Feld „Marke“ an Artikeln und Einzelstücken. Umbenennen ändert das Feld überall mit. Heißt der neue Name wie eine vorhandene Marke, werden beide zusammengeführt — so lassen sich Schreibweisen wie „shimano“ und „Shimano“ vereinen. Eine Marke, die noch eingetragen ist, lässt sich nicht löschen.</p>'
+    : '<p class="sub">Vergeben im Formular des Artikels bzw. Einzelstücks (unter „Übergreifend“) oder für viele auf einmal über eine Kategorie → Zuordnen.</p>';
+  return h;
+}
 /** Einen Tag vielen Artikeln/Einzelstücken einer Kategorie auf einmal geben oder wegnehmen:
     Tag wählen — angehakt ist, wer ihn schon hat. */
 let uzZeilen = [];
 function ukZuordnenDialog(x){
-  const [tab, k] = x.split("|"), l = tagListe(k);
-  if(!l.length) return;
+  const [tab, k] = x.split("|"), l = tagListe(k), gl = globWahlListe();
+  if(!l.length && !gl.length) return;
   if(tab === "artikel"){
     uzZeilen = katSortieren("l", (DB.bestand||[]).filter(b => b.aktiv && stueckKategorie(b.code) === k), b => b.code).map(b => {
       const ids = tagsVon("artikel", b.code);
-      return { werte:[b.code], ids, html:'<strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span>' };
+      return { werte:[b.code], ids, glob:globTagsVon("artikel", b.code, true), html:'<strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span>' };
     });
   } else {
     // Serien als eine Zeile
@@ -383,22 +415,26 @@ function ukZuordnenDialog(x){
     });
     uzZeilen = reihe.map(key => {
       const g = gruppen[key];
-      return { werte:g.map(s => s.nummer), ids:tagsVon("stueck", g[0].nummer),
+      return { werte:g.map(s => s.nummer), ids:tagsVon("stueck", g[0].nummer), glob:globTagsVon("stueck", g[0].nummer, true),
                html:(g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '<strong>' + esc(g[0].nummer) + '</strong> ') + esc(g[0].typ) + (g[0].marke ? ' · ' + esc(g[0].marke) : '') +
                     (g.length > 1 ? ' <span class="sub">' + esc(nummernText(g.map(s => s.nummer))) + '</span>' : '') };
     });
   }
   if(!uzZeilen.length){ toast("In " + kategorieName(k) + " gibt es keine " + (tab === "artikel" ? "Artikel." : "Einzelstücke."), true); return; }
   let h = '<h3>Zuordnen · ' + esc(kategorieName(k)) + '</h3><p class="sub" style="margin-top:-6px">Tag wählen, dann ' + (tab === "artikel" ? "Lager-Artikel" : "Einzelstücke") + ' an- oder abhaken. Angehakt = hat den Tag.</p>' +
-          '<div class="feld"><span class="lbl">Tag</span><select id="uzZiel" data-c="uzTag">' + l.map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join("") + '</select></div>' +
+          '<div class="feld"><span class="lbl">Tag</span><select id="uzZiel" data-c="uzTag">' +
+            (gl.length && l.length ? '<optgroup label="' + esc(kategorieName(k)) + '">' : '') + l.map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join("") + (gl.length && l.length ? '</optgroup>' : '') +
+            TAG_GRUPPEN_WAHL.map(g => globListe(g).length ? '<optgroup label="' + g + ' (übergreifend)">' + globListe(g).map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join("") + '</optgroup>' : '').join("") +
+          '</select></div>' +
           '<div class="row" style="gap:4px;justify-content:flex-end"><button class="btn small link" data-a="uzOhne">nur ohne Tag</button><button class="btn small link" data-a="uzAlle">alle</button><button class="btn small link" data-a="uzKeine">keine</button></div>' +
-          '<div class="liste" id="uzListe" style="max-height:50vh;overflow:auto;margin-bottom:10px">' + uzListe(l[0].id) + '</div>' +
+          '<div class="liste" id="uzListe" style="max-height:50vh;overflow:auto;margin-bottom:10px">' + uzListe((l[0] || gl[0]).id) + '</div>' +
           '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="ukZuordnenSpeichern" data-x="' + esc(x) + '">Speichern</button></div>';
   modal(h);
 }
 function uzListe(tagId){
-  return uzZeilen.map((z, i) => '<label class="eintrag" style="cursor:pointer"><input type="checkbox" data-uz="' + i + '" data-ohne="' + (z.ids.length ? 0 : 1) + '"' + (z.ids.indexOf(tagId) >= 0 ? " checked" : "") + ' style="width:20px;height:20px">' +
-                               '<div class="txt">' + z.html + (z.ids.length ? '<br><span class="sub">' + esc(tagNamen(z.ids)) + '</span>' : '<br><span class="sub">ohne Tag</span>') + '</div></label>').join("");
+  return uzZeilen.map((z, i) => { const alle = z.ids.concat(z.glob || []);
+    return '<label class="eintrag" style="cursor:pointer"><input type="checkbox" data-uz="' + i + '" data-ohne="' + (z.ids.length ? 0 : 1) + '"' + (alle.indexOf(tagId) >= 0 ? " checked" : "") + ' style="width:20px;height:20px">' +
+           '<div class="txt">' + z.html + '<br><span class="sub">' + (z.ids.length ? esc(tagNamen(z.ids)) : 'ohne Tag') + (z.glob && z.glob.length ? ' · ' + esc(tagNamen(z.glob)) : '') + '</span></div></label>'; }).join("");
 }
 function rechnungenVerw(){
   const summen = {};
@@ -489,8 +525,10 @@ function nrBuchstabe(){
   const k = wert("nrKat");
   return (k === "_neu" ? wert("nrBuch") : k).toUpperCase();
 }
-/* Feld „Tags“ in den Formularen: Chips zum An-/Austippen. Es zeigt nur die Tags der
-   gewählten Kategorie; „+ neuer Tag“ legt direkt einen in dieser Kategorie an. */
+/* Feld „Tags“ in den Formularen: Chips zum An-/Austippen. Oben die Tags der gewählten
+   Kategorie („+ neuer Tag“ legt direkt einen in dieser Kategorie an), darunter
+   übergreifende Tags (ab 20.8.0): nur die gewählten und die in dieser Kategorie
+   häufigsten; alle übrigen findet das Suchfeld, das auch neue anlegt. */
 /** Kategorie-Buchstabe im offenen Formular: beim Bearbeiten fest (aus dem Code),
     beim Anlegen aus der Kategorie-Auswahl bzw. der eigenen Nummer. */
 function formKat(){
@@ -500,11 +538,45 @@ function formKat(){
   if(nrForm.modus === "auto"){ const b = nrBuchstabe(); return /^[A-Z]{1,3}$/.test(b) ? b : ""; }
   return codeBuchstabe(mitKuerzel(wert("nrEigenWert")));
 }
+const GLOB_VORSCHLAEGE = 6;   // so viele nicht gewählte übergreifende Tags als Vorschlag
 function tagAuswahl(kat, aktuell){
-  if(!kat) return '<span class="lbl">Tags</span><p class="sub" style="margin:0">Erst Kategorie wählen.</p>';
-  let h = '<span class="lbl">Tags (antippen = an/aus)</span><div class="tagwahl">';
-  tagListe(kat).forEach(t => h += '<button type="button" class="btn small" data-a="tagUmschalten" data-t="' + t.id + '" aria-pressed="' + (aktuell.indexOf(t.id) >= 0) + '">' + esc(t.name) + '</button>');
-  return h + '<button type="button" class="btn small link" data-a="tagNeuImFormular">+ neuer Tag</button></div>';
+  let h;
+  if(!kat) h = '<span class="lbl">Tags</span><p class="sub" style="margin:0 0 6px">Kategorie-Tags: erst Kategorie wählen.</p>';
+  else {
+    h = '<span class="lbl">Tags (antippen = an/aus)</span><div class="tagwahl">';
+    tagListe(kat).forEach(t => h += '<button type="button" class="btn small" data-a="tagUmschalten" data-t="' + t.id + '" aria-pressed="' + (aktuell.indexOf(t.id) >= 0) + '">' + esc(t.name) + '</button>');
+    h += '<button type="button" class="btn small link" data-a="tagNeuImFormular">+ neuer Tag</button></div>';
+  }
+  return h + (globDa() ? globAuswahl(kat, aktuell) : '');
+}
+/** Übergreifende Tags, die in der Kategorie (ohne Kategorie: überall) am häufigsten vergeben sind. */
+function globVorschlaege(kat){
+  const n = {};
+  const z = (schluessel, id) => { const t = tagNachId(id); if(globWahl(t) && (!kat || stueckKategorie(schluessel) === kat)) n[id] = (n[id] || 0) + 1; };
+  (DB.artikelTags || []).forEach(x => z(x.code, x.tag_id));
+  (DB.stueckTags || []).forEach(x => z(x.nummer, x.tag_id));
+  return Object.keys(n).map(Number).sort((a, b) => (n[b] - n[a]) || globSort(tagNachId(a), tagNachId(b)));
+}
+function globAuswahl(kat, aktuell){
+  const gew = aktuell.map(tagNachId).filter(globWahl).sort(globSort).map(t => t.id);
+  const vor = globVorschlaege(kat).filter(id => gew.indexOf(id) < 0).slice(0, GLOB_VORSCHLAEGE);
+  let h = '<div class="globwahl"><span class="lbl" style="margin-top:8px">Übergreifend (Baugruppe, Disziplin)</span><div class="tagwahl">';
+  gew.concat(vor).forEach(id => { const t = tagNachId(id);
+    h += '<button type="button" class="btn small glob" data-a="tagUmschalten" data-t="' + t.id + '" aria-pressed="' + (gew.indexOf(id) >= 0) + '" title="' + esc(t.gruppe) + '">' + esc(t.name) + '</button>'; });
+  if(!gew.length && !vor.length) h += '<span class="sub">Noch keine — unten suchen oder neu anlegen.</span>';
+  h += '</div><input type="search" id="gtSuche" data-c="gtSuche" placeholder="' + (globWahlListe().length ? 'Weitere suchen oder neu: Laufrad, Bahn …' : 'Neu anlegen: Laufrad, Bahn …') + '" autocomplete="off" style="margin-top:6px">' +
+       '<div class="tagwahl" id="gtTreffer" style="margin-top:6px"></div></div>';
+  return h;
+}
+/** Treffer zur Eingabe im Suchfeld: passende übergreifende Tags (noch nicht gewählt) und „neu anlegen“. */
+function gtTreffer(eingabe){
+  const q = (eingabe || "").trim().toLowerCase(); if(!q) return "";
+  const gew = tagsImFormular();
+  const alle = globWahlListe(), genau = alle.some(t => t.name.toLowerCase() === q);
+  const l = alle.filter(t => t.name.toLowerCase().indexOf(q) >= 0 && gew.indexOf(t.id) < 0).slice(0, 12);
+  let h = l.map(t => '<button type="button" class="btn small glob" data-a="gtWaehlen" data-x="' + t.id + '">' + esc(t.name) + ' <span class="sub">· ' + esc(t.gruppe) + '</span></button>').join("");
+  if(!genau) TAG_GRUPPEN_WAHL.forEach(g => h += '<button type="button" class="btn small link" data-a="gtNeu" data-x="' + g + '">+ „' + esc(eingabe.trim()) + '“ als ' + g + '</button>');
+  return h || '<span class="sub">Schon gewählt.</span>';
 }
 /** kat: fester Buchstabe (Bearbeiten) oder leer (folgt der Nummernwahl). */
 function ukBox(kat, aktuell){
@@ -520,7 +592,13 @@ function ukBoxAktualisieren(){
 function ukFormWert(){
   if(!$("ukBox")) return undefined;
   const k = formKat();
-  return tagsImFormular().filter(id => { const t = tagNachId(id); return t && t.buchstabe === k; });
+  return tagsImFormular().filter(id => { const t = tagNachId(id); return t && (t.buchstabe === k || globWahl(t)); });
+}
+/** Tag-Feld neu zeichnen und dabei ids dazunehmen (übergreifende Tags aus Suche/Neu). */
+function ukBoxMit(ids){
+  const box = $("ukBox"); if(!box) return;
+  const gew = tagsImFormular(); ids.forEach(id => { if(gew.indexOf(id) < 0) gew.push(id); });
+  box.innerHTML = tagAuswahl(formKat(), gew);
 }
 /* ---------------------------------------------------------------
    Rad-Nummern (ab 19.0.0): Jeder Standort kann eine Vorlage festlegen
@@ -626,7 +704,9 @@ function nummerVergeben(nr){ return !!artikel(nr) || (DB.stueck||[]).some(x => x
 /** Marken: Vorschläge aus dem Bestand; gleiche Marke in anderer Schreibweise wird vereinheitlicht. */
 function markenListe(){
   const m = {};
-  (DB.raeder||[]).concat(DB.stueck||[]).forEach(x => { if(x.marke && !m[x.marke.toLowerCase()]) m[x.marke.toLowerCase()] = x.marke; });
+  // Marke-Tags zuerst: deren Schreibweise gilt (Umbenennen in Mehr → Tags → Marke)
+  globListe("Marke").map(t => ({ marke:t.name })).concat(DB.raeder||[], DB.stueck||[], DB.artikel||[])
+    .forEach(x => { const v = (x.marke || "").trim(); if(v && !m[v.toLowerCase()]) m[v.toLowerCase()] = v; });
   return Object.values(m).sort((a,b) => a.localeCompare(b, "de"));
 }
 function markenDL(){ return '<datalist id="markenDL">' + markenListe().map(x => '<option value="' + esc(x) + '"></option>').join("") + '</datalist>'; }
@@ -684,8 +764,10 @@ function artikelForm(code, zweck){
   modal('<h3>' + (code ? "Artikel bearbeiten · " + esc(code) : "Neuer Artikel") + '</h3>' +
     (wahl ? '<div class="feld"><div class="seg">' + segBtn("aZweck", "werkstatt", "Werkstatt", artZweck) + segBtn("aZweck", "kleidung", "Bekleidung", artZweck) + '</div></div>' : '') +
     artFeld + (code ? '' : nummernWahl("artikel", 1)) +
-    ukBox(code ? stueckKategorie(code) : "", code ? tagsVon("artikel", code) : []) +
+    ukBox(code ? stueckKategorie(code) : "", code ? alleTagsVon("artikel", code) : []) +
     feld("Bezeichnung", "aName", a.name) +
+    // Marke (ab 20.8.0): setzt in der Datenbank den Marke-Tag gleichen Namens
+    (globDa() ? feld("Marke", "aMarke", a.marke, "text", ' list="markenDL" placeholder="z. B. Shimano" autocomplete="off"') + markenDL() : '') +
     // Bekleidung: Größen
     '<div class="feld" data-zeig="K"><span class="lbl">Größen (durch Komma getrennt)</span><input type="text" id="aGroessen" data-c="aGroessen" value="' + esc((a.groessen || []).join(", ")) + '" placeholder="z. B. XS, S, M, L, XL">' +
       '<div class="row wrapr" style="gap:6px;margin-top:6px">' + GROESSEN_VORLAGEN.map((v, i) => '<button class="btn small" data-a="grVorlage" data-x="' + i + '">' + esc(v[0]) + '</button>').join("") + '</div></div>' +
@@ -742,7 +824,7 @@ function stueckForm(nr){
   if(nr) nrForm = null;
   modal('<h3>' + (nr ? "Einzelstück bearbeiten · " + esc(nr) : "Neues Einzelstück") + '</h3>' +
     (nr ? "" : nummernWahl("stueck", 2)) +
-    ukBox(nr ? stueckKategorie(nr) : "", nr ? tagsVon("stueck", nr) : []) +
+    ukBox(nr ? stueckKategorie(nr) : "", nr ? alleTagsVon("stueck", nr) : []) +
     '<div class="grid2">' + feld("Typ", "eTyp", s.typ, "text", ' placeholder="Laufrad Bahn vorne"') + feld("Marke", "eMarke", s.marke, "text", ' list="markenDL" placeholder="z. B. Mavic"') + '</div>' + markenDL() +
     feld("Detail", "eDet", s.detail) +
     (nr ? '' : '<div class="feld"><span class="lbl">Anzahl gleicher Teile</span><input type="number" id="eAnzahl" value="1" min="1" max="50" step="1" inputmode="numeric" data-c="nrVorschau" style="max-width:120px">' +

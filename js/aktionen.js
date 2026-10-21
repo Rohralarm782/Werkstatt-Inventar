@@ -441,6 +441,7 @@ const A = {
       if(!gr){ toast("Bitte Größen eintragen (oder „One Size“).", true); return; }
     } else if(x && hatGroessen(x) && !confirm("Als Werkstatt-Artikel speichern? Die Größen (" + groessen(x).join(", ") + ") werden entfernt.")) return;
     d.groessen = gr;
+    if($("aMarke")) d.marke = marke(wert("aMarke"));   // ab 20.8.0; setzt den Marke-Tag
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const tagsSetzen = c => tags === undefined ? null : rpc("tags_setzen", { p_art:"artikel", p_schluessel:[c], p_tags:tags });
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
@@ -640,6 +641,9 @@ const A = {
   /* Lager/Inventar: Kategorie → Tag (x = "l|L" bzw. "inv|L"; leer = zurück) */
   katFilter: x => { const [p, k] = x.split("|"); view[p + "Kat"] = k || ""; view[p + "Uk"] = ""; render(); },
   ukFilter: x => { const [p, u] = x.split("|"); view[p + "Uk"] = view[p + "Uk"] === u ? "" : u; render(); },
+  // Übergreifender Tag als Filter (gilt zusätzlich zu Kategorie und Tag); nochmal antippen = aufheben
+  gtFilter: x => { const [p, g] = x.split("|"); view[p + "Gt"] = view[p + "Gt"] === g ? "" : g; view[p + "GtOffen"] = false; render(); },
+  gtOffen: x => { view[x + "GtOffen"] = !view[x + "GtOffen"]; render(); },
   ukVerwalten: x => { view.tab = "mehr"; view.mehr = "tags"; view.ukKat = x || null; view.suche = ""; render(); window.scrollTo(0,0); },
   serieAuf: x => { if(!view.serieOffen) view.serieOffen = {}; view.serieOffen[x] = !view.serieOffen[x]; render(); },
 
@@ -697,6 +701,12 @@ const A = {
   ukNeu: x => {
     const n = wert("ukNeuName");
     if(!n){ toast("Name fehlt.", true); return; }
+    if(x.charAt(0) === "#"){   // übergreifender Tag einer Gruppe
+      const g = x.slice(1);
+      if(globListe(g).some(t => t.name.toLowerCase() === n.toLowerCase())){ toast(n + " gibt es schon.", true); return; }
+      aktion(() => neuIn("tag", { gruppe:g, name:n }), n + " angelegt");
+      return;
+    }
     const l = tagListe(x);
     if(l.some(t => t.name.toLowerCase() === n.toLowerCase())){ toast(n + " gibt es schon.", true); return; }
     const sort = l.reduce((m, t) => Math.max(m, t.sortierung), -1) + 1;
@@ -711,19 +721,39 @@ const A = {
   },
   ukUmbenennen: x => {
     const t = tagNachId(x); if(!t) return;
-    modal('<h3>Tag bearbeiten</h3><p class="sub" style="margin-top:-6px">' + esc(kategorieName(t.buchstabe)) + '</p>' + feld("Name", "ukName", t.name) +
-          '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><button class="btn small" data-a="ukLoeschen" data-x="' + t.id + '">Löschen</button>' +
+    const n = tagAnzahl(t.id), markeBelegt = t.gruppe === "Marke" && (n.a || n.s);
+    modal('<h3>' + (t.gruppe === "Marke" ? "Marke bearbeiten" : "Tag bearbeiten") + '</h3><p class="sub" style="margin-top:-6px">' + esc(t.gruppe ? t.gruppe + " · übergreifend" : kategorieName(t.buchstabe)) + '</p>' +
+          feld("Name", "ukName", t.name, "text", t.gruppe === "Marke" ? ' list="markenDL" autocomplete="off"' : '') + (t.gruppe === "Marke" ? markenDL() : '') +
+          (t.gruppe === "Marke" ? '<p class="sub" style="margin-top:-4px">Ändert das Feld „Marke“ überall mit. Eine vorhandene Marke als Name führt beide zusammen.</p>' : '') +
+          '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
+          (markeBelegt ? '' : '<button class="btn small" data-a="ukLoeschen" data-x="' + t.id + '">Löschen</button>') +
           '<span class="sp"></span><button class="btn primary" data-a="ukNameSpeichern" data-x="' + t.id + '">Speichern</button></div>');
   },
   ukNameSpeichern: x => {
     const t = tagNachId(x), n = wert("ukName"); if(!t) return;
     if(!n){ toast("Name fehlt.", true); return; }
-    if(tagListe(t.buchstabe).some(y => y.id !== t.id && y.name.toLowerCase() === n.toLowerCase())){ toast(n + " gibt es schon.", true); return; }
+    if(t.gruppe === "Marke"){
+      // Marke: über die Datenbank, damit das Feld „Marke“ mitzieht (und zusammenführen geht)
+      const ziel = globListe("Marke").find(y => y.id !== t.id && y.name.toLowerCase() === n.toLowerCase());
+      if(ziel){
+        const z = tagAnzahl(t.id), betr = [z.a ? z.a + " Artikel" : "", z.s ? z.s + (z.s === 1 ? " Einzelstück" : " Einzelstücke") : ""].filter(Boolean).join(" und ");
+        if(!confirm("„" + ziel.name + "“ gibt es schon. „" + t.name + "“ damit zusammenführen?" + (betr ? "\n\n" + betr + " bekommen die Marke „" + ziel.name + "“." : ""))) return;
+        if(view.lGt === String(t.id)) view.lGt = String(ziel.id);
+        if(view.invGt === String(t.id)) view.invGt = String(ziel.id);
+      }
+      aktion(() => rpc("marke_umbenennen", { p_tag:t.id, p_name:n }), ziel ? "Zusammengeführt" : "Umbenannt");
+      return;
+    }
+    const geschw = t.gruppe ? globListe(t.gruppe) : tagListe(t.buchstabe);
+    if(geschw.some(y => y.id !== t.id && y.name.toLowerCase() === n.toLowerCase())){ toast(n + " gibt es schon.", true); return; }
     aktion(() => aendern("tag", "id=eq." + t.id, { name:n }), "Umbenannt");
   },
   ukLoeschen: x => {
     const t = tagNachId(x); if(!t) return;
     const n = tagAnzahl(t.id);
+    if(t.gruppe === "Marke" && (n.a || n.s)){ toast("„" + t.name + "“ ist noch eingetragen — erst dort ändern oder mit einer anderen Marke zusammenführen.", true); return; }
+    if(view.lGt === String(t.id)) view.lGt = "";
+    if(view.invGt === String(t.id)) view.invGt = "";
     const betr = [n.a ? n.a + " Artikel" : "", n.s ? n.s + (n.s === 1 ? " Einzelstück" : " Einzelstücke") : ""].filter(Boolean).join(" und ");
     if(!confirm("„" + t.name + "“ löschen?" + (betr ? "\n\n" + betr + " verlieren nur diesen Tag, sonst bleibt alles wie es ist." : ""))) return;
     if(view.lUk === String(t.id)) view.lUk = "";
@@ -747,6 +777,22 @@ const A = {
   },
   /* Tags im Formular */
   tagUmschalten: (x, el) => el.setAttribute("aria-pressed", String(el.getAttribute("aria-pressed") !== "true")),
+  // Übergreifende Tags: Treffer aus dem Suchfeld wählen bzw. neu anlegen (Gruppe = x)
+  gtWaehlen: x => ukBoxMit([Number(x)]),
+  gtNeu: async x => {
+    const n = wert("gtSuche").trim(); if(!n || TAG_GRUPPEN_WAHL.indexOf(x) < 0) return;
+    if(offline){ toast("Offline — Änderungen sind erst mit Netz möglich.", true); return; }
+    const da = globListe(x).find(t => t.name.toLowerCase() === n.toLowerCase());
+    try{
+      let id = da ? da.id : null;
+      if(!id){
+        const r = await rest("/tag", { method:"POST", body:{ gruppe:x, name:n }, headers:{ Prefer:"return=representation" } });
+        const neuT = Array.isArray(r) ? r[0] : r; id = neuT.id;
+        DB.tags = (DB.tags || []).concat([neuT]);
+      }
+      ukBoxMit([id]);
+    }catch(e){ toast(e.message, true); }
+  },
   tagNeuImFormular: async () => {
     const k = formKat(); if(!k){ toast("Erst Kategorie wählen.", true); return; }
     const n = (prompt("Neuer Tag in " + kategorieName(k) + ":") || "").trim(); if(!n) return;

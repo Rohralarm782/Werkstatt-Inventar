@@ -83,7 +83,7 @@ const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlau
   "geheMehr","mehrZu","teilZeigen","oeffnen","zurueck","scan","drucken","artikelMenue","export","rechnungZeigen","rechnungDrucken","postenZeigen","fotoZeigen",
   "bestellZu","bestellKopieren","bestellWarenkorb","bestellWarenkorbOk","buchungenArtikel","serieEtiketten","stueckEtikett","artikelEtikett","radEtikett","radEtikettenAlle","etDrucken","etSammeln","etZurueck","etBilder","etTeilen","sortWahl",
   "vorlagenVerwalten","vorlageForm","vorlageSpeichern","vorlageLoeschen","vorlageTest","dlEntfernen","dlLeeren","dlDrucken","dlAlle","dlKeine","dlAuswahl","zurDruckliste",
-  "zeigAus","katFilter","ukFilter","katKlapp","katAlle","serieAuf","ukKatAuf","ukKatZu","fehlerZeigen","fehlerVerwerfen","invFilter"];
+  "zeigAus","katFilter","ukFilter","gtFilter","gtOffen","katKlapp","katAlle","serieAuf","ukKatAuf","ukKatZu","fehlerZeigen","fehlerVerwerfen","invFilter"];
 const RECHNEN_NUR = ["rechnungErstellen","rechnungStatus","rStorno","rStornoOk"];
 const MANAGER_NUR = ["terminWeg","fotoLoeschen","ukHoch","ukUmbenennen","ukNameSpeichern","ukLoeschen","katUmbenennen","katNameSpeichern",
   "stueckLoeschen","serieLoeschen","radNrSpeichern"];

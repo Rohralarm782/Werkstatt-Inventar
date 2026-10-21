@@ -111,7 +111,7 @@ function inventurView(){
   if(invAnsicht.filter === "offen") liste = liste.filter(b => invStatus(b) === "offen");
   if(invAnsicht.filter === "abw")   liste = liste.filter(b => invStatus(b) === "abw");
   const q = view.suche.toLowerCase();
-  if(q) liste = liste.filter(b => (b.name + " " + b.code + " " + tagNamen(tagsVon("artikel", b.code))).toLowerCase().indexOf(q) >= 0);
+  if(q) liste = liste.filter(b => (b.name + " " + b.code + " " + tagNamen(alleTagsVon("artikel", b.code))).toLowerCase().indexOf(q) >= 0);
   if(!liste.length) return h + '<div class="leer">Nichts in dieser Auswahl.</div>';
   h += '<div class="card liste">' + liste.map(invZeile).join("") + '</div>';
   h += '<p class="sub">Zahl eintragen und Enter — weiter zum nächsten Feld. ✓ = stimmt mit dem System. Leeres Feld = nicht gezählt. ' +

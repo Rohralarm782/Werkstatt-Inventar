@@ -9,8 +9,9 @@
    sich aufklappen. */
 function stueckKategorie(nr){ return codeBuchstabe(nr) || "?"; }
 function kategorieName(k){ return katNamen()[k] || "Kategorie " + k; }
-/** Gleiche Teile = gleicher Typ, Marke, Detail, in derselben Kategorie und mit denselben Tags. */
-function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).concat([stueckKategorie(s.nummer), tagsVon("stueck", s.nummer).join("+")]).join("|"); }
+/** Gleiche Teile = gleicher Typ, Marke, Detail, in derselben Kategorie und mit denselben Tags
+    (Kategorie-Tags und übergreifende; die Marke steckt schon im Feld). */
+function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).concat([stueckKategorie(s.nummer), tagsVon("stueck", s.nummer).concat(globTagsVon("stueck", s.nummer, true)).join("+")]).join("|"); }
 
 /* ---------------------------------------------------------------
    Tags — je Kategorie-Buchstabe eine eigene Liste (wie früher die
@@ -48,13 +49,41 @@ function ukSchluessel(ids){ return ids.length ? String(ids[0]) : "ohne"; }
 function ukRang(ids){ const t = ids.length ? tagNachId(ids[0]) : null; return t ? tagRang(t) : 1e6; }
 function ukText(schluessel){ return schluessel === "ohne" ? "ohne Tag" : ((tagNachId(schluessel) || {}).name || "?"); }
 function tagNamen(ids){ return ids.map(id => (tagNachId(id) || {}).name || "").join(" "); }
-/** Kleine Tag-Chips für Listenzeilen */
-function tagChips(ids){ return ids.length ? '<br><span class="tagzeile">' + ids.map(id => '<span class="chip grau">' + esc((tagNachId(id) || {}).name || "?") + '</span>').join(" ") + '</span>' : ""; }
+/** Kleine Tag-Chips für Listenzeilen (übergreifende Tags umrandet) */
+function tagChips(ids){ return ids.length ? '<br><span class="tagzeile">' + ids.map(id => { const t = tagNachId(id) || {};
+  return '<span class="chip ' + (t.gruppe ? 'glob' : 'grau') + '"' + (t.gruppe ? ' title="' + esc(t.gruppe) + '"' : '') + '>' + esc(t.name || "?") + '</span>'; }).join(" ") + '</span>' : ""; }
+
+/* ---------------------------------------------------------------
+   Übergreifende Tags (ab 20.8.0): ohne Kategorie-Buchstaben, in Gruppen.
+   Sie passen zu jeder Kategorie, z. B. Bremsscheibe (Bremse) mit
+   „Laufrad“ und „Shimano“. Marke-Tags setzt die Datenbank aus dem Feld
+   „Marke“; Baugruppe und Disziplin wählt man im Formular.
+----------------------------------------------------------------*/
+const TAG_GRUPPEN = ["Marke", "Baugruppe", "Disziplin"];
+const TAG_GRUPPEN_WAHL = ["Baugruppe", "Disziplin"];
+/** Ist Migration 20.8.0 gelaufen? (Spalte marke an Artikeln bzw. gruppe an Tags) */
+function globDa(){
+  if(!tagDa()) return false;
+  if((DB.artikel || []).length) return DB.artikel.some(a => "marke" in a);
+  if(DB.tags.length) return DB.tags.some(t => "gruppe" in t);
+  return true;
+}
+function globSort(a, b){ return (TAG_GRUPPEN.indexOf(a.gruppe) - TAG_GRUPPEN.indexOf(b.gruppe)) || a.name.localeCompare(b.name, "de"); }
+function globListe(gruppe){ return (DB.tags || []).filter(t => t.gruppe === gruppe).sort(globSort); }
+/** Im Formular wählbar (Baugruppe, Disziplin — nicht Marke)? */
+function globWahl(t){ return !!(t && TAG_GRUPPEN_WAHL.indexOf(t.gruppe) >= 0); }
+/** Übergreifende Tag-ids eines Artikels/Einzelstücks, nach Gruppe und Name; ohneMarke: Marke weglassen. */
+function globTagsVon(art, schluessel, ohneMarke){
+  return (tagIndexHolen()[art][schluessel] || []).map(tagNachId)
+    .filter(t => t && t.gruppe && !(ohneMarke && t.gruppe === "Marke")).sort(globSort).map(t => t.id);
+}
+/** Kategorie-Tags und übergreifende Tags zusammen (für Chips und Suche). */
+function alleTagsVon(art, schluessel){ return tagsVon(art, schluessel).concat(globTagsVon(art, schluessel)); }
 
 /** Zugriff auf Kategorie/Tags je Liste: Lager (Artikel) und Inventar (Einzelstücke). */
 const KAT_QUELLE = {
-  l:   { kat: b => stueckKategorie(b.code),   tags: b => tagsVon("artikel", b.code),  zuKey:"wLagerKatZu" },
-  inv: { kat: s => stueckKategorie(s.nummer), tags: s => tagsVon("stueck", s.nummer), zuKey:"wInvKatZu" }
+  l:   { kat: b => stueckKategorie(b.code),   tags: b => tagsVon("artikel", b.code),  glob: b => globTagsVon("artikel", b.code),  zuKey:"wLagerKatZu" },
+  inv: { kat: s => stueckKategorie(s.nummer), tags: s => tagsVon("stueck", s.nummer), glob: s => globTagsVon("stueck", s.nummer), zuKey:"wInvKatZu" }
 };
 /** Ordnet nach Kategorie, erstem Tag, Nummer. */
 function katSortieren(p, liste, nummer){
@@ -98,22 +127,59 @@ function geaendertFehlt(liste, zeit){
 /** Filterzeile: ohne Auswahl die Kategorien. Nach Antippen einer Kategorie stehen an
     derselben Stelle „‹ Kategorie“ (zurück) und deren Tags — eine Zeile, nicht zwei.
     Ein Eintrag mit mehreren Tags zählt bei jedem seiner Tags mit.
-    Gezählt wird, was nach den übrigen Filtern (Suche, zu bestellen …) übrig ist. */
+    Gezählt wird, was nach den übrigen Filtern (Suche, zu bestellen …) übrig ist.
+    Übergreifende Tags (ab 20.8.0): ein gewählter steht vorn (mit ×) und gilt
+    zusätzlich zu Kategorie und Tag. In einer Kategorie erscheinen die dort
+    häufigsten dahinter; „# …“ klappt eine zweite Zeile mit allen auf, nach Gruppen. */
+const GLOB_IN_KAT = 5;   // so viele übergreifende Tags direkt in der Kategorie-Zeile
+function gtAktiv(p){
+  const g = view[p + "Gt"];
+  if(g && !(tagNachId(g) || {}).gruppe) view[p + "Gt"] = "";   // gelöscht → Auswahl aufheben
+  return view[p + "Gt"] || "";
+}
+function gtZaehlen(p, items){
+  const q = KAT_QUELLE[p], c = {};
+  items.forEach(i => q.glob(i).forEach(id => c[id] = (c[id] || 0) + 1));
+  return c;
+}
+function gtKnopf(p, id, n){
+  const t = tagNachId(id);
+  return '<button class="btn small glob" data-a="gtFilter" data-x="' + p + '|' + id + '" title="' + esc(t.gruppe) + '">' + esc(t.name) + ' · ' + n + '</button>';
+}
+/** Aufgeklappte zweite Zeile: alle übergreifenden Tags, die in items vorkommen, nach Gruppe. */
+function gtZeile(p, items){
+  const c = gtZaehlen(p, items), gt = gtAktiv(p);
+  let h = "";
+  TAG_GRUPPEN.forEach(g => {
+    const l = globListe(g).filter(t => c[t.id] && String(t.id) !== gt);
+    if(!l.length) return;
+    h += '<div class="chipzeile gtzeile"><span class="gtgruppe">' + esc(g) + '</span>' + l.map(t => gtKnopf(p, t.id, c[t.id])).join("") + '</div>';
+  });
+  return h || '<p class="sub" style="margin:-4px 0 10px">Hier gibt es keine weiteren übergreifenden Tags.</p>';
+}
 function katFilterZeile(p, items){
-  const q = KAT_QUELLE[p], kat = view[p + "Kat"] || "";
-  let h = '<div class="chipzeile">';
+  const q = KAT_QUELLE[p], kat = view[p + "Kat"] || "", gt = gtAktiv(p), offen = !!view[p + "GtOffen"];
+  const gtT = gt ? tagNachId(gt) : null;
+  // Gewählter übergreifender Tag gilt vor allem anderen; die Zahlen dahinter passen dazu
+  const basis = gt ? items.filter(i => q.glob(i).indexOf(Number(gt)) >= 0) : items;
+  const gtChip = gtT ? '<button class="btn small primary glob" data-a="gtFilter" data-x="' + p + '|' + gt + '" aria-label="Filter ' + esc(gtT.name) + ' aufheben">' + esc(gtT.name) + ' · ' + basis.length + ' ×</button>' : '';
+  const gtC = globDa() ? gtZaehlen(p, basis) : {};
+  const gtMehr = Object.keys(gtC).length;
+  const mehrKnopf = n => '<button class="btn small link" data-a="gtOffen" data-x="' + p + '"' + (offen ? ' aria-pressed="true"' : '') + '>' + (offen ? '# weniger' : '# ' + n) + '</button>';
+  let h = '<div class="chipzeile">' + gtChip;
   if(!kat){
-    const c = zaehle(items, q.kat), ks = Object.keys(c).sort();
+    const c = zaehle(basis, q.kat), ks = Object.keys(c).sort();
     const mitTags = ks.some(k => tagListe(k).length);
-    if(ks.length < 2 && !mitTags) return "";
+    if(ks.length < 2 && !mitTags && !gt && !gtMehr) return "";
     ks.forEach(k => h += '<button class="btn small" data-a="katFilter" data-x="' + p + '|' + esc(k) + '">' + esc(kategorieName(k)) + ' · ' + c[k] + '</button>');
-    return h + '</div>';
+    if(gtMehr) h += mehrKnopf("Marke & Co.");
+    return h + '</div>' + (offen && gtMehr ? gtZeile(p, basis) : '');
   }
   // Gewählten Tag gibt es nicht mehr (gelöscht) → Auswahl aufheben
   const gew = view[p + "Uk"];
   if(gew && gew !== "ohne" && !(tagNachId(gew) && tagNachId(gew).buchstabe === kat)) view[p + "Uk"] = "";
   const uk = view[p + "Uk"] || "";
-  const inKat = items.filter(i => q.kat(i) === kat);
+  const inKat = basis.filter(i => q.kat(i) === kat);
   h += '<button class="btn small primary" data-a="katFilter" data-x="' + p + '|" aria-label="Kategorie-Filter aufheben">‹ ' + esc(kategorieName(kat)) + ' · ' + inKat.length + '</button>';
   const c = { ohne:0 };
   inKat.forEach(i => { const ids = q.tags(i); if(!ids.length) c.ohne++; ids.forEach(id => c[id] = (c[id] || 0) + 1); });
@@ -123,11 +189,17 @@ function katFilterZeile(p, items){
   const chips = tagListe(kat).filter(t => c[t.id]);
   chips.forEach(t => h += '<button class="btn small" data-a="ukFilter" data-x="' + p + '|' + t.id + '">' + esc(t.name) + ' · ' + c[t.id] + '</button>');
   if(chips.length && c.ohne) h += '<button class="btn small" data-a="ukFilter" data-x="' + p + '|ohne">ohne Tag · ' + c.ohne + '</button>';
-  if(tagDa() && !tagListe(kat).length) h += '<button class="btn small link" data-a="ukVerwalten" data-x="' + esc(kat) + '">+ Tags</button>';
-  return h + '</div>';
+  if(tagDa() && !tagListe(kat).length && !gt) h += '<button class="btn small link" data-a="ukVerwalten" data-x="' + esc(kat) + '">+ Tags</button>';
+  // Übergreifende Tags dieser Kategorie: die häufigsten direkt, der Rest über „# mehr“
+  const kc = globDa() ? gtZaehlen(p, inKat) : {};
+  const oben = Object.keys(kc).filter(id => id !== gt).sort((a, b) => (kc[b] - kc[a]) || globSort(tagNachId(a), tagNachId(b)));
+  if(!offen) oben.slice(0, GLOB_IN_KAT).forEach(id => h += gtKnopf(p, id, kc[id]));
+  if(oben.length > GLOB_IN_KAT || offen) h += mehrKnopf("mehr");
+  return h + '</div>' + (offen && oben.length ? gtZeile(p, inKat) : '');
 }
 function katFilterAnwenden(p, items){
-  const q = KAT_QUELLE[p], kat = view[p + "Kat"] || "", uk = view[p + "Uk"] || "";
+  const q = KAT_QUELLE[p], kat = view[p + "Kat"] || "", uk = view[p + "Uk"] || "", gt = gtAktiv(p);
+  if(gt) items = items.filter(i => q.glob(i).indexOf(Number(gt)) >= 0);
   if(!kat) return items;
   return items.filter(i => {
     if(q.kat(i) !== kat) return false;
@@ -232,7 +304,7 @@ function serieForm(key){
   modal('<h3>Serie bearbeiten · ' + g.length + '×</h3><p class="sub" style="margin-top:-6px">' + esc(nummernText(g.map(s => s.nummer))) + ' — Änderungen gelten für alle ' + g.length + ' Stück.</p>' +
     '<div class="grid2">' + feld("Typ", "eTyp", s0.typ) + feld("Marke", "eMarke", s0.marke, "text", ' list="markenDL"') + '</div>' + markenDL() +
     feld("Detail", "eDet", s0.detail) +
-    ukBox(stueckKategorie(s0.nummer), tagsVon("stueck", s0.nummer)) +
+    ukBox(stueckKategorie(s0.nummer), alleTagsVon("stueck", s0.nummer)) +
     kaufFeld("eKauf", kaufVerschieden ? "" : (monate[0] ? monate[0] + "-01" : "")) +
     (kaufVerschieden ? '<p class="sub" style="margin:-4px 0 8px">Die Stücke haben verschiedene Kaufdaten. Leer lassen = unverändert.</p>' : '') +
     feld("Notiz", "eNotiz", gleich("notiz")) +
@@ -310,9 +382,9 @@ function inventarView(){
   const alle = view.zeigAus ? roh : roh.filter(s => s.ort !== "ausgemustert" || (qRoh && s.nummer.toLowerCase() === qRoh));
   // Suche zuerst; Kategorie/Tag filtern danach (die Zahlen an den Knöpfen passen zur Suche)
   const q = view.suche.toLowerCase();
-  const gesucht = alle.filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "") + " " + tagNamen(tagsVon("stueck", s.nummer))).toLowerCase().indexOf(q) >= 0);
+  const gesucht = alle.filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "") + " " + tagNamen(alleTagsVon("stueck", s.nummer))).toLowerCase().indexOf(q) >= 0);
   h += katFilterZeile("inv", gesucht);
-  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer" value="' + esc(view.suche) + '"></div>';
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer, Tag" value="' + esc(view.suche) + '"></div>';
   h += sortZeile("inv", "Kategorie");
   const liste = katFilterAnwenden("inv", gesucht);
   const ausKnopf = nAus ? '<p style="text-align:center;margin-top:14px"><button class="btn small link" data-a="zeigAus">' + (view.zeigAus ? "ausgemusterte ausblenden" : "ausgemusterte zeigen (" + nAus + ")") + '</button></p>' : '';

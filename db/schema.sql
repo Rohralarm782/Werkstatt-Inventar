@@ -1,14 +1,15 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 20.5.0 — für eine NEUE, leere Datenbank.
+--  Stand 20.8.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
 --   db/migration_14.3.0.sql, db/migration_15.0.0.sql, db/migration_16.0.0.sql,
 --   db/migration_18.0.0.sql, db/migration_19.0.0.sql,
 --   db/migration_20.0.0.sql, db/migration_20.1.0.sql,
---   db/migration_20.2.0.sql und db/migration_20.5.0.sql.)
+--   db/migration_20.2.0.sql, db/migration_20.5.0.sql,
+--   db/migration_20.7.0.sql und db/migration_20.8.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -113,14 +114,21 @@ create table kategorie (
 -- Die Kategorie selbst ist der Buchstabe im Code; Tags sind nur eine
 -- Zuordnung (mehrere je Artikel/Einzelstück möglich, siehe artikel_tag und
 -- stueck_tag) — Codes und Etiketten bleiben dabei unverändert.
+-- Übergreifende Tags (ab 20.8.0) haben keinen Buchstaben, sondern eine
+-- Gruppe: Marke (kommt aus dem Feld „Marke“), Baugruppe, Disziplin. Sie
+-- passen zu jeder Kategorie, z. B. Bremsscheibe (B) mit „Laufrad“ und „Shimano“.
 create table tag (
   id          bigint generated always as identity primary key,
-  buchstabe   text not null check (buchstabe ~ '^[A-Z]{1,3}$'),
+  buchstabe   text check (buchstabe ~ '^[A-Z]{1,3}$'),
   name        text not null check (trim(name) <> ''),
   sortierung  integer not null default 0,
   standort_id  bigint not null references standort (id),
-  constraint tag_buchstabe_name_key unique (standort_id, buchstabe, name)
+  gruppe      text check (gruppe in ('Marke', 'Baugruppe', 'Disziplin')),
+  constraint tag_buchstabe_name_key unique (standort_id, buchstabe, name),
+  constraint tag_art_check check ((buchstabe is null) <> (gruppe is null))
 );
+-- Übergreifende Tags: Name je Gruppe nur einmal (Groß-/Kleinschreibung egal)
+create unique index tag_gruppe_name_key on tag (standort_id, gruppe, lower(name)) where gruppe is not null;
 
 create table artikel (
   code             text primary key check (code ~ '^[A-Z]{2,3}-[A-Z]+-[0-9]+$'),
@@ -140,7 +148,8 @@ create table artikel (
   standort_id  bigint not null references standort (id),
   groessen  text[] check (groessen is null or cardinality(groessen) between 1 and 40),   -- Bekleidung: Größen (ab 16.0.0), sonst leer
   geaendert_am  timestamptz not null default now(),  -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
-  packungsinhalt  numeric check (packungsinhalt is null or packungsinhalt > 0)   -- Inhalt einer Shop-Packung in der Einheit des Artikels (ab 20.7.0), z. B. 500 bei Bremsöl in ml
+  packungsinhalt  numeric check (packungsinhalt is null or packungsinhalt > 0),  -- Inhalt einer Shop-Packung in der Einheit des Artikels (ab 20.7.0), z. B. 500 bei Bremsöl in ml
+  marke  text   -- Hersteller (ab 20.8.0); setzt den passenden Tag der Gruppe „Marke“
 );
 create index artikel_standort on artikel (standort_id);
 
@@ -190,8 +199,9 @@ create table stueck (
 );
 create index stueck_standort on stueck (standort_id);
 
--- Tags der Artikel und Einzelstücke (nur Tags der eigenen Kategorie;
--- geändert wird über tags_setzen / tag_zuordnen bzw. beim Anlegen).
+-- Tags der Artikel und Einzelstücke (Tags der eigenen Kategorie und
+-- übergreifende Tags; geändert wird über tags_setzen / tag_zuordnen bzw.
+-- beim Anlegen, Marke-Tags nur über das Feld „Marke“).
 create table artikel_tag (
   code    text   not null references artikel (code) on update cascade on delete cascade,
   tag_id  bigint not null references tag (id) on delete cascade,
@@ -2092,7 +2102,7 @@ begin
   v_code := naechster_code(p_buchstabe, p_gruppe);
   insert into artikel (code, name, einheit, preis, mindestbestand, lieferzeit_tage, art,
                        verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min, standort_id, groessen,
-                       packungsinhalt)
+                       packungsinhalt, marke)
   values (v_code,
           p_daten ->> 'name',
           coalesce(nullif(p_daten ->> 'einheit', ''), 'Stück'),
@@ -2110,10 +2120,11 @@ begin
           v_st,
           case when jsonb_typeof(p_daten -> 'groessen') = 'array' and jsonb_array_length(p_daten -> 'groessen') > 0
                then array(select jsonb_array_elements_text(p_daten -> 'groessen')) end,
-          (p_daten ->> 'packungsinhalt')::numeric);
+          (p_daten ->> 'packungsinhalt')::numeric,
+          nullif(btrim(p_daten ->> 'marke'), ''));
   insert into artikel_tag (code, tag_id)
     select v_code, t.id from tag t
-     where t.buchstabe = p_buchstabe and t.standort_id = v_st
+     where (t.buchstabe = p_buchstabe or t.gruppe <> 'Marke') and t.standort_id = v_st
        and t.id in (select (x #>> '{}')::bigint from jsonb_array_elements(coalesce(p_daten -> 'tags', '[]'::jsonb)) x);
   return v_code;
 end $$;
@@ -2139,7 +2150,7 @@ begin
           v_st);
   insert into stueck_tag (nummer, tag_id)
     select v_nr, t.id from tag t
-     where t.buchstabe = p_buchstabe and t.standort_id = v_st
+     where (t.buchstabe = p_buchstabe or t.gruppe <> 'Marke') and t.standort_id = v_st
        and t.id in (select (x #>> '{}')::bigint from jsonb_array_elements(coalesce(p_daten -> 'tags', '[]'::jsonb)) x);
   return v_nr;
 end $$;
@@ -2165,7 +2176,9 @@ begin
   return v_nummern;
 end $$;
 
--- Tags setzen (ganz oder gar nicht)
+-- Tags setzen (ganz oder gar nicht): Tags der eigenen Kategorie und
+-- übergreifende Tags (Baugruppe, Disziplin). Marke-Tags bleiben, wie sie sind —
+-- die setzt das Feld „Marke“ (marke_tag_abgleich).
 create or replace function tags_setzen(p_art text, p_schluessel text[], p_tags bigint[])
 returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -2173,19 +2186,23 @@ declare
   v_st bigint := recht_arbeiten();
 begin
   if p_art = 'artikel' then
-    delete from artikel_tag where code = any (p_schluessel)
-       and code in (select code from artikel where standort_id = v_st);
+    delete from artikel_tag x using tag t
+     where x.code = any (p_schluessel) and t.id = x.tag_id and t.gruppe is distinct from 'Marke'
+       and x.code in (select code from artikel where standort_id = v_st);
     insert into artikel_tag (code, tag_id)
       select a.code, t.id from artikel a join tag t
-        on t.buchstabe = code_buchstabe(a.code) and t.standort_id = v_st
-       where a.code = any (p_schluessel) and a.standort_id = v_st and t.id = any (coalesce(p_tags, '{}'));
+        on (t.buchstabe = code_buchstabe(a.code) or t.gruppe <> 'Marke') and t.standort_id = v_st
+       where a.code = any (p_schluessel) and a.standort_id = v_st and t.id = any (coalesce(p_tags, '{}'))
+      on conflict do nothing;
   elsif p_art = 'stueck' then
-    delete from stueck_tag where nummer = any (p_schluessel)
-       and nummer in (select nummer from stueck where standort_id = v_st);
+    delete from stueck_tag x using tag t
+     where x.nummer = any (p_schluessel) and t.id = x.tag_id and t.gruppe is distinct from 'Marke'
+       and x.nummer in (select nummer from stueck where standort_id = v_st);
     insert into stueck_tag (nummer, tag_id)
       select s.nummer, t.id from stueck s join tag t
-        on t.buchstabe = code_buchstabe(s.nummer) and t.standort_id = v_st
-       where s.nummer = any (p_schluessel) and s.standort_id = v_st and t.id = any (coalesce(p_tags, '{}'));
+        on (t.buchstabe = code_buchstabe(s.nummer) or t.gruppe <> 'Marke') and t.standort_id = v_st
+       where s.nummer = any (p_schluessel) and s.standort_id = v_st and t.id = any (coalesce(p_tags, '{}'))
+      on conflict do nothing;
   else
     raise exception 'Unbekannte Art: %', p_art;
   end if;
@@ -2200,23 +2217,117 @@ declare
 begin
   select * into t from tag where id = p_tag and standort_id = v_st;
   if not found then raise exception 'Unbekannter Tag: %', p_tag; end if;
+  if t.gruppe = 'Marke' then raise exception 'Marken werden über das Feld „Marke“ gesetzt'; end if;
   if p_art = 'artikel' then
     delete from artikel_tag where tag_id = p_tag and code = any (coalesce(p_ohne, '{}'));
     insert into artikel_tag (code, tag_id)
       select a.code, p_tag from artikel a
        where a.code = any (coalesce(p_mit, '{}')) and a.standort_id = v_st
-         and code_buchstabe(a.code) = t.buchstabe
+         and (t.gruppe is not null or code_buchstabe(a.code) = t.buchstabe)
       on conflict do nothing;
   elsif p_art = 'stueck' then
     delete from stueck_tag where tag_id = p_tag and nummer = any (coalesce(p_ohne, '{}'));
     insert into stueck_tag (nummer, tag_id)
       select s.nummer, p_tag from stueck s
        where s.nummer = any (coalesce(p_mit, '{}')) and s.standort_id = v_st
-         and code_buchstabe(s.nummer) = t.buchstabe
+         and (t.gruppe is not null or code_buchstabe(s.nummer) = t.buchstabe)
       on conflict do nothing;
   else
     raise exception 'Unbekannte Art: %', p_art;
   end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+--  Marke ↔ Tag (ab 20.8.0). Das Feld „Marke“ an Artikel und Einzelstück
+--  setzt den übergreifenden Tag der Gruppe „Marke“ mit gleichem Namen
+--  (Groß-/Kleinschreibung und Leerzeichen am Rand egal; fehlt er, wird er
+--  angelegt). Ein anderer Marke-Tag fällt dabei weg, leeres Feld = keiner.
+-- ---------------------------------------------------------------------
+create or replace function marke_tag_abgleich() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_name text := nullif(btrim(new.marke), '');
+  v_tag  bigint;
+begin
+  if v_name is not null then
+    select id into v_tag from tag
+     where standort_id = new.standort_id and gruppe = 'Marke' and lower(name) = lower(v_name);
+    if v_tag is null then
+      insert into tag (gruppe, name, standort_id) values ('Marke', v_name, new.standort_id)
+      on conflict (standort_id, gruppe, lower(name)) where gruppe is not null do nothing
+      returning id into v_tag;
+      if v_tag is null then
+        select id into v_tag from tag
+         where standort_id = new.standort_id and gruppe = 'Marke' and lower(name) = lower(v_name);
+      end if;
+    end if;
+  end if;
+  if tg_table_name = 'artikel' then
+    delete from artikel_tag x using tag t
+     where x.code = new.code and t.id = x.tag_id and t.gruppe = 'Marke' and t.id is distinct from v_tag;
+    if v_tag is not null then
+      insert into artikel_tag (code, tag_id) values (new.code, v_tag) on conflict do nothing;
+    end if;
+  else
+    delete from stueck_tag x using tag t
+     where x.nummer = new.nummer and t.id = x.tag_id and t.gruppe = 'Marke' and t.id is distinct from v_tag;
+    if v_tag is not null then
+      insert into stueck_tag (nummer, tag_id) values (new.nummer, v_tag) on conflict do nothing;
+    end if;
+  end if;
+  return null;
+end $$;
+
+-- Marke-Tag umbenannt: das Feld „Marke“ der Artikel und Einzelstücke zieht mit.
+create or replace function marke_tag_umbenannt() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  update artikel set marke = new.name
+   where standort_id = new.standort_id and lower(btrim(marke)) = lower(old.name);
+  update stueck set marke = new.name
+   where standort_id = new.standort_id and lower(btrim(marke)) = lower(old.name);
+  return null;
+end $$;
+
+-- Ein Marke-Tag, der noch an Artikeln oder Einzelstücken steht, lässt sich
+-- nicht löschen (sonst passten Feld und Tag nicht mehr zusammen).
+create or replace function marke_tag_loeschen_pruefen() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if exists (select 1 from artikel_tag where tag_id = old.id)
+     or exists (select 1 from stueck_tag where tag_id = old.id) then
+    raise exception 'Die Marke „%“ ist noch eingetragen – erst dort ändern oder mit einer anderen Marke zusammenführen', old.name;
+  end if;
+  return old;
+end $$;
+
+-- Marke umbenennen oder mit einer vorhandenen zusammenführen (Werkstatt-Manager).
+-- Gibt es den neuen Namen schon als Marke, wandern alle Artikel und
+-- Einzelstücke dorthin und der alte Tag verschwindet.
+create or replace function marke_umbenennen(p_tag bigint, p_name text)
+returns bigint
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_st   bigint := recht_manager();
+  v_name text   := nullif(btrim(p_name), '');
+  t      tag;
+  v_ziel tag;
+begin
+  select * into t from tag where id = p_tag and standort_id = v_st and gruppe = 'Marke';
+  if not found then raise exception 'Unbekannte Marke: %', p_tag; end if;
+  if v_name is null then raise exception 'Name fehlt'; end if;
+  select * into v_ziel from tag
+   where standort_id = v_st and gruppe = 'Marke' and lower(name) = lower(v_name) and id <> p_tag;
+  if not found then
+    update tag set name = v_name where id = p_tag;   -- Trigger zieht die Felder nach
+    return p_tag;
+  end if;
+  update artikel set marke = v_ziel.name where standort_id = v_st and lower(btrim(marke)) = lower(t.name);
+  update stueck  set marke = v_ziel.name where standort_id = v_st and lower(btrim(marke)) = lower(t.name);
+  delete from artikel_tag where tag_id = p_tag;
+  delete from stueck_tag where tag_id = p_tag;
+  delete from tag where id = p_tag;
+  return v_ziel.id;
 end $$;
 
 create or replace function rad_anlegen(p_daten jsonb)
@@ -2292,9 +2403,10 @@ begin
       raise exception '% hat schon Buchungen – die Nummer ändert dann nur der Werkstatt-Manager', p_alt;
     end if;
     update artikel set code = v_neu where code = p_alt and standort_id = v_st;
-    -- Tags gehören zur Kategorie (Buchstabe im Code); bei neuem Buchstaben fallen sie weg
+    -- Tags gehören zur Kategorie (Buchstabe im Code); bei neuem Buchstaben fallen sie weg.
+    -- Übergreifende Tags (ohne Buchstaben) bleiben.
     delete from artikel_tag x using tag t
-     where x.code = v_neu and t.id = x.tag_id and t.buchstabe is distinct from code_buchstabe(v_neu);
+     where x.code = v_neu and t.id = x.tag_id and t.buchstabe is not null and t.buchstabe is distinct from code_buchstabe(v_neu);
   elsif p_art = 'stueck' then
     if not exists (select 1 from stueck where nummer = p_alt and standort_id = v_st) then raise exception 'Unbekanntes Einzelstück: %', p_alt; end if;
     if not v_mgr and exists (select 1 from ticket_stueck ts join ticket t on t.id = ts.ticket_id
@@ -2303,7 +2415,7 @@ begin
     end if;
     update stueck set nummer = v_neu where nummer = p_alt and standort_id = v_st;
     delete from stueck_tag x using tag t
-     where x.nummer = v_neu and t.id = x.tag_id and t.buchstabe is distinct from code_buchstabe(v_neu);
+     where x.nummer = v_neu and t.id = x.tag_id and t.buchstabe is not null and t.buchstabe is distinct from code_buchstabe(v_neu);
   elsif p_art = 'rad' then
     if not exists (select 1 from rad where id = p_alt and standort_id = v_st) then raise exception 'Unbekanntes Rad: %', p_alt; end if;
     if not v_mgr and exists (select 1 from ticket where rad_id = p_alt and status not in ('offen', 'angenommen')) then
@@ -2731,6 +2843,16 @@ create trigger stueck_nummer before update of nummer on stueck
 create trigger rad_nummer before update of id on rad
   for each row when (new.id is distinct from old.id) execute function nummer_schutz();
 create trigger zz_artikel_geaendert before insert or update on artikel for each row execute function geaendert_setzen();
+-- Marke ↔ Tag (ab 20.8.0)
+create trigger artikel_marke after insert or update of marke on artikel
+  for each row execute function marke_tag_abgleich();
+create trigger stueck_marke after insert or update of marke, standort_id on stueck
+  for each row execute function marke_tag_abgleich();
+create trigger tag_marke_umbenannt after update of name on tag
+  for each row when (old.gruppe = 'Marke' and new.name is distinct from old.name)
+  execute function marke_tag_umbenannt();
+create trigger tag_marke_loeschen before delete on tag
+  for each row when (old.gruppe = 'Marke') execute function marke_tag_loeschen_pruefen();
 create trigger zz_rad_geaendert     before insert or update on rad     for each row execute function geaendert_setzen();
 create trigger zz_stueck_geaendert  before insert or update on stueck  for each row execute function geaendert_setzen();
 
@@ -3198,6 +3320,7 @@ grant execute on function
   stueck_serie_anlegen(text, integer, jsonb, integer),
   tags_setzen(text, text[], bigint[]),
   tag_zuordnen(bigint, text, text[], text[]),
+  marke_umbenennen(bigint, text),
   rad_anlegen(jsonb),
   rad_nummern_setzen(text, integer),
   nummer_aendern(text, text, text),

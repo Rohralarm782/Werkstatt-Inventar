@@ -147,6 +147,11 @@
   .tagzeile{display:inline-flex;flex-wrap:wrap;gap:4px;margin-top:3px}
   .tagwahl{display:flex;flex-wrap:wrap;gap:6px}
   .tagwahl .btn[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* Übergreifende Tags (ab 20.8.0): gestrichelt bzw. umrandet, damit man sie von Kategorie-Tags unterscheidet */
+  .chip.glob{background:transparent;color:var(--ink-2);border:1px solid var(--line);padding:2px 7px}
+  .btn.glob:not(.primary):not([aria-pressed="true"]){border-style:dashed}
+  .gtzeile{align-items:center;margin-top:-4px}
+  .gtgruppe{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
   .btn.link{border:none;background:none;padding:4px 6px;color:var(--ink-2);text-decoration:underline}
   .card.serie .anzahl{font-size:18px;margin-right:2px}
   .card.serie .chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:0}

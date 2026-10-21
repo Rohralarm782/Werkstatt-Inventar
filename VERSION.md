@@ -1,10 +1,11 @@
 # Version
 
-**20.7.2** — 14.10.2026
+**20.8.0** — 21.10.2026
 
-Neues Ticket: „Arbeitsaufwand“ nur noch einmal. Mit Minuten an den
-Schritten wird die Stufe daraus berechnet und als eine Zeile angezeigt
-(„≈ 1 h 25 min → mittel · 1 T“, per „ändern“ von Hand wählbar).
+Übergreifende Tags in den Gruppen Marke, Baugruppe und Disziplin, die zu
+jeder Kategorie passen (z. B. Bremsscheibe mit „Laufrad“ und „Shimano“).
+Artikel bekommen ein Feld „Marke“, das den Marke-Tag automatisch setzt.
+Filter „Marke & Co.“ im Lager und bei den Einzelstücken (Migration).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -23,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.8.0 | 21.10.2026 | Übergreifende Tags (Marke, Baugruppe, Disziplin), Feld Marke am Artikel, Filter „Marke & Co.“ (Migration) |
 | 20.7.2 | 14.10.2026 | Neues Ticket: Arbeitsaufwand nur einmal, Stufe aus Minuten berechnet |
 | 20.7.1 | 09.10.2026 | Rad-Seite zeigt die Notiz des Rads an |
 | 20.7.0 | 09.10.2026 | Packungsinhalt: Warenkorb und Bestellliste in ganzen Packungen (Migration) |

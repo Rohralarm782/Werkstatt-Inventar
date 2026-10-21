@@ -656,12 +656,12 @@ async function exportiere(was){
   try{
     // Kategorie und Tags als lesbare Spalten dazu
     const mitKat = (zeilen, nr, art) => zeilen.map(z => { const k = stueckKategorie(nr(z));
-      return Object.assign({}, z, { kategorie:kategorieName(k), tags:tagsVon(art, nr(z)).map(id => (tagNachId(id) || {}).name).join(", ") }); });
+      return Object.assign({}, z, { kategorie:kategorieName(k), tags:alleTagsVon(art, nr(z)).map(id => (tagNachId(id) || {}).name).join(", ") }); });
     if(was === "bestand"){
       // je Lagerort eine Spalte (auch deaktivierte, falls dort noch etwas gebucht ist)
       const ortSp = lagerorte(true).map(o => o.name);
-      const zeilen = mitKat(DB.bestand, z => z.code, "artikel").map(z => { const o = {}; ortSp.forEach(n => o[n] = amOrt(z, n)); return Object.assign(o, z); });
-      download("bestand_" + d + ".csv", csv(zeilen, ["code","name","kategorie","tags","einheit","art"].concat(ortSp, ["lager","koffer","gesamt","reserviert","frei","mindestbestand","status","preis"])));
+      const zeilen = mitKat(DB.bestand, z => z.code, "artikel").map(z => { const o = {}; ortSp.forEach(n => o[n] = amOrt(z, n)); return Object.assign(o, z, { marke:(artikel(z.code) || {}).marke || "" }); });
+      download("bestand_" + d + ".csv", csv(zeilen, ["code","name","marke","kategorie","tags","einheit","art"].concat(ortSp, ["lager","koffer","gesamt","reserviert","frei","mindestbestand","status","preis"])));
     }
     if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(mitKat(DB.stueck, z => z.nummer, "stueck"),
       ["nummer","kategorie","tags","typ","marke","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));

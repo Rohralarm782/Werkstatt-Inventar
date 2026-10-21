@@ -34,7 +34,7 @@ function lagerView(){
   let h = view.suche ? '' : orteBlock();
   if(imOrt && view.suche) h += '<div class="banner" style="background:var(--card);border:1px solid var(--line)">Nur <strong>' + esc(imOrt) + '</strong> — Artikel, die dort liegen ' +
                  '<button class="btn small" data-a="ortFilter" data-x="" style="margin-left:6px">alle Orte</button></div>';
-  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel oder Code" value="' + esc(view.suche) + '"></div>';
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Artikel, Code, Marke oder Tag" value="' + esc(view.suche) + '"></div>';
   h += '<div class="row wrapr" style="gap:6px;margin-bottom:10px">';
   const knoepfe = [["alle", "Alle · " + (imOrt ? aktiv.filter(b => amOrt(b, imOrt) !== 0).length : haupt.length)], ["bestellen", "zu bestellen · " + Object.keys(zuBestellen).length], ["reserviert", "reserviert · " + res.length]];
   if(wMat.length || imW) knoepfe.push(["werkstatt", "Werkstattmaterial · " + wMat.length]);
@@ -49,7 +49,7 @@ function lagerView(){
   if(view.matFilter === "reserviert") liste = res;
   if(imW) liste = wMat;
   if(imOrt) liste = liste.filter(b => amOrt(b, imOrt) !== 0);
-  if(q) liste = liste.filter(b => (b.name + " " + b.code + " " + tagNamen(tagsVon("artikel", b.code))).toLowerCase().indexOf(q) >= 0);
+  if(q) liste = liste.filter(b => (b.name + " " + b.code + " " + ((artikel(b.code) || {}).marke || "") + " " + tagNamen(alleTagsVon("artikel", b.code))).toLowerCase().indexOf(q) >= 0);
   // Kategorie → Tag (eine Zeile, siehe katFilterZeile)
   h += katFilterZeile("l", liste);
   liste = katFilterAnwenden("l", liste);
@@ -78,7 +78,7 @@ function lagerZeile(b, zuBestellen, gesperrt, imOrt, zusatz){
   const leistung = b.art === "Pauschale";
   const vt = verteilung(b);
   const knapp = !leistung && (num(b.frei) <= 0 || zuBestellen[b.code]);
-  h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span>' + tagChips(tagsVon("artikel", b.code)) + '<br>';
+  h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span>' + tagChips(alleTagsVon("artikel", b.code)) + '<br>';
   if(leistung) h += '<span class="sub">Leistung · ' + eur(b.preis) + '</span>';
   else {
     h += '<span class="sub">' + (imOrt ? '<strong style="color:var(--ink)">' + zahl(amOrt(b, imOrt)) + ' ' + esc(b.einheit) + ' in ' + esc(imOrt) + '</strong> · ' + zahl(b.gesamt) + ' gesamt'
