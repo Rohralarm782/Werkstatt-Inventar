@@ -644,6 +644,34 @@ const A = {
   // Übergreifender Tag als Filter (gilt zusätzlich zu Kategorie und Tag); nochmal antippen = aufheben
   gtFilter: x => { const [p, g] = x.split("|"); view[p + "Gt"] = view[p + "Gt"] === g ? "" : g; view[p + "GtOffen"] = false; render(); },
   gtOffen: x => { view[x + "GtOffen"] = !view[x + "GtOffen"]; render(); },
+  /* Übergreifenden Tag vielen zuordnen (ab 20.9.0, siehe gzZeigen) */
+  gzAuf: x => { const [id, art] = x.split("|"); gzOeffnen(Number(id), art); },
+  gzArt: x => { if(!gz || gz.art === x) return; gz.art = x; gz.kat = ""; gzLaden(); gzZeigen(); },
+  gzKat: x => { if(!gz) return; gz.kat = x || ""; gzTeileNeu(); },
+  gzOhne: () => { if(!gz) return; gz.nurOhne = !gz.nurOhne; gzTeileNeu(); },
+  gzAlle: x => { if(!gz) return; gzSichtbar().forEach(z => gz.haken[z.key] = !!x); gzTeileNeu(); },
+  gzSpeichern: () => {
+    if(!gz) return;
+    const t = tagNachId(gz.tagId); if(!t) return;
+    const a = gzAenderungen(), tab = gz.art, werte = l => l.reduce((m, z) => m.concat(z.werte), []);
+    if(!a.n){ modalZu(); toast("Nichts geändert."); return; }
+    const anz = l => werte(l).length;
+    const text = t.name + ": " + [a.dazu.length ? anz(a.dazu) + " dazu" : "", a.weg.length ? anz(a.weg) + " entfernt" : ""].filter(Boolean).join(", ");
+    if(t.gruppe === "Marke"){
+      // Feld „Marke“ setzen bzw. leeren; den Tag stellt die Datenbank passend ein
+      const ersetzt = a.dazu.filter(z => z.marke);
+      if(ersetzt.length && !confirm(anz(ersetzt) + (anz(ersetzt) === 1 ? " Eintrag hat" : " Einträge haben") + " schon eine andere Marke (" +
+         Array.from(new Set(ersetzt.map(z => z.marke))).join(", ") + ").\n\nDurch „" + t.name + "“ ersetzen?")) return;
+      const feld = tab === "artikel" ? "code" : "nummer";
+      const filter = l => feld + "=in.(" + werte(l).map(encodeURIComponent).join(",") + ")";
+      aktion(async () => {
+        if(a.dazu.length) await aendern(tab, filter(a.dazu), { marke:t.name });
+        if(a.weg.length) await aendern(tab, filter(a.weg), { marke:null });
+      }, text);
+      return;
+    }
+    aktion(() => rpc("tag_zuordnen", { p_tag:t.id, p_art:tab, p_mit:werte(a.dazu), p_ohne:werte(a.weg) }), text);
+  },
   ukVerwalten: x => { view.tab = "mehr"; view.mehr = "tags"; view.ukKat = x || null; view.suche = ""; render(); window.scrollTo(0,0); },
   serieAuf: x => { if(!view.serieOffen) view.serieOffen = {}; view.serieOffen[x] = !view.serieOffen[x]; render(); },
 
@@ -930,6 +958,7 @@ const A = {
 /** Änderungen an Feldern, verteilt über data-c. */
 const C = {
   uzTag: v => { const l = $("uzListe"); if(l) l.innerHTML = uzListe(Number(v)); },
+  gzHaken: (v, x, el) => { if(!gz) return; gz.haken[x] = !!el.checked; gzTeileNeu(); },
   suche: v => { view.suche = v; },
   nRad: v => { neu.rad = v; render(); },
   nProblem: v => { neu.problem = v; },

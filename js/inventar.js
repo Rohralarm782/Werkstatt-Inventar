@@ -166,7 +166,9 @@ function katFilterZeile(p, items){
   const gtC = globDa() ? gtZaehlen(p, basis) : {};
   const gtMehr = Object.keys(gtC).length;
   const mehrKnopf = n => '<button class="btn small link" data-a="gtOffen" data-x="' + p + '"' + (offen ? ' aria-pressed="true"' : '') + '>' + (offen ? '# weniger' : '# ' + n) + '</button>';
-  let h = '<div class="chipzeile">' + gtChip;
+  // Gewählten übergreifenden Tag direkt vielen zuordnen (ab 20.9.0)
+  const gtZu = gtT && darf("arbeiten") ? '<button class="btn small link" data-a="gzAuf" data-x="' + gt + '|' + (p === "l" ? "artikel" : "stueck") + '">zuordnen</button>' : '';
+  let h = '<div class="chipzeile">' + gtChip + gtZu;
   if(!kat){
     const c = zaehle(basis, q.kat), ks = Object.keys(c).sort();
     const mitTags = ks.some(k => tagListe(k).length);

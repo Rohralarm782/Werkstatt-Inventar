@@ -386,9 +386,10 @@ function globVerw(g){
     const txt = [n.a ? n.a + " Artikel" : "", n.s ? n.s + " Teile" : ""].filter(Boolean).join(" · ") || "leer";
     h += '<div class="eintrag">' + (mgr
            ? '<button class="lzeile" data-a="ukUmbenennen" data-x="' + t.id + '"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></button>'
-           : '<div class="txt"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></div>') + '</div>';
+           : '<div class="txt"><strong>' + esc(t.name) + '</strong><br><span class="sub">' + txt + '</span></div>') +
+         '<button class="btn small" data-a="gzAuf" data-x="' + t.id + '|artikel">zuordnen</button></div>';
   });
-  h += '</div>' + (mgr ? '<p class="sub" style="margin:8px 0 0">Name antippen: umbenennen' + (g === "Marke" ? ' oder zusammenführen' : '') + ', löschen.</p>' : '') +
+  h += '</div><p class="sub" style="margin:8px 0 0">' + (mgr ? 'Name antippen: umbenennen' + (g === "Marke" ? ' oder zusammenführen' : '') + ', löschen. ' : '') + '„zuordnen“: vielen Artikeln oder Einzelstücken auf einmal geben.</p>' +
        '<div class="row" style="gap:8px;margin-top:10px"><input type="text" id="ukNeuName" placeholder="' + (g === "Marke" ? "Neue Marke, z. B. Campagnolo" : g === "Baugruppe" ? "Neu, z. B. Laufrad" : "Neu, z. B. Bahn") + '" style="flex:1">' +
        '<button class="btn primary" data-a="ukNeu" data-x="#' + esc(g) + '">Hinzufügen</button></div></div>';
   h += g === "Marke"
@@ -435,6 +436,108 @@ function uzListe(tagId){
   return uzZeilen.map((z, i) => { const alle = z.ids.concat(z.glob || []);
     return '<label class="eintrag" style="cursor:pointer"><input type="checkbox" data-uz="' + i + '" data-ohne="' + (z.ids.length ? 0 : 1) + '"' + (alle.indexOf(tagId) >= 0 ? " checked" : "") + ' style="width:20px;height:20px">' +
            '<div class="txt">' + z.html + '<br><span class="sub">' + (z.ids.length ? esc(tagNamen(z.ids)) : 'ohne Tag') + (z.glob && z.glob.length ? ' · ' + esc(tagNamen(z.glob)) : '') + '</span></div></label>'; }).join("");
+}
+/* ---------------------------------------------------------------
+   Übergreifenden Tag vielen zuordnen (ab 20.9.0): eine Liste aller
+   Lager-Artikel bzw. Einzelstücke über alle Kategorien, mit Suche,
+   Kategorie-Filter und „nur ohne …“. Angehakt = hat den Tag.
+   Baugruppe/Disziplin speichern über tag_zuordnen; bei einer Marke wird
+   das Feld „Marke“ gesetzt bzw. geleert (der Tag folgt in der Datenbank).
+----------------------------------------------------------------*/
+let gz = null;   // { tagId, art:"artikel"|"stueck", kat, q, nurOhne, zeilen:[…], haken:{ key:bool } }
+/** Zeilen für die Liste: Artikel einzeln, Einzelstücke als Serie (eine Zeile). */
+function gzZeilen(art, t){
+  const marke = t.gruppe === "Marke", gleich = v => (v || "").trim().toLowerCase() === t.name.toLowerCase();
+  if(art === "artikel"){
+    return katSortieren("l", (DB.bestand || []).filter(b => b.aktiv), b => b.code).map(b => {
+      const a = artikel(b.code) || {}, glob = globTagsVon("artikel", b.code);
+      return { key:b.code, werte:[b.code], kat:stueckKategorie(b.code), marke:(a.marke || "").trim(),
+               hat: marke ? gleich(a.marke) : glob.indexOf(t.id) >= 0,
+               ohne: marke ? !(a.marke || "").trim() : !glob.some(id => (tagNachId(id) || {}).gruppe === t.gruppe),
+               such:(b.name + " " + b.code + " " + (a.marke || "") + " " + tagNamen(alleTagsVon("artikel", b.code))).toLowerCase(),
+               html:'<strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span>', glob };
+    });
+  }
+  const gruppen = {}, reihe = [];
+  katSortieren("inv", (DB.stueck || []).filter(s => s.ort !== "ausgemustert"), s => s.nummer).forEach(s => {
+    const k = serienSchluessel(s); if(!gruppen[k]){ gruppen[k] = []; reihe.push(k); } gruppen[k].push(s);
+  });
+  return reihe.map(k => {
+    const g = gruppen[k], s = g[0], glob = globTagsVon("stueck", s.nummer);
+    return { key:k, werte:g.map(x => x.nummer), kat:stueckKategorie(s.nummer), marke:(s.marke || "").trim(),
+             hat: marke ? gleich(s.marke) : glob.indexOf(t.id) >= 0,
+             ohne: marke ? !(s.marke || "").trim() : !glob.some(id => (tagNachId(id) || {}).gruppe === t.gruppe),
+             such:(g.map(x => x.nummer).join(" ") + " " + s.typ + " " + (s.marke || "") + " " + (s.detail || "") + " " + tagNamen(alleTagsVon("stueck", s.nummer))).toLowerCase(),
+             html:(g.length > 1 ? '<strong>' + g.length + '×</strong> ' : '<strong>' + esc(s.nummer) + '</strong> ') + esc(s.typ) +
+                  (g.length > 1 ? ' <span class="sub">' + esc(nummernText(g.map(x => x.nummer))) + '</span>' : ''), glob };
+  });
+}
+function gzOeffnen(tagId, art){
+  const t = tagNachId(tagId); if(!t || !t.gruppe) return;
+  gz = { tagId:t.id, art:art === "stueck" ? "stueck" : "artikel", kat:"", q:"", nurOhne:false, zeilen:[], haken:{} };
+  gzLaden();
+  gzZeigen();
+}
+function gzLaden(){
+  const t = tagNachId(gz.tagId);
+  gz.zeilen = gzZeilen(gz.art, t);
+  gz.haken = {}; gz.zeilen.forEach(z => gz.haken[z.key] = z.hat);
+}
+/** Sichtbare Zeilen nach Suche, Kategorie und „nur ohne“. */
+function gzSichtbar(){
+  const q = gz.q.trim().toLowerCase();
+  return gz.zeilen.filter(z => (!gz.kat || z.kat === gz.kat) && (!gz.nurOhne || z.ohne || gz.haken[z.key] !== z.hat) && (!q || z.such.indexOf(q) >= 0));
+}
+function gzAenderungen(){
+  const dazu = gz.zeilen.filter(z => gz.haken[z.key] && !z.hat), weg = gz.zeilen.filter(z => !gz.haken[z.key] && z.hat);
+  return { dazu, weg, n:dazu.reduce((m, z) => m + z.werte.length, 0) + weg.reduce((m, z) => m + z.werte.length, 0) };
+}
+function gzListeHtml(){
+  const t = tagNachId(gz.tagId), marke = t.gruppe === "Marke", l = gzSichtbar();
+  if(!l.length) return '<div class="sub" style="padding:8px 0">Nichts gefunden.</div>';
+  return l.map(z => {
+    const an = !!gz.haken[z.key];
+    // Was die Zeile in dieser Gruppe schon hat (bei Marke: die eingetragene, wenn sie abweicht)
+    const sonst = marke ? (z.marke && z.marke.toLowerCase() !== t.name.toLowerCase() ? z.marke : "")
+                        : z.glob.map(tagNachId).filter(x => x && x.gruppe === t.gruppe && x.id !== t.id).map(x => x.name).join(", ");
+    return '<label class="eintrag" style="cursor:pointer"><input type="checkbox" data-c="gzHaken" data-x="' + esc(z.key) + '"' + (an ? " checked" : "") + ' style="width:20px;height:20px;flex:0 0 auto">' +
+           '<div class="txt">' + z.html + '<br><span class="sub">' + esc(kategorieName(z.kat)) +
+           (sonst ? ' · <span style="color:' + (marke && an ? 'var(--warn)' : 'inherit') + '">' + esc((marke ? "Marke " : "") + sonst) + (marke && an ? ' → wird ' + esc(t.name) : '') + '</span>' : '') +
+           (an !== z.hat ? ' · <strong>' + (an ? 'neu' : 'entfernen') + '</strong>' : '') + '</span></div></label>';
+  }).join("");
+}
+function gzKopfHtml(){
+  const t = tagNachId(gz.tagId), marke = t.gruppe === "Marke";
+  const c = {}; gz.zeilen.forEach(z => { if(!gz.nurOhne || z.ohne || gz.haken[z.key] !== z.hat) c[z.kat] = (c[z.kat] || 0) + 1; });
+  let h = '<div class="chipzeile" style="margin-bottom:8px"><button class="btn small' + (gz.kat ? '' : ' primary') + '" data-a="gzKat" data-x="">Alle</button>';
+  Object.keys(c).sort().forEach(k => h += '<button class="btn small' + (gz.kat === k ? ' primary' : '') + '" data-a="gzKat" data-x="' + esc(k) + '">' + esc(kategorieName(k)) + ' · ' + c[k] + '</button>');
+  h += '</div><div class="row" style="gap:4px;justify-content:flex-end;flex-wrap:wrap">' +
+       '<button class="btn small' + (gz.nurOhne ? ' primary' : ' link') + '" data-a="gzOhne">' + (marke ? 'nur ohne Marke' : 'nur ohne ' + esc(t.gruppe)) + '</button>' +
+       '<button class="btn small link" data-a="gzAlle" data-x="1">alle sichtbaren an</button><button class="btn small link" data-a="gzAlle" data-x="">aus</button></div>';
+  return h;
+}
+function gzFussHtml(){
+  const a = gzAenderungen();
+  return '<span class="sub">' + (a.n ? a.n + (a.n === 1 ? " Änderung" : " Änderungen") : "keine Änderung") + '</span>';
+}
+function gzZeigen(){
+  const t = tagNachId(gz.tagId), marke = t.gruppe === "Marke";
+  modal('<h3>' + esc(t.name) + ' zuordnen</h3><p class="sub" style="margin-top:-6px">' + esc(t.gruppe) + ' · über alle Kategorien. Angehakt = ' +
+        (marke ? 'hat diese Marke. Anhaken setzt das Feld „Marke“, abhaken leert es.' : 'hat den Tag.') + '</p>' +
+        '<div class="feld"><div class="seg">' + segBtn("gzArt", "artikel", "Lager-Artikel", gz.art) + segBtn("gzArt", "stueck", "Einzelstücke", gz.art) + '</div></div>' +
+        '<div class="feld"><input type="search" id="gzSuche" data-c="gzSuche" placeholder="Name, Nummer, Marke, Tag" value="' + esc(gz.q) + '" autocomplete="off"></div>' +
+        '<div id="gzKopf">' + gzKopfHtml() + '</div>' +
+        '<div class="liste" id="gzListe" style="max-height:50vh;overflow:auto;margin-bottom:10px">' + gzListeHtml() + '</div>' +
+        '<div class="row" style="gap:8px;align-items:center"><button class="btn" data-a="modalZu">Abbrechen</button><span id="gzFuss">' + gzFussHtml() + '</span>' +
+        '<span class="sp"></span><button class="btn primary" data-a="gzSpeichern">Speichern</button></div>');
+}
+/** Nur Liste, Filterzeile und Zähler neu (Fokus im Suchfeld bleibt). */
+function gzTeileNeu(){
+  if(!gz) return;
+  const l = $("gzListe"), k = $("gzKopf"), f = $("gzFuss");
+  if(l) l.innerHTML = gzListeHtml();
+  if(k) k.innerHTML = gzKopfHtml();
+  if(f) f.innerHTML = gzFussHtml();
 }
 function rechnungenVerw(){
   const summen = {};

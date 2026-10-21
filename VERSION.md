@@ -1,11 +1,10 @@
 # Version
 
-**20.8.0** — 21.10.2026
+**20.9.0** — 21.10.2026
 
-Übergreifende Tags in den Gruppen Marke, Baugruppe und Disziplin, die zu
-jeder Kategorie passen (z. B. Bremsscheibe mit „Laufrad“ und „Shimano“).
-Artikel bekommen ein Feld „Marke“, das den Marke-Tag automatisch setzt.
-Filter „Marke & Co.“ im Lager und bei den Einzelstücken (Migration).
+Übergreifende Tags vielen auf einmal zuordnen: Liste aller Lager-Artikel bzw.
+Einzelstücke über alle Kategorien, mit Suche, Kategorie-Filter und „nur ohne …“.
+Bei Marken wird das Feld Marke gesetzt bzw. geleert.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -24,6 +23,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 20.9.0 | 21.10.2026 | Übergreifende Tags und Marken vielen auf einmal zuordnen |
 | 20.8.0 | 21.10.2026 | Übergreifende Tags (Marke, Baugruppe, Disziplin), Feld Marke am Artikel, Filter „Marke & Co.“ (Migration) |
 | 20.7.2 | 14.10.2026 | Neues Ticket: Arbeitsaufwand nur einmal, Stufe aus Minuten berechnet |
 | 20.7.1 | 09.10.2026 | Rad-Seite zeigt die Notiz des Rads an |

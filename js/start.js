@@ -28,6 +28,7 @@ document.addEventListener("input", ev => {
   if(c === "radNrVorschau") radNrVorschau();
   if(c === "nrBuch" || c === "nrKatName") C[c](el.value, el.dataset.x, el);
   if(c === "nWahlSuche"){ neu.wahlSuche = el.value; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); }
+  if(c === "gzSuche"){ if(gz){ gz.q = el.value; gzTeileNeu(); } }
   if(c === "gtSuche"){ const l = $("gtTreffer"); if(l) l.innerHTML = gtTreffer(el.value); }
   if(c === "tsSuche"){ tsSuche = el.value; const t = ticket(view.ticket), l = $("tsListe"); if(l && t) l.innerHTML = tsListe(t); }
 });
