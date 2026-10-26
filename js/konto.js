@@ -465,6 +465,7 @@ async function ladeSportler(){
     rest("/sportler"), rest("/stueck?order=nummer"), rest("/artikel?order=code"), rest("/standort?select=" + STANDORT_SPALTEN)
   ]);
   const ausgeliehen = (await rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle)) || [];
+  const mk = await ladeMerkmale();
   const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
   const tsDa = await stueckeAnTickets(tickets);
   // Anzahl Fotos der offenen Tickets (für „Fotos ergänzen“, höchstens FOTOS_PRO_TICKET)
@@ -474,7 +475,7 @@ async function ladeSportler(){
   fotoIds.forEach(x => fotoAnzahl[x.ticket_id] = (fotoAnzahl[x.ticket_id] || 0) + 1);
   STANDORT = standort[0] || null;
   DB = { bestand:[], artikel, raeder, sportler, stueck, tickets, positionen, koffer:[], termine:[], rechnungen, offenePosten:[], zaehlung:[], bestellungen:[],
-         tags:null, artikelTags:[], stueckTags:[], tsDa, kategorien:null, fotoAnzahl, ausgeliehen };
+         tags:null, artikelTags:[], stueckTags:[], tsDa, kategorien:null, fotoAnzahl, ausgeliehen, mk };
   stand = new Date();
   offline = false;
 }
@@ -486,7 +487,7 @@ function sportlerView(){
     const t = (DB.tickets||[]).filter(x => x.rad_id === r.id && offen(x));
     const steht = t.some(x => !x.fahrbereit);
     h += '<div class="card"><div class="row" style="gap:8px;align-items:flex-start"><div style="flex:1;min-width:0"><span class="big">' + esc(r.bezeichnung || r.id) + '</span>' +
-         '<div class="sub">' + esc([r.id, r.typ, r.marke, r.groesse ? "Gr. " + r.groesse : ""].filter(Boolean).join(" · ")) + '</div></div>' +
+         '<div class="sub">' + esc([r.id, r.typ, r.marke, r.groesse ? "Gr. " + r.groesse : "", mkText(r, zielRad(r.typ))].filter(Boolean).join(" · ")) + '</div></div>' +
          (t.length ? '<span class="chip ' + (steht ? "alarm" : "warn") + '">' + (steht ? "steht · " : "") + 'Ticket offen</span>' : '<span class="chip ok">alles ok</span>') + '</div>' +
          '<button class="btn voll ' + (t.length ? "" : "rot") + '" style="margin-top:10px" data-a="spProblem" data-x="' + esc(r.id) + '">' +
          (t.length ? tnr(t[0].id) + ' ansehen · Fotos ergänzen' : 'Problem melden') + '</button></div>';

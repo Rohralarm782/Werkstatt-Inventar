@@ -495,7 +495,6 @@ function wahlFeld(){
          '<input type="search" data-c="nWahlSuche" placeholder="' + (r ? 'Nummer oder Typ (z. B. L-209)' : 'Fahrer, Rad oder Nummer (z. B. L-203)') + '" value="' + esc(neu.wahlSuche) + '" style="flex:1"></div>' +
          '<div id="wahlListe" class="wahl-liste frei">' + wahlListe() + '</div>';
 }
-const RAD_TYPEN = ["Bahn", "Straße", "Zeitfahren", "Cross", "Sonstiges"];
 function wahlListe(){
   const q = (neu.wahlSuche || "").trim().toLowerCase();
   const passt = t => !q || t.toLowerCase().indexOf(q) >= 0;
@@ -510,8 +509,8 @@ function wahlListe(){
     if(q) raeder.forEach(r => h += radZeile(r, false));
     else {
       const gr = {};
-      raeder.forEach(r => { const k = RAD_TYPEN.indexOf(r.typ) >= 0 ? r.typ : "Sonstiges"; (gr[k] = gr[k] || []).push(r); });
-      const typen = RAD_TYPEN.filter(k => gr[k]), einzig = typen.length === 1;
+      raeder.forEach(r => { const k = r.typ || "Sonstiges"; (gr[k] = gr[k] || []).push(r); });
+      const reihe = radTypenAlle().map(t => t.name), typen = reihe.filter(k => gr[k]).concat(Object.keys(gr).filter(k => reihe.indexOf(k) < 0)), einzig = typen.length === 1;
       typen.forEach(k => {
         const offen = einzig || !!(neu.radTypOffen || {})[k];
         h += '<button class="wahl-zeile gruppe" data-a="nRadTypAuf" data-x="' + esc(k) + '" aria-expanded="' + offen + '">' + (offen ? "▾" : "▸") + ' ' + esc(k) + '<span class="anz sub">' + gr[k].length + '</span></button>';
@@ -655,16 +654,21 @@ async function exportiere(was){
   const d = iso(heute());
   try{
     // Kategorie und Tags als lesbare Spalten dazu
-    const mitKat = (zeilen, nr, art) => zeilen.map(z => { const k = stueckKategorie(nr(z));
-      return Object.assign({}, z, { kategorie:kategorieName(k), tags:alleTagsVon(art, nr(z)).map(id => (tagNachId(id) || {}).name).join(", ") }); });
+    const mitKat = (zeilen, nr, art) => zeilen.map(z => { const k = stueckKategorie(nr(z)), x = art === "artikel" ? artikel(nr(z)) : z;
+      return Object.assign({}, z, { kategorie:kategorieName(k), tags:alleTagsVon(art, nr(z)).map(id => (tagNachId(id) || {}).name).join(", "),
+                                    merkmale:x ? mkText(x, zielVon(art, x), true) : "" }); });
     if(was === "bestand"){
       // je Lagerort eine Spalte (auch deaktivierte, falls dort noch etwas gebucht ist)
       const ortSp = lagerorte(true).map(o => o.name);
       const zeilen = mitKat(DB.bestand, z => z.code, "artikel").map(z => { const o = {}; ortSp.forEach(n => o[n] = amOrt(z, n)); return Object.assign(o, z, { marke:(artikel(z.code) || {}).marke || "" }); });
-      download("bestand_" + d + ".csv", csv(zeilen, ["code","name","marke","kategorie","tags","einheit","art"].concat(ortSp, ["lager","koffer","gesamt","reserviert","frei","mindestbestand","status","preis"])));
+      download("bestand_" + d + ".csv", csv(zeilen, ["code","name","marke","kategorie","tags","merkmale","einheit","art"].concat(ortSp, ["lager","koffer","gesamt","reserviert","frei","mindestbestand","status","preis"])));
     }
     if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(mitKat(DB.stueck, z => z.nummer, "stueck"),
-      ["nummer","kategorie","tags","typ","marke","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
+      ["nummer","kategorie","tags","merkmale","typ","marke","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
+    if(was === "raeder"){
+      const z = (DB.raeder || []).map(r => Object.assign({}, r, { merkmale:mkText(r, zielRad(r.typ), true), eigentuemer:r.eigentuemer_id ? sportlerName(r.eigentuemer_id) : "", ort:r.ort || "" }));
+      download("raeder_" + d + ".csv", csv(z, ["id","bezeichnung","typ","marke","merkmale","groesse","rahmennummer","fahrer","fahrer_seit","eigentuemer","ort","aktiv","notiz"]));
+    }
     if(was === "buchungen"){
       const b = await rest("/buchung?order=zeit");
       b.forEach(x => { x.artikel = (artikel(x.code)||{}).name || ""; x.sportler = x.sportler_id ? sportlerName(x.sportler_id) : ""; x.zeit = new Date(x.zeit).toLocaleString("de-DE"); });

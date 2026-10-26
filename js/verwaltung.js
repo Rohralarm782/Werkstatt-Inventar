@@ -72,12 +72,14 @@ function raederView(){
           segBtn("rt", "teile", "Einzelstücke · " + nTeile, view.rt) + '</div>';
   if(view.rt === "teile") return h + inventarView();
   const gesperrt = offline ? " disabled" : "";
-  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad-ID, Marke" value="' + esc(view.suche) + '"></div>';
+  h += '<div class="feld"><input type="search" data-c="suche" placeholder="Fahrer, Rad-ID, Marke, Größe, Ort" value="' + esc(view.suche) + '"></div>';
   const q = view.suche.toLowerCase();
   // Sortierung: Standard = aktive zuerst, mit Fahrer zuerst, nach Name; sonst nach Nummer bzw. letzter Änderung (aktive bleiben vorn)
   const sArt = sortArt("rad"), zeit = r => geaendertZeit(r);
-  h += sortZeile("rad", "Fahrer");
-  const gefunden = (DB.raeder||[]).filter(r => !q || [r.fahrer, r.bezeichnung, r.id, r.marke, r.typ].join(" ").toLowerCase().indexOf(q) >= 0);
+  const gesucht = (DB.raeder||[]).filter(r => !q || [r.fahrer, r.bezeichnung, r.id, r.marke, r.typ, r.ort, mkSuchtext(r)].join(" ").toLowerCase().indexOf(q) >= 0);
+  // Typ, Lagerort, Merkmale (ab 21.0.0)
+  const rf = radFilter(gesucht), gefunden = rf.liste;
+  h += rf.html + sortZeile("rad", "Fahrer");
   if(sArt === "geaendert") h += geaendertFehlt(gefunden, zeit);
   const liste = sArt === "standard"
     ? gefunden.sort((a, b) => (b.aktiv ? 1 : 0) - (a.aktiv ? 1 : 0) || (a.fahrer ? 0 : 1) - (b.fahrer ? 0 : 1) || (a.fahrer || a.bezeichnung).localeCompare(b.fahrer || b.bezeichnung, "de"))
@@ -87,8 +89,9 @@ function raederView(){
     h += '<div class="card" style="padding-top:2px;padding-bottom:2px">';
     liste.forEach(r => {
       const tk = (DB.tickets||[]).filter(t => t.rad_id === r.id), steht = tk.some(t => !t.fahrbereit);
+      const info = [r.typ, mkText(r, zielRad(r.typ)), r.ort].filter(Boolean).join(" · ");
       h += '<button class="zeile-btn" data-a="radAuf" data-x="' + esc(r.id) + '"><span class="txt"><span class="titel">' + esc(r.fahrer || "ohne Fahrer") +
-           ' <span class="sub" style="font-weight:400">' + esc(r.id) + ' · ' + esc(r.bezeichnung) + '</span></span><span class="chips" style="margin-top:4px">' +
+           ' <span class="sub" style="font-weight:400">' + esc(r.id) + ' · ' + esc(r.bezeichnung) + '</span></span>' + (info ? '<span class="sub" style="font-size:13px">' + esc(info) + '</span>' : '') + '<span class="chips" style="margin-top:4px">' +
            (!r.aktiv ? '<span class="chip grau">inaktiv</span>' : steht ? '<span class="chip alarm">steht</span>' : '<span class="chip ok">fährt</span>') +
            (tk.length ? '<span class="chip warn">' + tk.length + ' Ticket' + (tk.length === 1 ? '' : 's') + '</span>' : '') +
            (stueckAm(r.id).length ? '<span class="chip grau">' + stueckAm(r.id).length + (stueckAm(r.id).length === 1 ? ' Teil' : ' Teile') + '</span>' : '') +
@@ -123,12 +126,14 @@ function radSeite(id){
   let h = '<button class="btn small zurueck" data-a="radZu">← Räder &amp; Teile</button>';
   h += '<div class="card"><div class="row wrapr"><span class="big" style="font-size:26px">' + esc(r.bezeichnung) + '</span><span class="sp"></span>' +
        (!r.aktiv ? '<span class="chip grau">inaktiv</span>' : steht ? '<span class="chip alarm">steht</span>' : '<span class="chip ok">fährt</span>') + '</div>';
-  h += '<p class="sub" style="margin:2px 0 10px">' + esc([r.id, r.typ, r.marke, r.groesse ? "Größe " + r.groesse : "", r.rahmennummer ? "Rahmen " + r.rahmennummer : "", r.eigentuemer_id ? "gehört " + sportlerName(r.eigentuemer_id) : ""].filter(Boolean).join(" · ")) + '</p>';
+  h += '<p class="sub" style="margin:2px 0 ' + (mkText(r, zielRad(r.typ)) ? '4px' : '10px') + '">' + esc([r.id, r.typ, r.marke, r.groesse ? "Größe " + r.groesse : "", r.rahmennummer ? "Rahmen " + r.rahmennummer : "", r.eigentuemer_id ? "gehört " + sportlerName(r.eigentuemer_id) : ""].filter(Boolean).join(" · ")) + '</p>';
+  if(mkText(r, zielRad(r.typ))) h += '<p style="margin:0 0 10px">' + mkListe(r, zielRad(r.typ)).map(x => '<span class="chip grau" title="' + esc(x.m.name) + '">' + esc(x.m.typ === "janein" ? x.m.name + (x.v ? "" : ": nein") : x.text) + '</span>').join(" ") + '</p>';
   if(r.notiz && String(r.notiz).trim()) h += '<p style="margin:0 0 10px;white-space:pre-wrap;overflow-wrap:anywhere"><span class="lbl" style="display:inline;margin:0 6px 0 0">Notiz</span>' + esc(String(r.notiz).trim()) + '</p>';
   h += '<div class="row" style="gap:8px"><span class="lbl" style="margin:0">Fahrer</span><select data-c="radFahrer" data-x="' + esc(r.id) + '" style="flex:1"' + gesperrt + '><option value="">— kein Fahrer —</option>';
   (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
   h += '</select></div>';
   if(r.fahrer_seit) h += '<p class="sub" style="margin:4px 0 0">fährt es seit ' + deLang(r.fahrer_seit) + '</p>';
+  if("ort" in r) h += '<div class="row" style="gap:8px;margin-top:8px"><span class="lbl" style="margin:0">Lagerort</span><select data-c="radOrt" data-x="' + esc(r.id) + '" style="flex:1"' + gesperrt + '>' + radOrtOptionen(r.ort) + '</select></div>';
   h += '<button class="btn rot voll" style="margin-top:12px" data-a="ticketRad" data-x="' + esc(r.id) + '">Problem melden · neues Ticket</button>';
   h += '<div class="row wrapr" style="gap:8px;margin-top:8px"><button class="btn small" data-a="radBearbeiten" data-x="' + esc(r.id) + '"' + gesperrt + '>bearbeiten</button>' +
        '<button class="btn small" data-a="radEtikett" data-x="' + esc(r.id) + '">QR-Etikett</button></div></div>';
@@ -197,7 +202,7 @@ function mehrGruppen(){
     ["Abrechnung", [["rechnungen", "Rechnungen", () => { const n = new Set((DB.offenePosten||[]).map(p => p.sportler_id)).size, o = (DB.rechnungen||[]).filter(r => r.status === "offen").length; return (n ? n + " mit offenen Posten" : "keine offenen Posten") + (o ? " · " + o + " Rechnung" + (o === 1 ? "" : "en") + " unbezahlt" : ""); }]]],
     ["Stammdaten", [["sportler", "Sportler &amp; Kostenträger", () => darf("manager") ? "Wer wird berechnet · Zugänge für Sportler" : "Wer wird berechnet, wer nicht"],
                     ["artikel", "Artikel", () => "Preise, Mindestbestand, Lieferant, Arbeitszeit"],
-                    ["tags", "Tags", () => !tagDa() ? "Datenbank noch nicht aktualisiert" : (DB.tags.length ? DB.tags.length + " angelegt" : "z. B. Laufrad &amp; Reifen → Schläuche")]]],
+                    ["tags", mkDa() ? "Kategorien, Tags &amp; Merkmale" : "Tags", () => !tagDa() ? "Datenbank noch nicht aktualisiert" : mkDa() ? "Radtypen, Kategorien, Merkmale wie Rahmengröße" : (DB.tags.length ? DB.tags.length + " angelegt" : "z. B. Laufrad &amp; Reifen → Schläuche")]]],
     ["Standort", []],
     ["Werkzeuge", [["etiketten", "Etiketten &amp; Druckliste", () => { const n = drucklisteAnzahl(); return n ? "Druckliste · " + n + " Etikett" + (n === 1 ? "" : "en") : "QR-Codes für Räder, Teile, Regale"; }],
                    ["termine", "Rennen &amp; Termine", () => { const t = (DB.termine||[])[0]; return t ? t.name + " · " + deLang(t.datum) : "Koffer-Warnung vor Rennen"; }],
@@ -208,6 +213,7 @@ function mehrGruppen(){
   if(darf("manager")) g[2][1].push(["radnummern", "Rad-Nummern", () => radVorlage() ? "Vorlage " + radPraefix("Bahn") + "1".padStart(radStellen(), "0") + " …" : "Standard (" + radPraefix("Bahn") + "01) · eigene Vorlage möglich"]);
   if(darf("rechnen")) g[2][1].push(["briefkopf", "Briefkopf &amp; Bank", () => (STANDORT && STANDORT.iban) ? "für die Rechnungen" : "IBAN noch nicht eingetragen"]);
   if(darf("admin")) g[2][1].push(["standorte", "Standorte", () => "Übersicht, Werkstatt-Manager einladen · Gesamt-Admin"]);
+  if(darf("admin")) g[2][1].push(["vorgaben", "Vorgaben für alle Standorte", () => "Radtypen, Kategorien, Tag-Gruppen, Merkmale · Gesamt-Admin"]);
   // Morgen-Benachrichtigungen (ab 20.2.0, js/push.js): Werkstatt-Manager und Trainer/Mechaniker
   if(darf("arbeiten")) g.unshift(["Mein Konto", [["benachrichtigungen", "Benachrichtigungen", pushMehrText]]]);
   return g.filter(x => x[1].length);
@@ -218,7 +224,7 @@ function mehrView(){
     let h = '<button class="btn small zurueck" data-a="mehrZu">← Mehr</button><h2 class="sec" style="margin-top:0">' + (titel ? titel[1] : "") + '</h2>';
     if(offline) return h + '<div class="leer">Offline — erst wieder mit Netz.</div>';
     const v = view.mehr;
-    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "tags" ? ukVerw() : v === "konten" ? kontenVerw() : v === "briefkopf" ? briefkopfVerw() : v === "radnummern" ? radNummernVerw() : v === "standorte" ? standorteVerw() : v === "lagerorte" ? lagerorteVerw() : v === "benachrichtigungen" ? pushVerw() :
+    return h + (v === "rechnungen" ? rechnungenVerw() : v === "sportler" ? sportlerVerw() : v === "artikel" ? artikelVerw() : v === "tags" ? ukVerw() : v === "konten" ? kontenVerw() : v === "briefkopf" ? briefkopfVerw() : v === "radnummern" ? radNummernVerw() : v === "standorte" ? standorteVerw() : v === "vorgaben" ? vorgabenVerw() : v === "lagerorte" ? lagerorteVerw() : v === "benachrichtigungen" ? pushVerw() :
                 v === "etiketten" ? etikettenVerw() : v === "termine" ? termineView() : exportVerw());
   }
   let h = "";
@@ -329,28 +335,40 @@ function ukVerw(){
   if(!tagDa()) return '<div class="card"><p style="margin:0">Für Tags muss die Datenbank einmal aktualisiert werden: <span class="mono">db/migration_11.0.0.sql</span> im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.</p></div>';
   const k = view.ukKat;
   if(k && k.charAt(0) === "#") return globVerw(k.slice(1));
+  if(k && k.indexOf("@rt:") === 0 && mkDa()) return radtypVerw(Number(k.slice(4)));
+  if(k && k.indexOf("@mk:") === 0 && mkDa()) return merkmalVerw(Number(k.slice(4)));
+  if(k && k.charAt(0) === "@"){ view.ukKat = null; return ukVerw(); }
   if(!k){
-    let h = '<div class="card" style="padding-top:0;padding-bottom:0">';
+    let h = mkDa() ? radtypenAbschnitt() + '<h2 class="sec">Kategorien · Artikel &amp; Einzelstücke</h2>' : '';
+    h += '<div class="card" style="padding-top:0;padding-bottom:0">';
     kategorien("artikel").forEach(([b, name]) => {
       const l = tagListe(b);
-      h += '<button class="zeile-btn" data-a="ukKatAuf" data-x="' + esc(b) + '"><span class="txt"><span class="titel">' + esc(name || "Kategorie " + b) + ' <span class="sub">· ' + esc(b) + '</span></span>' +
-           '<span class="sub">' + (l.length ? esc(l.map(t => t.name).join(", ")) : "keine Tags") + '</span></span>' + SVG_PFEIL + '</button>';
+      const kk = mkDa() ? katKopfKnoepfe(b) : null, nm = mkDa() ? mkZiele({ buchstabe:b }).length : 0;
+      h += '<button class="zeile-btn' + (katAusgeblendet(b) ? ' aus' : '') + '" data-a="ukKatAuf" data-x="' + esc(b) + '"><span class="txt"><span class="titel">' + esc(name || "Kategorie " + b) + ' <span class="sub">· ' + esc(b) + '</span></span>' +
+           '<span class="sub">' + (l.length ? esc(l.map(t => t.name).join(", ")) : "keine Tags") + (nm ? ' · ' + anzahlText(nm, "Merkmal", "Merkmale") : '') + '</span></span>' + (kk ? '<span class="chips">' + kk.chip + '</span>' : '') + SVG_PFEIL + '</button>';
     });
     h += '</div><p class="sub">Tags gehören zu einer Kategorie (dem Buchstaben im Code). Ein Artikel oder Teil kann mehrere Tags seiner Kategorie haben, z. B. Kettenblattschrauben unter „Kurbel“ und „Kleinteile“. Codes und Etiketten bleiben gleich.</p>';
     if(!globDa()) return h + '<div class="card"><p style="margin:0">Für übergreifende Tags (Marke, Baugruppe, Disziplin) muss die Datenbank einmal aktualisiert werden: <span class="mono">db/migration_20.8.0.sql</span> im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.</p></div>';
+    if(mkDa()) h += merkmaleAbschnitt();
     h += '<h2 class="sec">Übergreifende Tags</h2><div class="card" style="padding-top:0;padding-bottom:0">';
-    TAG_GRUPPEN.forEach(g => {
-      const l = globListe(g);
-      h += '<button class="zeile-btn" data-a="ukKatAuf" data-x="#' + g + '"><span class="txt"><span class="titel">' + g + '</span>' +
-           '<span class="sub">' + (l.length ? esc(l.slice(0, 8).map(t => t.name).join(", ") + (l.length > 8 ? " … (" + l.length + ")" : "")) : "noch keine") + '</span></span>' + SVG_PFEIL + '</button>';
+    tagGruppenAlle().forEach(gr => {
+      const g = gr.name, l = globListe(g);
+      h += '<button class="zeile-btn' + (gr.aus ? ' aus' : '') + '" data-a="ukKatAuf" data-x="#' + esc(g) + '"><span class="txt"><span class="titel">' + esc(g) + '</span>' +
+           '<span class="sub">' + (l.length ? esc(l.slice(0, 8).map(t => t.name).join(", ") + (l.length > 8 ? " … (" + l.length + ")" : "")) : "noch keine") + '</span></span>' +
+           (mkDa() ? '<span class="chips">' + herkunftChip(gr.vorgabe, gr.aus) + '</span>' : '') + SVG_PFEIL + '</button>';
     });
-    return h + '</div><p class="sub">Übergreifende Tags passen zu jeder Kategorie — z. B. eine Bremsscheibe (Bremse) mit „Laufrad“ und „Shimano“. Marken entstehen aus dem Feld „Marke“ an Artikeln und Einzelstücken.</p>';
+    h += '</div>';
+    if(mkDa() && darf("manager")) h += '<div class="row wrapr" style="gap:8px;margin:-4px 0 10px"><button class="btn small" data-a="tgForm" data-x="">+ eigene Tag-Gruppe</button></div>';
+    return h + '<p class="sub">Übergreifende Tags passen zu jeder Kategorie — z. B. eine Bremsscheibe (Bremse) mit „Laufrad“ und „Shimano“. Marken entstehen aus dem Feld „Marke“ an Artikeln und Einzelstücken.' +
+           (mkDa() ? ' Mit Schloss: Vorgabe des Landesverbands — gilt an allen Standorten und lässt sich hier nur ausblenden.' : '') + '</p>';
   }
   const l = tagListe(k);
-  let h = '<button class="btn small zurueck" data-a="ukKatZu">← alle Kategorien</button>' +
-          '<div class="row" style="gap:8px;align-items:center;margin:4px 0 10px"><h3 style="margin:0">' + esc(kategorieName(k)) + ' <span class="sub">· ' + esc(k) + '</span></h3>' +
-          (katDa() ? '<span class="sp"></span><button class="btn small" data-a="katUmbenennen" data-x="' + esc(k) + '">Name ändern</button>' : '') +
-          '</div><div class="card"><div class="liste">';
+  const kk = mkDa() ? katKopfKnoepfe(k) : null;
+  let h = '<button class="btn small zurueck" data-a="ukKatZu">← ' + (mkDa() ? 'Kategorien, Tags &amp; Merkmale' : 'alle Kategorien') + '</button>' +
+          '<div class="row wrapr" style="gap:8px;align-items:center;margin:4px 0 10px"><h3 style="margin:0">' + esc(kategorieName(k)) + ' <span class="sub">· ' + esc(k) + '</span></h3>' +
+          (kk ? kk.chip + '<span class="sp"></span>' + kk.knoepfe : katDa() ? '<span class="sp"></span><button class="btn small" data-a="katUmbenennen" data-x="' + esc(k) + '">Name ändern</button>' : '') +
+          '</div>' + (kk && katAusgeblendet(k) ? '<p class="sub" style="margin:-4px 0 10px">Ausgeblendet: für neue Artikel und Einzelstücke nicht mehr wählbar; vorhandene bleiben.</p>' : '') +
+          '<h2 class="sec" style="margin-top:4px">Tags</h2><div class="card"><div class="liste">';
   if(!l.length) h += '<div class="sub">Noch keine Tags.</div>';
   l.forEach((t, i) => {
     const n = tagAnzahl(t.id);
@@ -371,15 +389,17 @@ function ukVerw(){
          '<button class="zeile-btn" data-a="ukZuordnen" data-x="artikel|' + esc(k) + '"><span class="txt"><span class="titel">Lager-Artikel</span><span class="sub">' + (ohneA ? ohneA + " ohne Tag" : "alle haben Tags") + '</span></span>' + SVG_PFEIL + '</button>' +
          '<button class="zeile-btn" data-a="ukZuordnen" data-x="stueck|' + esc(k) + '"><span class="txt"><span class="titel">Einzelstücke</span><span class="sub">' + (ohneS ? ohneS + " ohne Tag" : "alle haben Tags") + '</span></span>' + SVG_PFEIL + '</button></div>';
   }
+  if(mkDa() && (DB.kategorien || []).some(x => x.buchstabe === k)) h += zielAbschnitt({ buchstabe:k });
   return h;
 }
 /** Wählbare übergreifende Tags (Baugruppe, Disziplin), nach Gruppe und Name. */
-function globWahlListe(){ return TAG_GRUPPEN_WAHL.reduce((l, g) => l.concat(globListe(g)), []); }
+function globWahlListe(){ return tagGruppenWahl().reduce((l, g) => l.concat(globListe(g)), []); }
 /** Mehr → Tags → eine Gruppe übergreifender Tags (Marke, Baugruppe, Disziplin). */
 function globVerw(g){
   const l = globListe(g), mgr = darf("manager");
-  let h = '<button class="btn small zurueck" data-a="ukKatZu">← alle Tags</button>' +
-          '<h3 style="margin:4px 0 10px">' + esc(g) + ' <span class="sub">· übergreifend</span></h3><div class="card"><div class="liste">';
+  const gk = mkDa() ? gruppeKopfKnoepfe(g) : { chip:"", knoepfe:"" };
+  let h = '<button class="btn small zurueck" data-a="ukKatZu">← ' + (mkDa() ? 'Kategorien, Tags &amp; Merkmale' : 'alle Tags') + '</button>' +
+          '<div class="row wrapr" style="gap:8px;align-items:center;margin:4px 0 10px"><h3 style="margin:0">' + esc(g) + ' <span class="sub">· übergreifend</span></h3>' + gk.chip + '<span class="sp"></span>' + gk.knoepfe + '</div><div class="card"><div class="liste">';
   if(!l.length) h += '<div class="sub">Noch keine.</div>';
   l.forEach(t => {
     const n = tagAnzahl(t.id);
@@ -425,7 +445,7 @@ function ukZuordnenDialog(x){
   let h = '<h3>Zuordnen · ' + esc(kategorieName(k)) + '</h3><p class="sub" style="margin-top:-6px">Tag wählen, dann ' + (tab === "artikel" ? "Lager-Artikel" : "Einzelstücke") + ' an- oder abhaken. Angehakt = hat den Tag.</p>' +
           '<div class="feld"><span class="lbl">Tag</span><select id="uzZiel" data-c="uzTag">' +
             (gl.length && l.length ? '<optgroup label="' + esc(kategorieName(k)) + '">' : '') + l.map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join("") + (gl.length && l.length ? '</optgroup>' : '') +
-            TAG_GRUPPEN_WAHL.map(g => globListe(g).length ? '<optgroup label="' + g + ' (übergreifend)">' + globListe(g).map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join("") + '</optgroup>' : '').join("") +
+            tagGruppenWahl().map(g => globListe(g).length ? '<optgroup label="' + g + ' (übergreifend)">' + globListe(g).map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join("") + '</optgroup>' : '').join("") +
           '</select></div>' +
           '<div class="row" style="gap:4px;justify-content:flex-end"><button class="btn small link" data-a="uzOhne">nur ohne Tag</button><button class="btn small link" data-a="uzAlle">alle</button><button class="btn small link" data-a="uzKeine">keine</button></div>' +
           '<div class="liste" id="uzListe" style="max-height:50vh;overflow:auto;margin-bottom:10px">' + uzListe((l[0] || gl[0]).id) + '</div>' +
@@ -566,7 +586,8 @@ function exportVerw(){
     '<div style="display:grid;gap:8px"><button class="btn" data-a="export" data-x="bestand">Bestand</button>' +
     '<button class="btn" data-a="export" data-x="buchungen">Alle Buchungen</button>' +
     '<button class="btn" data-a="export" data-x="tickets">Alle Tickets</button>' +
-    '<button class="btn" data-a="export" data-x="stueck">Einzelstücke</button></div></div>';
+    '<button class="btn" data-a="export" data-x="stueck">Einzelstücke</button>' +
+    '<button class="btn" data-a="export" data-x="raeder">Räder</button></div></div>';
 }
 
 /* ---------------------------------------------------------------
@@ -620,7 +641,7 @@ function kategorien(typ){
 }
 function kategorieOptionen(gruppe){
   let h = '<option value="">— bitte wählen —</option>';
-  kategorien(nrForm && nrForm.typ).forEach(([k, name]) => h += '<option value="' + k + '">' + esc(name || "Kategorie " + k) + ' · ' + esc(kuerzel()) + '-' + k + '-' + gruppe + 'xx</option>');
+  kategorien(nrForm && nrForm.typ).filter(([k]) => !katAusgeblendet(k)).forEach(([k, name]) => h += '<option value="' + k + '">' + esc(name || "Kategorie " + k) + ' · ' + esc(kuerzel()) + '-' + k + '-' + gruppe + 'xx</option>');
   return h + (darf("arbeiten") ? '<option value="_neu">＋ neue Kategorie …</option>' : '');
 }
 /** Gewählter Buchstabe — aus der Liste oder bei „neue Kategorie“ aus dem Eingabefeld. */
@@ -655,7 +676,8 @@ function tagAuswahl(kat, aktuell){
 /** Übergreifende Tags, die in der Kategorie (ohne Kategorie: überall) am häufigsten vergeben sind. */
 function globVorschlaege(kat){
   const n = {};
-  const z = (schluessel, id) => { const t = tagNachId(id); if(globWahl(t) && (!kat || stueckKategorie(schluessel) === kat)) n[id] = (n[id] || 0) + 1; };
+  const sichtbar = tagGruppenWahl();
+  const z = (schluessel, id) => { const t = tagNachId(id); if(globWahl(t) && sichtbar.indexOf(t.gruppe) >= 0 && (!kat || stueckKategorie(schluessel) === kat)) n[id] = (n[id] || 0) + 1; };
   (DB.artikelTags || []).forEach(x => z(x.code, x.tag_id));
   (DB.stueckTags || []).forEach(x => z(x.nummer, x.tag_id));
   return Object.keys(n).map(Number).sort((a, b) => (n[b] - n[a]) || globSort(tagNachId(a), tagNachId(b)));
@@ -663,7 +685,7 @@ function globVorschlaege(kat){
 function globAuswahl(kat, aktuell){
   const gew = aktuell.map(tagNachId).filter(globWahl).sort(globSort).map(t => t.id);
   const vor = globVorschlaege(kat).filter(id => gew.indexOf(id) < 0).slice(0, GLOB_VORSCHLAEGE);
-  let h = '<div class="globwahl"><span class="lbl" style="margin-top:8px">Übergreifend (Baugruppe, Disziplin)</span><div class="tagwahl">';
+  let h = '<div class="globwahl"><span class="lbl" style="margin-top:8px">Übergreifend (' + esc(tagGruppenWahl().join(", ")) + ')</span><div class="tagwahl">';
   gew.concat(vor).forEach(id => { const t = tagNachId(id);
     h += '<button type="button" class="btn small glob" data-a="tagUmschalten" data-t="' + t.id + '" aria-pressed="' + (gew.indexOf(id) >= 0) + '" title="' + esc(t.gruppe) + '">' + esc(t.name) + '</button>'; });
   if(!gew.length && !vor.length) h += '<span class="sub">Noch keine — unten suchen oder neu anlegen.</span>';
@@ -678,7 +700,7 @@ function gtTreffer(eingabe){
   const alle = globWahlListe(), genau = alle.some(t => t.name.toLowerCase() === q);
   const l = alle.filter(t => t.name.toLowerCase().indexOf(q) >= 0 && gew.indexOf(t.id) < 0).slice(0, 12);
   let h = l.map(t => '<button type="button" class="btn small glob" data-a="gtWaehlen" data-x="' + t.id + '">' + esc(t.name) + ' <span class="sub">· ' + esc(t.gruppe) + '</span></button>').join("");
-  if(!genau) TAG_GRUPPEN_WAHL.forEach(g => h += '<button type="button" class="btn small link" data-a="gtNeu" data-x="' + g + '">+ „' + esc(eingabe.trim()) + '“ als ' + g + '</button>');
+  if(!genau) tagGruppenWahl().forEach(g => h += '<button type="button" class="btn small link" data-a="gtNeu" data-x="' + g + '">+ „' + esc(eingabe.trim()) + '“ als ' + g + '</button>');
   return h || '<span class="sub">Schon gewählt.</span>';
 }
 /** kat: fester Buchstabe (Bearbeiten) oder leer (folgt der Nummernwahl). */
@@ -688,6 +710,7 @@ function ukBox(kat, aktuell){
 }
 function tagsImFormular(){ return Array.from(document.querySelectorAll('#ukBox [data-t][aria-pressed="true"]')).map(b => Number(b.dataset.t)); }
 function ukBoxAktualisieren(){
+  mkBoxAktualisieren();   // Merkmal-Felder folgen der Kategorie bzw. dem Radtyp (ab 21.0.0)
   const box = $("ukBox"); if(!box || box.dataset.kat) return;
   box.innerHTML = tagAuswahl(formKat(), tagsImFormular());
 }
@@ -709,11 +732,10 @@ function ukBoxMit(ids){
    <Kürzel>-HSG-TR-BR-0042; eingetippt wird nur die Zahl, das Kürzel
    und der feste Teil kommen automatisch davor.
 ----------------------------------------------------------------*/
-const RAD_KUERZEL = { "Bahn":"BR", "Straße":"SR", "Zeitfahren":"ZF", "Cross":"CX", "Sonstiges":"SO" };
 function radVorlage(){ return (STANDORT && STANDORT.rad_vorlage) || ""; }
 function radStellen(){ return Number(STANDORT && STANDORT.rad_stellen) || 2; }
 /** Fester Teil der Rad-ID ohne Kürzel, z. B. „HSG-TR-BR-“ (ohne Vorlage „BR-“). */
-function radPraefix(typ){ return (radVorlage() ? radVorlage() + "-" : "") + (RAD_KUERZEL[typ] || "SO") + "-"; }
+function radPraefix(typ){ return (radVorlage() ? radVorlage() + "-" : "") + radKuerzelVon(typ) + "-"; }   // Kürzel aus den Radtypen (ab 21.0.0)
 /** Rad-ID ohne Standort-Kürzel (für Anzeige und Eingabe). */
 function ohneKuerzel(id){ const k = kuerzel() + "-"; return id && kuerzel() && String(id).indexOf(k) === 0 ? String(id).slice(k.length) : String(id || ""); }
 /** Eingabe → volle Rad-ID. Nur Ziffern (mit Vorlage): fester Teil davor, mit Nullen aufgefüllt.
@@ -868,6 +890,7 @@ function artikelForm(code, zweck){
     (wahl ? '<div class="feld"><div class="seg">' + segBtn("aZweck", "werkstatt", "Werkstatt", artZweck) + segBtn("aZweck", "kleidung", "Bekleidung", artZweck) + '</div></div>' : '') +
     artFeld + (code ? '' : nummernWahl("artikel", 1)) +
     ukBox(code ? stueckKategorie(code) : "", code ? alleTagsVon("artikel", code) : []) +
+    mkBox("artikel", code ? zielVon("artikel", a) : null, a.merkmale, code ? stueckKategorie(code) : "") +
     feld("Bezeichnung", "aName", a.name) +
     // Marke (ab 20.8.0): setzt in der Datenbank den Marke-Tag gleichen Namens
     (globDa() ? feld("Marke", "aMarke", a.marke, "text", ' list="markenDL" placeholder="z. B. Shimano" autocomplete="off"') + markenDL() : '') +
@@ -907,15 +930,19 @@ function artikelForm(code, zweck){
   grBestandFelder();
 }
 function radForm(id){
-  const r = id ? rad(id) : { id:"", bezeichnung:"", typ:"Bahn", marke:"", rahmennummer:"", groesse:"", eigentuemer_id:null, aktiv:true, notiz:"" };
+  const r = id ? rad(id) : { id:"", bezeichnung:"", typ:radTypNamen()[0] || "Bahn", marke:"", rahmennummer:"", groesse:"", eigentuemer_id:null, aktiv:true, notiz:"", ort:HAUPT, merkmale:{} };
   const eig = [["","—"]].concat((DB.sportler||[]).map(s => [s.id, s.name]));
   if(id) nrForm = null;
   const typFeld = '<div class="feld"><span class="lbl">Typ</span><select id="rTyp" data-c="nrVorschau">' +
-    ["Bahn","Straße","Zeitfahren","Cross","Sonstiges"].map(x => '<option' + (r.typ === x ? " selected" : "") + '>' + x + '</option>').join("") + '</select></div>';
+    radTypNamen(r.typ).map(x => '<option' + (r.typ === x ? " selected" : "") + '>' + esc(x) + '</option>').join("") + '</select></div>';
   modal('<h3>' + (id ? "Rad bearbeiten · " + esc(id) : "Neues Rad") + '</h3>' +
     typFeld + (id ? "" : nummernWahl("rad", 0, r.typ)) +
     '<div class="grid2">' + feld("Bezeichnung", "rBez", r.bezeichnung, "text", ' placeholder="z. B. Bahnrad 01"') + feld("Marke", "rMarke", r.marke, "text", ' list="markenDL" placeholder="z. B. Look"') + '</div>' + markenDL() +
-    '<div class="grid2">' + feld("Rahmennummer", "rRahmen", r.rahmennummer) + feld("Größe", "rGr", r.groesse) + '</div>' +
+    // Größe steht ab 21.0.0 in den Merkmalen (Rahmengröße, Laufraddimension); das alte Feld nur, solange noch etwas drinsteht
+    (mkDa() && !r.groesse ? feld("Rahmennummer", "rRahmen", r.rahmennummer)
+                          : '<div class="grid2">' + feld("Rahmennummer", "rRahmen", r.rahmennummer) + feld(mkDa() ? "Größe (alt — bitte als Merkmal)" : "Größe", "rGr", r.groesse) + '</div>') +
+    mkBox("rad", zielRad(r.typ), r.merkmale) +
+    (mkDa() && (!id || "ort" in r) ? '<div class="feld"><span class="lbl">Lagerort</span><select id="rOrt">' + radOrtOptionen(r.ort) + '</select></div>' : '') +
     auswahl("Eigentümer (zahlt Material am Rad)", "rEig", eig, r.eigentuemer_id) +
     feld("Notiz", "rNotiz", r.notiz) + auswahl("Status", "rAktiv", [["true","aktiv"],["false","inaktiv"]], String(r.aktiv)) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
@@ -928,6 +955,7 @@ function stueckForm(nr){
   modal('<h3>' + (nr ? "Einzelstück bearbeiten · " + esc(nr) : "Neues Einzelstück") + '</h3>' +
     (nr ? "" : nummernWahl("stueck", 2)) +
     ukBox(nr ? stueckKategorie(nr) : "", nr ? alleTagsVon("stueck", nr) : []) +
+    mkBox("stueck", nr ? zielVon("stueck", s) : null, s.merkmale, nr ? stueckKategorie(nr) : "") +
     '<div class="grid2">' + feld("Typ", "eTyp", s.typ, "text", ' placeholder="Laufrad Bahn vorne"') + feld("Marke", "eMarke", s.marke, "text", ' list="markenDL" placeholder="z. B. Mavic"') + '</div>' + markenDL() +
     feld("Detail", "eDet", s.detail) +
     (nr ? '' : '<div class="feld"><span class="lbl">Anzahl gleicher Teile</span><input type="number" id="eAnzahl" value="1" min="1" max="50" step="1" inputmode="numeric" data-c="nrVorschau" style="max-width:120px">' +

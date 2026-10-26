@@ -49,7 +49,7 @@ function lagerView(){
   if(view.matFilter === "reserviert") liste = res;
   if(imW) liste = wMat;
   if(imOrt) liste = liste.filter(b => amOrt(b, imOrt) !== 0);
-  if(q) liste = liste.filter(b => (b.name + " " + b.code + " " + ((artikel(b.code) || {}).marke || "") + " " + tagNamen(alleTagsVon("artikel", b.code))).toLowerCase().indexOf(q) >= 0);
+  if(q) liste = liste.filter(b => (b.name + " " + b.code + " " + ((artikel(b.code) || {}).marke || "") + " " + tagNamen(alleTagsVon("artikel", b.code)) + " " + mkSuchtext(artikel(b.code))).toLowerCase().indexOf(q) >= 0);
   // Kategorie → Tag (eine Zeile, siehe katFilterZeile)
   h += katFilterZeile("l", liste);
   liste = katFilterAnwenden("l", liste);
@@ -72,13 +72,15 @@ function lagerView(){
   return h;
 }
 
+/** Merkmale eines Artikels als kleine Zeile (ab 21.0.0) */
+function mkZeile(a){ const t = a ? mkText(a, zielVon("artikel", a)) : ""; return t ? '<br><span class="sub" style="font-size:12px">' + esc(t) + '</span>' : ''; }
 /** Eine Zeile der Lager-Liste */
 function lagerZeile(b, zuBestellen, gesperrt, imOrt, zusatz){
   let h = "";
   const leistung = b.art === "Pauschale";
   const vt = verteilung(b);
   const knapp = !leistung && (num(b.frei) <= 0 || zuBestellen[b.code]);
-  h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span>' + tagChips(alleTagsVon("artikel", b.code)) + '<br>';
+  h += '<div class="eintrag"><button class="lzeile" data-a="artikelMenue" data-x="' + esc(b.code) + '"><strong>' + esc(b.name) + '</strong> <span class="sub">' + esc(b.code) + '</span>' + tagChips(alleTagsVon("artikel", b.code)) + mkZeile(artikel(b.code)) + '<br>';
   if(leistung) h += '<span class="sub">Leistung · ' + eur(b.preis) + '</span>';
   else {
     h += '<span class="sub">' + (imOrt ? '<strong style="color:var(--ink)">' + zahl(amOrt(b, imOrt)) + ' ' + esc(b.einheit) + ' in ' + esc(imOrt) + '</strong> · ' + zahl(b.gesamt) + ' gesamt'

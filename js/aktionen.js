@@ -184,7 +184,7 @@ const A = {
   rt: x => { view.rt = x; view.suche = ""; render(); },
   radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
   radZu: () => { view.rad = null; render(); window.scrollTo(0,0); },
-  geheMehr: x => { if(x === "standorte") standorteCache = undefined; if(x === "konten") kontenCache = undefined; if(x === "benachrichtigungen") pushCache = undefined; view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  geheMehr: x => { if(x === "standorte") standorteCache = undefined; if(x === "vorgaben"){ vorgabenCache = undefined; view.vgMk = null; } if(x === "tags") view.ukKat = null; if(x === "konten") kontenCache = undefined; if(x === "benachrichtigungen") pushCache = undefined; view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
   mehrZu: () => { view.mehr = null; view.ukKat = null; render(); window.scrollTo(0,0); },
   ticketRad: x => { modalZu(); ticketFuerRad(x); },
   ticketStueck: x => { modalZu(); neuStart(); view.tab = "neu"; view.ticket = null; neuStueckWaehlen(x); window.scrollTo(0,0); },
@@ -374,6 +374,7 @@ const A = {
     let kauf;
     try{ kauf = kaufWert("eKauf"); }catch(e){ toast(e.message, true); return; }
     const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:kauf, notiz:wert("eNotiz") || null };
+    try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const mitTags = tags === undefined ? d : Object.assign({}, d, { tags });   // für die Anlege-Funktionen
     const tagsSetzen = nummern => tags === undefined ? null : rpc("tags_setzen", { p_art:"stueck", p_schluessel:nummern, p_tags:tags });
@@ -410,9 +411,12 @@ const A = {
   radNeu: () => { radForm(null); vorschauNummer(); },
   radBearbeiten: x => radForm(x),
   radSpeichern: x => {
-    const d = { bezeichnung:wert("rBez"), typ:wert("rTyp"), marke:marke(wert("rMarke")), rahmennummer:wert("rRahmen") || null, groesse:wert("rGr") || null,
+    const d = { bezeichnung:wert("rBez"), typ:wert("rTyp"), marke:marke(wert("rMarke")), rahmennummer:wert("rRahmen") || null,
                 eigentuemer_id: wert("rEig") ? Number(wert("rEig")) : null, notiz:wert("rNotiz") || null, aktiv: wert("rAktiv") === "true" };
+    if($("rGr")) d.groesse = wert("rGr") || null;    // altes Feld Größe: nur, solange noch etwas drinsteht
+    if($("rOrt")) d.ort = wert("rOrt") || null;      // Lagerort (ab 21.0.0)
     if(!d.bezeichnung){ toast("Bezeichnung fehlt.", true); return; }
+    try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
     if(x){ aktion(() => aendern("rad", "id=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
     if(nrForm && nrForm.modus === "auto"){
       aktion(() => rpc("rad_anlegen", { p_daten:d }), id => d.bezeichnung + " angelegt als " + id);
@@ -442,6 +446,7 @@ const A = {
     } else if(x && hatGroessen(x) && !confirm("Als Werkstatt-Artikel speichern? Die Größen (" + groessen(x).join(", ") + ") werden entfernt.")) return;
     d.groessen = gr;
     if($("aMarke")) d.marke = marke(wert("aMarke"));   // ab 20.8.0; setzt den Marke-Tag
+    try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const tagsSetzen = c => tags === undefined ? null : rpc("tags_setzen", { p_art:"artikel", p_schluessel:[c], p_tags:tags });
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
@@ -639,7 +644,7 @@ const A = {
   zeigAus: () => { view.zeigAus = !view.zeigAus; render(); },
 
   /* Lager/Inventar: Kategorie → Tag (x = "l|L" bzw. "inv|L"; leer = zurück) */
-  katFilter: x => { const [p, k] = x.split("|"); view[p + "Kat"] = k || ""; view[p + "Uk"] = ""; render(); },
+  katFilter: x => { const [p, k] = x.split("|"); view[p + "Kat"] = k || ""; view[p + "Uk"] = ""; view[p + "Mk"] = {}; render(); },
   ukFilter: x => { const [p, u] = x.split("|"); view[p + "Uk"] = view[p + "Uk"] === u ? "" : u; render(); },
   // Übergreifender Tag als Filter (gilt zusätzlich zu Kategorie und Tag); nochmal antippen = aufheben
   gtFilter: x => { const [p, g] = x.split("|"); view[p + "Gt"] = view[p + "Gt"] === g ? "" : g; view[p + "GtOffen"] = false; render(); },
@@ -710,7 +715,7 @@ const A = {
   },
 
   /* Mehr → Tags */
-  ukKatAuf: x => { view.ukKat = x; render(); window.scrollTo(0,0); },
+  ukKatAuf: x => { if(String(x).indexOf("@mk:") === 0 && view.ukKat !== x) view.ukVon = view.ukKat; view.ukKat = x; render(); window.scrollTo(0,0); },
   ukKatZu: () => { view.ukKat = null; render(); window.scrollTo(0,0); },
   katUmbenennen: x => {
     const alt = katNamen()[x] || "";
@@ -808,7 +813,7 @@ const A = {
   // Übergreifende Tags: Treffer aus dem Suchfeld wählen bzw. neu anlegen (Gruppe = x)
   gtWaehlen: x => ukBoxMit([Number(x)]),
   gtNeu: async x => {
-    const n = wert("gtSuche").trim(); if(!n || TAG_GRUPPEN_WAHL.indexOf(x) < 0) return;
+    const n = wert("gtSuche").trim(); if(!n || tagGruppenWahl().indexOf(x) < 0) return;
     if(offline){ toast("Offline — Änderungen sind erst mit Netz möglich.", true); return; }
     const da = globListe(x).find(t => t.name.toLowerCase() === n.toLowerCase());
     try{
@@ -849,6 +854,7 @@ const A = {
     if(kauf){ if(!(monate.length === 1 && monate[0] === kauf.slice(0, 7))) d.kaufdatum = kauf; }   // gleicher Monat: genaue Daten behalten
     else if(monate.length === 1) d.kaufdatum = null;                                               // gemeinsames Datum bewusst geleert
     if(!wert("eNotiz") && new Set(g.map(s => s.notiz || "")).size > 1) delete d.notiz;  // verschiedene Notizen nicht überschreiben
+    try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
     const tags = ukFormWert();
     aktion(async () => {
       await aendern("stueck", "nummer=in.(" + g.map(s => encodeURIComponent(s.nummer)).join(",") + ")", d);

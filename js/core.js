@@ -126,6 +126,16 @@ const loeschen = (tab, filter) => rest("/" + tab + "?" + filter, { method:"DELET
 
 /** Für optionale Tabellen: fehlt die Tabelle (Migration noch nicht gelaufen) → null; Netzfehler brechen ab. */
 function ohneTabelle(e){ if(e instanceof NetzFehler) throw e; return null; }
+/** Radtypen, Tag-Gruppen, Merkmale mit Werten und Zuordnungen, Pflicht und Ausblendungen
+    des Standorts (ab 21.0.0). null, solange die Migration fehlt. */
+async function ladeMerkmale(){
+  const l = await Promise.all(["/radtyp?order=reihenfolge,name", "/tag_gruppe?order=reihenfolge,name", "/merkmal?order=reihenfolge,name",
+                               "/merkmal_wert?order=reihenfolge,id", "/merkmal_ziel?order=reihenfolge,id", "/merkmal_pflicht", "/ausblendung"]
+                              .map(u => rest(u).catch(ohneTabelle)));
+  if(!l.every(Array.isArray)) return null;
+  const [radtypen, gruppen, merkmale, werte, ziele, pflicht, aus] = l;
+  return { radtypen, gruppen, merkmale, werte, ziele, pflicht, aus };
+}
 /** Hängt an jedes Ticket die Liste seiner Einzelstücke (t.stuecke). Gibt zurück,
     ob die Tabelle ticket_stueck da ist (Migration 12.0.0). */
 async function stueckeAnTickets(tickets){
@@ -195,9 +205,11 @@ async function ladeAlles(){
     rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle),
     // Werkstatt-Personen für „Wer macht es?“ beim neuen Ticket (ab 20.5.0).
     // Fehlt die Funktion noch, gibt es die Auswahl einfach nicht.
-    rpc("werkstatt_personen").catch(ohneTabelle)
+    rpc("werkstatt_personen").catch(ohneTabelle),
+    // Radtypen, Tag-Gruppen, Merkmale (ab 21.0.0); fehlt etwas, läuft die App ohne Merkmale
+    ladeMerkmale()
   ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, standort, rechnungen, offenePosten, zaehlung, bestellungen, tags, artikelTags, stueckTags, kats, lagerorteRoh, bestandOrtRoh, groesseRoh, ausgeliehen, personen] = await Promise.all(q);
+  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, standort, rechnungen, offenePosten, zaehlung, bestellungen, tags, artikelTags, stueckTags, kats, lagerorteRoh, bestandOrtRoh, groesseRoh, ausgeliehen, personen, mk] = await Promise.all(q);
   if(!Array.isArray(lagerorteRoh) || !Array.isArray(bestandOrtRoh))
     throw new Error("Für 15.0.0 muss die Datenbank aktualisiert werden: db/migration_15.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
   if(!Array.isArray(groesseRoh) || !Array.isArray(ausgeliehen))
@@ -221,7 +233,7 @@ async function ladeAlles(){
   DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, termine, rechnungen, offenePosten, zaehlung, bestellungen,
          koffer:koffer.filter(k => kofferAktiv.indexOf(k.ort) >= 0), lagerorte:lagerorteRoh, bestandOrt, groesseBestand, ausgeliehen,
          tags:mitTags ? tags : null, artikelTags:mitTags ? artikelTags : [], stueckTags:mitTags ? stueckTags : [], tsDa,
-         kategorien:Array.isArray(kats) ? kats : null, personen:Array.isArray(personen) ? personen : null };
+         kategorien:Array.isArray(kats) ? kats : null, personen:Array.isArray(personen) ? personen : null, mk };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB, ICH, STANDORT, konto:aktivKonto, standort:GERAET.standort })); }catch(e){}

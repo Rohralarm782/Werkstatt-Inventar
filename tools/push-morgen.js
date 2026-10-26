@@ -30,7 +30,7 @@ const vm = require("vm");
 const WURZEL = path.join(__dirname, "..");
 const APP_URL = process.env.APP_URL || "https://rohralarm782.github.io/Werkstatt-Inventar/";
 // Reihenfolge wie in index.html, ohne lib/zxing.min.js (Scanner/Etiketten) und start.js (Programmstart)
-const APP_DATEIEN = ["core", "tickets", "lager", "etiketten", "inventur", "inventar", "verwaltung", "scanner", "aktionen", "konto", "push"]
+const APP_DATEIEN = ["core", "tickets", "lager", "etiketten", "inventur", "inventar", "verwaltung", "scanner", "aktionen", "konto", "merkmale", "push"]
   .map(n => path.join(WURZEL, "js", n + ".js"));
 const MAX_TICKETS = 4, MAX_BESTELLEN = 3;
 const TROCKEN = process.env.PUSH_TROCKEN === "1";

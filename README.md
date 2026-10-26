@@ -19,6 +19,7 @@ Live: https://rohralarm782.github.io/Werkstatt-Inventar/
 | `js/scanner.js` | Scanner |
 | `js/aktionen.js` | Klick-Aktionen (`A`) und Eingabe-Aktionen (`C`) |
 | `js/konto.js` | Konten, Sitzungen, Rollen, Anmeldung, Standorte, Briefkopf, Sportler-Ansicht |
+| `js/merkmale.js` | Vorgaben und eigene Einträge (ab 21.0.0): Radtypen, Tag-Gruppen, Merkmale mit Werten, Lagerort am Rad; Merkmal-Felder und -Filter; Mehr → Kategorien, Tags & Merkmale; Mehr → Vorgaben (Gesamt-Admin) |
 | `js/push.js` | Morgen-Benachrichtigungen: Mehr → Benachrichtigungen, Gerät an-/abmelden, Sprung aus einer Nachricht (ab 20.2.0) |
 | `js/start.js` | Globale Ereignisse und Programmstart (immer zuletzt laden) |
 | `sw.js` | Service Worker, nur für Push-Nachrichten (kein Zwischenspeicher); muss im Hauptverzeichnis liegen |

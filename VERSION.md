@@ -1,10 +1,11 @@
 # Version
 
-**20.9.0** — 21.10.2026
+**21.0.0** — 26.10.2026
 
-Übergreifende Tags vielen auf einmal zuordnen: Liste aller Lager-Artikel bzw.
-Einzelstücke über alle Kategorien, mit Suche, Kategorie-Filter und „nur ohne …“.
-Bei Marken wird das Feld Marke gesetzt bzw. geleert.
+Vorgaben des Landesverbands und eigene Einträge der Standorte: Radtypen,
+Kategorien, Tag-Gruppen und neu Merkmale (Rahmengröße, Laufraddimension,
+Übersetzung …) mit Werten und Pflicht je Standort; Lagerort am Rad;
+Filter nach Merkmalen; Mehr → Vorgaben für den Gesamt-Admin.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -23,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.0.0 | 26.10.2026 | Vorgaben und eigene Einträge (Radtypen, Kategorien, Tag-Gruppen, Merkmale), Lagerort am Rad, Merkmal-Filter (Migration) |
 | 20.9.0 | 21.10.2026 | Übergreifende Tags und Marken vielen auf einmal zuordnen |
 | 20.8.0 | 21.10.2026 | Übergreifende Tags (Marke, Baugruppe, Disziplin), Feld Marke am Artikel, Filter „Marke & Co.“ (Migration) |
 | 20.7.2 | 14.10.2026 | Neues Ticket: Arbeitsaufwand nur einmal, Stufe aus Minuten berechnet |
