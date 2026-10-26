@@ -1,7 +1,7 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 21.1.0 — für eine NEUE, leere Datenbank.
+--  Stand 21.1.1 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
@@ -10,7 +10,8 @@
 --   db/migration_20.0.0.sql, db/migration_20.1.0.sql,
 --   db/migration_20.2.0.sql, db/migration_20.5.0.sql,
 --   db/migration_20.7.0.sql, db/migration_20.8.0.sql,
---   db/migration_21.0.0.sql und db/migration_21.1.0.sql.)
+--   db/migration_21.0.0.sql, db/migration_21.1.0.sql und
+--   db/migration_21.1.1.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -4393,7 +4394,7 @@ insert into merkmal_wert (merkmal_id, wert, reihenfolge)
   select m.id, x.w, x.i from merkmal m, (values ('9-fach', 1), ('10-fach', 2), ('11-fach', 3), ('12-fach', 4)) x(w, i)
    where m.name = 'Fachzahl' and m.standort_id is null;
 insert into merkmal_wert (merkmal_id, wert, reihenfolge)
-  select m.id, x.w, x.i from merkmal m, (values ('breit 1/8″', 1), ('schmal 3/32″', 2)) x(w, i)
+  select m.id, x.w, x.i from merkmal m, (values ('breit 1/8″', 1), ('schmal', 2)) x(w, i)
    where m.name = 'Kettenbreite' and m.standort_id is null;
 insert into merkmal_wert (merkmal_id, radtyp_id, wert, reihenfolge)
   select m.id, t.id, x.w, x.i from merkmal m, radtyp t,
