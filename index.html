@@ -4,19 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Werkstatt · Tickets &amp; Lager</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Schriften liegen in lib/fonts/ (ab 21.2.0, kein Google Fonts mehr) -->
+<link rel="preload" href="lib/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <!-- Installierbar als App und Push-Nachrichten (ab 20.2.0); sw.js liegt im Hauptverzeichnis -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#15181C">
 <meta name="apple-mobile-web-app-title" content="Werkstatt">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=21.1.1">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=21.1.1">
-<link rel="stylesheet" href="css/app.css?v=21.1.1">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=21.2.0">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=21.2.0">
+<link rel="stylesheet" href="css/app.css?v=21.2.0">
 <!-- ZXing fest eingebaut (github.com/zxing-js/library, Apache-2.0).
-     Liest QR UND Barcode (Code128). Kein CDN: läuft auch ohne Netz. -->
-<script src="lib/zxing.min.js?v=21.1.1"></script>
+     Liest QR UND Barcode (Code128). Kein CDN: läuft auch ohne Netz.
+     defer (ab 21.2.0): blockiert den ersten Bildaufbau nicht mehr; gebraucht
+     wird ZXing erst beim Scannen und Drucken, nie beim Laden. -->
+<script src="lib/zxing.min.js?v=21.2.0" defer></script>
 </head>
 <body>
 
@@ -45,20 +46,20 @@
 
 <!-- Versionsnummer: bei jedem Update APP_VERSION und alle ?v=… unten anpassen,
      damit Browser keine alten Dateien aus dem Zwischenspeicher mischen. -->
-<script>const APP_VERSION = "21.1.1";</script>
+<script>const APP_VERSION = "21.2.0";</script>
 <!-- Reihenfolge ist wichtig: start.js zuletzt. -->
-<script src="js/core.js?v=21.1.1"></script>
-<script src="js/tickets.js?v=21.1.1"></script>
-<script src="js/lager.js?v=21.1.1"></script>
-<script src="js/etiketten.js?v=21.1.1"></script>
-<script src="js/inventur.js?v=21.1.1"></script>
-<script src="js/inventar.js?v=21.1.1"></script>
-<script src="js/verwaltung.js?v=21.1.1"></script>
-<script src="js/scanner.js?v=21.1.1"></script>
-<script src="js/aktionen.js?v=21.1.1"></script>
-<script src="js/konto.js?v=21.1.1"></script>
-<script src="js/merkmale.js?v=21.1.1"></script>
-<script src="js/push.js?v=21.1.1"></script>
-<script src="js/start.js?v=21.1.1"></script>
+<script src="js/core.js?v=21.2.0"></script>
+<script src="js/tickets.js?v=21.2.0"></script>
+<script src="js/lager.js?v=21.2.0"></script>
+<script src="js/etiketten.js?v=21.2.0"></script>
+<script src="js/inventur.js?v=21.2.0"></script>
+<script src="js/inventar.js?v=21.2.0"></script>
+<script src="js/verwaltung.js?v=21.2.0"></script>
+<script src="js/scanner.js?v=21.2.0"></script>
+<script src="js/aktionen.js?v=21.2.0"></script>
+<script src="js/konto.js?v=21.2.0"></script>
+<script src="js/merkmale.js?v=21.2.0"></script>
+<script src="js/push.js?v=21.2.0"></script>
+<script src="js/start.js?v=21.2.0"></script>
 </body>
 </html>

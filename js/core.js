@@ -124,41 +124,37 @@ const neuIn = (tab, zeile) => rest("/" + tab, { method:"POST", body:zeile, heade
 const aendern = (tab, filter, felder) => rest("/" + tab + "?" + filter, { method:"PATCH", body:felder, headers:{ Prefer:"return=minimal" } });
 const loeschen = (tab, filter) => rest("/" + tab + "?" + filter, { method:"DELETE", headers:{ Prefer:"return=minimal" } });
 
-/** Für optionale Tabellen: fehlt die Tabelle (Migration noch nicht gelaufen) → null; Netzfehler brechen ab. */
-function ohneTabelle(e){ if(e instanceof NetzFehler) throw e; return null; }
 /** Radtypen, Tag-Gruppen, Merkmale mit Werten und Zuordnungen, Pflicht und Ausblendungen
-    des Standorts (ab 21.0.0). null, solange die Migration fehlt. */
+    des Standorts (ab 21.0.0) — einzeln geladen, nur noch für die Sportler-Ansicht. */
 async function ladeMerkmale(){
-  const l = await Promise.all(["/radtyp?order=reihenfolge,name", "/tag_gruppe?order=reihenfolge,name", "/merkmal?order=reihenfolge,name",
-                               "/merkmal_wert?order=reihenfolge,id", "/merkmal_ziel?order=reihenfolge,id", "/merkmal_pflicht", "/ausblendung"]
-                              .map(u => rest(u).catch(ohneTabelle)));
-  if(!l.every(Array.isArray)) return null;
-  const [radtypen, gruppen, merkmale, werte, ziele, pflicht, aus] = l;
+  const [radtypen, gruppen, merkmale, werte, ziele, pflicht, aus] = await Promise.all(
+    ["/radtyp?order=reihenfolge,name", "/tag_gruppe?order=reihenfolge,name", "/merkmal?order=reihenfolge,name",
+     "/merkmal_wert?order=reihenfolge,id", "/merkmal_ziel?order=reihenfolge,id", "/merkmal_pflicht", "/ausblendung"].map(u => rest(u)));
   return { radtypen, gruppen, merkmale, werte, ziele, pflicht, aus };
 }
-/** Hängt an jedes Ticket die Liste seiner Einzelstücke (t.stuecke). Gibt zurück,
-    ob die Tabelle ticket_stueck da ist (Migration 12.0.0). */
-async function stueckeAnTickets(tickets){
-  if(!tickets.length){ const z = await rest("/ticket_stueck?limit=1").catch(ohneTabelle); return Array.isArray(z); }
-  const z = await rest("/ticket_stueck?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")").catch(ohneTabelle);
-  if(!Array.isArray(z)){ tickets.forEach(t => t.stuecke = t.stueck_nummer ? [t.stueck_nummer] : []); return false; }
+/** Verteilt die Zeilen aus ticket_stueck auf die Tickets (t.stuecke, nach Nummer sortiert). */
+function stueckeVerteilen(tickets, zeilen){
   const sort = (a, b) => a.localeCompare(b, "de", { numeric:true });
-  tickets.forEach(t => t.stuecke = z.filter(x => x.ticket_id === t.id).map(x => x.nummer).sort(sort));
-  return true;
+  tickets.forEach(t => t.stuecke = zeilen.filter(x => x.ticket_id === t.id).map(x => x.nummer).sort(sort));
+}
+/** Hängt an jedes Ticket die Liste seiner Einzelstücke (t.stuecke). */
+async function stueckeAnTickets(tickets){
+  if(!tickets.length) return;
+  stueckeVerteilen(tickets, await rest("/ticket_stueck?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")"));
 }
 const STANDORT_SPALTEN = "id,name,kuerzel,aktiv,rg_empfaenger,rg_absender,rg_kopf,rg_fuss,rg_text,iban,bic,bank,zahlungsziel_tage,rad_vorlage,rad_stellen";
+/** Lädt alles neu. Ab 21.2.0 in einer Anfrage (Datenbankfunktion app_daten):
+    sie liefert, wer angemeldet ist, und für Werkstatt und Geschäftsstelle alle Daten. */
 async function ladeAlles(){
+  const antwort = await rpc("app_daten");
+  const ich = antwort && antwort.ich;
   // Wer ist angemeldet, welche Rolle am Standort? (Sitzung abgelaufen → nächste Person oder Anmeldung)
-  const ich = await rpc("ich");
   if(!ich){
     sitzungEntfernen(aktivKonto);
     if(aktiveSitzung()) return ladeAlles();
     ICH = null;
     throw new AbgemeldetFehler("Abgemeldet — bitte neu anmelden.");
   }
-  // Mehrere Rollen je Konto (ab 18.0.0): ich() liefert dann „rollen“
-  if(!Array.isArray(ich.rollen))
-    throw new Error("Für 18.0.0 muss die Datenbank aktualisiert werden: db/migration_18.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
   const sz = aktiveSitzung();
   Object.assign(sz, { name:ich.name, standorte:ich.standorte, pin_laenge:ich.pin_laenge, gesamt_admin:ich.gesamt_admin, sportler_id:ich.sportler_id });
   merkeSitzungen();
@@ -172,68 +168,24 @@ async function ladeAlles(){
   const hier = (ich.standorte || []).find(x => x.id === GERAET.standort);
   if(hier && hier.name !== GERAET.standortName){ GERAET.standortName = hier.name; merkeGeraet(); }
   rollenKlassen();
-  if(ich.rolle === "sportler") return ladeSportler();
+  if(ich.rolle === "sportler" || !antwort.daten) return ladeSportler();
 
-  const tag = iso(heute());
-  const q = [
-    rest("/v_bestand?order=code"),
-    rest("/artikel?order=code"),
-    rest("/v_rad?order=id"),
-    rest("/sportler?order=name"),
-    rest("/stueck?order=nummer"),
-    rest("/ticket?status=in.(offen,angenommen)&order=id"),
-    rest("/v_koffer?order=ort,code"),
-    rest("/termin?datum=gte." + tag + "&order=datum"),
-    // Rad-Nummern-Vorlage (ab 19.0.0)
-    rest("/standort?select=" + STANDORT_SPALTEN).catch(ohneTabelle),
-    rest("/rechnung?order=id.desc&limit=100"),
-    rest("/v_offene_posten?order=zeit"),
-    rest("/zaehlung"),
-    rest("/bestellung?erhalten_am=is.null&order=bestellt_am"),
-    // Tags (ab 11.0.0). Fehlen die Tabellen noch (Migration nicht ausgeführt),
-    // läuft die App ohne Tags weiter — nur Netzfehler brechen ab.
-    rest("/tag?order=buchstabe,sortierung,name").catch(ohneTabelle),
-    rest("/artikel_tag").catch(ohneTabelle),
-    rest("/stueck_tag").catch(ohneTabelle),
-    // Kategorie-Namen (ab 13.0.0). Fehlt die Tabelle, gelten die festen Namen im Code.
-    rest("/kategorie?order=buchstabe").catch(ohneTabelle),
-    // Lagerorte (ab 15.0.0)
-    rest("/lagerort?order=reihenfolge,name").catch(ohneTabelle),
-    rest("/v_bestand_ort").catch(ohneTabelle),
-    // Bekleidung (ab 16.0.0)
-    rest("/v_bestand_groesse").catch(ohneTabelle),
-    rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle),
-    // Werkstatt-Personen für „Wer macht es?“ beim neuen Ticket (ab 20.5.0).
-    // Fehlt die Funktion noch, gibt es die Auswahl einfach nicht.
-    rpc("werkstatt_personen").catch(ohneTabelle),
-    // Radtypen, Tag-Gruppen, Merkmale (ab 21.0.0); fehlt etwas, läuft die App ohne Merkmale
-    ladeMerkmale()
-  ];
-  const [bestand, artikel, raeder, sportler, stueck, tickets, koffer, termine, standort, rechnungen, offenePosten, zaehlung, bestellungen, tags, artikelTags, stueckTags, kats, lagerorteRoh, bestandOrtRoh, groesseRoh, ausgeliehen, personen, mk] = await Promise.all(q);
-  if(!Array.isArray(lagerorteRoh) || !Array.isArray(bestandOrtRoh))
-    throw new Error("Für 15.0.0 muss die Datenbank aktualisiert werden: db/migration_15.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
-  if(!Array.isArray(groesseRoh) || !Array.isArray(ausgeliehen))
-    throw new Error("Für 16.0.0 muss die Datenbank aktualisiert werden: db/migration_16.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
-  if(!Array.isArray(standort))
-    throw new Error("Für 19.0.0 muss die Datenbank aktualisiert werden: db/migration_19.0.0.sql im SQL-Editor von Neon ausführen, danach Data API → „Refresh schema cache“.");
+  const d = antwort.daten;
   const groesseBestand = {};   // { code: { ort: { groesse|"": menge } } }
-  groesseRoh.forEach(z => { const c = groesseBestand[z.code] = groesseBestand[z.code] || {}; (c[z.ort] = c[z.ort] || {})[z.groesse || ""] = num(z.menge); });
+  d.bestand_groesse.forEach(z => { const c = groesseBestand[z.code] = groesseBestand[z.code] || {}; (c[z.ort] = c[z.ort] || {})[z.groesse || ""] = num(z.menge); });
   const bestandOrt = {};
-  bestandOrtRoh.forEach(z => (bestandOrt[z.code] = bestandOrt[z.code] || {})[z.ort] = num(z.menge));
-  const kofferAktiv = lagerorteRoh.filter(o => o.aktiv && o.art === "koffer").map(o => o.name);
-  // Arbeitsschritte der offenen Tickets — offene und schon abgehakte
+  d.bestand_ort.forEach(z => (bestandOrt[z.code] = bestandOrt[z.code] || {})[z.ort] = num(z.menge));
+  const kofferAktiv = d.lagerorte.filter(o => o.aktiv && o.art === "koffer").map(o => o.name);
   verlaufCache = {};   // Rad-Verlauf beim nächsten Anzeigen neu holen
   ticketVerlauf = undefined;   // Ticket-Verlauf ebenso
-  const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
-  // Einzelstücke der Tickets (ab 12.0.0 beliebig viele). Fehlt die Tabelle noch
-  // (Migration nicht ausgeführt), gilt das alte Feld stueck_nummer.
-  const tsDa = await stueckeAnTickets(tickets);
-  const mitTags = Array.isArray(tags) && Array.isArray(artikelTags) && Array.isArray(stueckTags);
-  STANDORT = standort[0] || null;
-  DB = { bestand, artikel, raeder, sportler, stueck, tickets, positionen, termine, rechnungen, offenePosten, zaehlung, bestellungen,
-         koffer:koffer.filter(k => kofferAktiv.indexOf(k.ort) >= 0), lagerorte:lagerorteRoh, bestandOrt, groesseBestand, ausgeliehen,
-         tags:mitTags ? tags : null, artikelTags:mitTags ? artikelTags : [], stueckTags:mitTags ? stueckTags : [], tsDa,
-         kategorien:Array.isArray(kats) ? kats : null, personen:Array.isArray(personen) ? personen : null, mk };
+  stueckeVerteilen(d.tickets, d.ticket_stueck);
+  STANDORT = d.standort[0] || null;
+  DB = { bestand:d.bestand, artikel:d.artikel, raeder:d.raeder, sportler:d.sportler, stueck:d.stueck, tickets:d.tickets, positionen:d.positionen,
+         termine:d.termine, rechnungen:d.rechnungen, offenePosten:d.offene_posten, zaehlung:d.zaehlung, bestellungen:d.bestellungen,
+         koffer:d.koffer.filter(k => kofferAktiv.indexOf(k.ort) >= 0), lagerorte:d.lagerorte, bestandOrt, groesseBestand, ausgeliehen:d.ausgeliehen,
+         tags:d.tags, artikelTags:d.artikel_tag, stueckTags:d.stueck_tag, tsDa:true,
+         kategorien:d.kategorien, personen:Array.isArray(d.personen) ? d.personen : null,
+         mk:{ radtypen:d.radtypen, gruppen:d.gruppen, merkmale:d.merkmale, werte:d.werte, ziele:d.ziele, pflicht:d.pflicht, aus:d.aus } };
   stand = new Date();
   offline = false;
   try{ localStorage.setItem("wSnap", JSON.stringify({ stand:stand.toISOString(), DB, ICH, STANDORT, konto:aktivKonto, standort:GERAET.standort })); }catch(e){}

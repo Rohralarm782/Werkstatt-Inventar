@@ -464,10 +464,11 @@ async function ladeSportler(){
     rest("/v_rad?order=id"), rest("/ticket?order=id.desc&limit=50"), rest("/rechnung?order=id.desc&limit=50"),
     rest("/sportler"), rest("/stueck?order=nummer"), rest("/artikel?order=code"), rest("/standort?select=" + STANDORT_SPALTEN)
   ]);
-  const ausgeliehen = (await rest("/v_ausgeliehen?order=seit.desc").catch(ohneTabelle)) || [];
-  const mk = await ladeMerkmale();
-  const positionen = tickets.length ? await rest("/ticket_position?ticket_id=in.(" + tickets.map(t => t.id).join(",") + ")&status=neq.storniert&order=id") : [];
-  const tsDa = await stueckeAnTickets(tickets);
+  const ids = tickets.map(t => t.id).join(",");
+  const [ausgeliehen, mk, positionen] = await Promise.all([
+    rest("/v_ausgeliehen?order=seit.desc"), ladeMerkmale(),
+    tickets.length ? rest("/ticket_position?ticket_id=in.(" + ids + ")&status=neq.storniert&order=id") : [], stueckeAnTickets(tickets)
+  ]);
   // Anzahl Fotos der offenen Tickets (für „Fotos ergänzen“, höchstens FOTOS_PRO_TICKET)
   const offeneIds = tickets.filter(t => t.status === "offen" || t.status === "angenommen").map(t => t.id);
   const fotoIds = offeneIds.length ? await rest("/foto?ticket_id=in.(" + offeneIds.join(",") + ")&select=ticket_id") : [];
@@ -475,7 +476,7 @@ async function ladeSportler(){
   fotoIds.forEach(x => fotoAnzahl[x.ticket_id] = (fotoAnzahl[x.ticket_id] || 0) + 1);
   STANDORT = standort[0] || null;
   DB = { bestand:[], artikel, raeder, sportler, stueck, tickets, positionen, koffer:[], termine:[], rechnungen, offenePosten:[], zaehlung:[], bestellungen:[],
-         tags:null, artikelTags:[], stueckTags:[], tsDa, kategorien:null, fotoAnzahl, ausgeliehen, mk };
+         tags:null, artikelTags:[], stueckTags:[], tsDa:true, kategorien:null, fotoAnzahl, ausgeliehen, mk };
   stand = new Date();
   offline = false;
 }

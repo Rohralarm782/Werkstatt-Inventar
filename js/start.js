@@ -13,13 +13,24 @@ document.addEventListener("click", ev => {
   const f = A[el.dataset.a];
   if(f) f(el.dataset.x, el, ev);
 });
-/* Texteingaben: laufend mitschreiben, ohne neu zu zeichnen (Fokus bleibt). */
+/* Texteingaben: laufend mitschreiben, ohne neu zu zeichnen (Fokus bleibt).
+   Suche (ab 21.2.0): der Suchbegriff gilt sofort, neu gezeichnet wird erst,
+   wenn 150 ms nichts mehr getippt wurde — sonst ruckelt es auf älteren Handys. */
+let sucheTimer = null;
+function sucheZeichnen(){
+  sucheTimer = null;
+  const a = document.activeElement, imFeld = !!(a && a.dataset && a.dataset.c === "suche");
+  const pos = imFeld ? a.selectionStart : null;
+  render();
+  const n = document.querySelector('[data-c="suche"]');
+  if(n && imFeld){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} }
+}
 document.addEventListener("input", ev => {
   const el = ev.target, c = el.dataset && el.dataset.c;
   if(c === "suche"){
     C.suche(el.value);
-    const pos = el.selectionStart; render();
-    const n = document.querySelector('[data-c="suche"]'); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} }
+    clearTimeout(sucheTimer);
+    sucheTimer = setTimeout(sucheZeichnen, 150);
     return;
   }
   if(c === "nProblem" || c === "nAnlass") C[c](el.value);
