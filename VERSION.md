@@ -1,11 +1,11 @@
 # Version
 
-**21.0.0** — 26.10.2026
+**21.1.0** — 26.10.2026
 
-Vorgaben des Landesverbands und eigene Einträge der Standorte: Radtypen,
-Kategorien, Tag-Gruppen und neu Merkmale (Rahmengröße, Laufraddimension,
-Übersetzung …) mit Werten und Pflicht je Standort; Lagerort am Rad;
-Filter nach Merkmalen; Mehr → Vorgaben für den Gesamt-Admin.
+Kategorien, Tags und Merkmale aufgeräumt: Die Tag-Gruppe Baugruppe entfällt
+(die Kategorie ist die Baugruppe), Disziplinen sind die Radtypen und werden
+von der Datenbank geführt, Schaltungshersteller nicht mehr bei Antrieb,
+Typ-Vorschläge im Einzelstück-Formular.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -24,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.1.0 | 26.10.2026 | Aufräumen: Baugruppe entfällt, Disziplin = Radtyp, Schaltungshersteller nicht bei Antrieb, Typ-Vorschläge (Migration) |
 | 21.0.0 | 26.10.2026 | Vorgaben und eigene Einträge (Radtypen, Kategorien, Tag-Gruppen, Merkmale), Lagerort am Rad, Merkmal-Filter (Migration) |
 | 20.9.0 | 21.10.2026 | Übergreifende Tags und Marken vielen auf einmal zuordnen |
 | 20.8.0 | 21.10.2026 | Übergreifende Tags (Marke, Baugruppe, Disziplin), Feld Marke am Artikel, Filter „Marke & Co.“ (Migration) |

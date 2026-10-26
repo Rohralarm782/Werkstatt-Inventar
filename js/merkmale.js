@@ -47,6 +47,16 @@ function tagGruppen(){ return tagGruppenAlle().map(g => g.name); }
 /** Gruppen, aus denen man im Formular neue Tags wählt/anlegt (ohne Marke, ohne ausgeblendete). */
 function tagGruppenWahl(){ return tagGruppenAlle().filter(g => g.name !== "Marke" && !g.aus).map(g => g.name); }
 function tagGruppe(name){ return tagGruppenAlle().find(g => g.name === name) || null; }
+/* Disziplin = Radtyp (ab 21.1.0): Die Datenbank führt je Radtyp einen Tag der Gruppe
+   „Disziplin“ (außer „Sonstiges“). Ein Teil kann mehrere Disziplinen haben; keine heißt
+   „passt zu allem“. Neu anlegen und umbenennen nur über die Radtypen. */
+const DISZIPLIN = "Disziplin";
+/** Namen (klein) der Radtypen, die hier als Disziplin wählbar sind: nicht ausgeblendet, ohne Sonstiges. */
+function disziplinNamen(){ return radTypenAlle().filter(t => !t.aus && t.name.toLowerCase() !== "sonstiges").map(t => t.name.toLowerCase()); }
+/** Übergreifenden Tag für Neues anbieten? Disziplin nur, wenn ihr Radtyp hier gilt. */
+function globWaehlbar(t){ return !!t && !!t.gruppe && t.gruppe !== "Marke" && (t.gruppe !== DISZIPLIN || !mkDa() || disziplinNamen().indexOf(t.name.toLowerCase()) >= 0); }
+/** Gruppen, in denen man im Formular neue Tags anlegen darf (ohne Marke und Disziplin). */
+function tagGruppenNeu(){ return tagGruppenWahl().filter(g => !(mkDa() && g === DISZIPLIN)); }
 
 function mkMerkmal(id){ return mkDa() ? DB.mk.merkmale.find(m => m.id === Number(id)) || null : null; }
 function mkWert(id){ return mkDa() ? DB.mk.werte.find(w => w.id === Number(id)) || null : null; }
@@ -286,7 +296,7 @@ function radtypenAbschnitt(){
   });
   h += '</div>';
   if(darf("manager")) h += '<div class="row wrapr" style="gap:8px;margin:-4px 0 10px"><button class="btn small" data-a="rtForm" data-x="">+ eigener Radtyp</button></div>';
-  return h;
+  return h + '<p class="sub" style="margin-top:-4px">Die Radtypen sind zugleich die Disziplinen bei den Tags (außer „Sonstiges“).</p>';
 }
 /** Abschnitt Merkmale in der Übersicht */
 function merkmaleAbschnitt(){
@@ -483,7 +493,7 @@ function vorgabenVerw(){
   v.kategorien.forEach(k => h += zeile(esc(k.name) + ' <span class="sub">· ' + esc(k.buchstabe) + '</span>', esc(vgStandorte(null, k.aus)), '<button class="btn small" data-a="vgKatForm" data-x="' + esc(k.buchstabe) + '">bearbeiten</button>'));
   h += '<button class="btn small" style="margin-top:8px" data-a="vgKatForm" data-x="">+ Kategorie</button></div>';
   h += '<h2 class="sec">Tag-Gruppen</h2><div class="card liste">';
-  v.gruppen.forEach(g => h += zeile(esc(g.name), esc(vgStandorte(g.genutzt, g.aus)), g.name === "Marke" ? '' : '<button class="btn small" data-a="vgTgForm" data-x="' + g.id + '">bearbeiten</button>'));
+  v.gruppen.forEach(g => h += zeile(esc(g.name), esc(vgStandorte(g.genutzt, g.aus)), g.name === "Marke" || g.name === DISZIPLIN ? '' : '<button class="btn small" data-a="vgTgForm" data-x="' + g.id + '">bearbeiten</button>'));
   h += '<button class="btn small" style="margin-top:8px" data-a="vgTgForm" data-x="">+ Tag-Gruppe</button></div>';
   h += '<h2 class="sec">Merkmale</h2><div class="card" style="padding-top:0;padding-bottom:0">';
   v.merkmale.forEach(m => {

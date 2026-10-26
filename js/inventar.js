@@ -55,9 +55,9 @@ function tagChips(ids){ return ids.length ? '<br><span class="tagzeile">' + ids.
 
 /* ---------------------------------------------------------------
    Übergreifende Tags (ab 20.8.0): ohne Kategorie-Buchstaben, in Gruppen.
-   Sie passen zu jeder Kategorie, z. B. Bremsscheibe (Bremse) mit
-   „Laufrad“ und „Shimano“. Marke-Tags setzt die Datenbank aus dem Feld
-   „Marke“; Baugruppe und Disziplin wählt man im Formular.
+   Sie passen zu jeder Kategorie, z. B. ein Schlauch (L) mit
+   „Straße“ und „Schwalbe“. Marke-Tags setzt die Datenbank aus dem Feld
+   „Marke“; Disziplinen (= Radtypen, ab 21.1.0) und eigene Gruppen wählt man im Formular.
 ----------------------------------------------------------------*/
 /* Die Gruppen stehen ab 21.0.0 in der Datenbank (Vorgaben und eigene): tagGruppen(),
    tagGruppenWahl() in js/merkmale.js. */
@@ -314,7 +314,7 @@ function serieForm(key){
   const monate = Array.from(new Set(g.map(s => (s.kaufdatum || "").slice(0, 7))));
   const kaufVerschieden = monate.length > 1;
   modal('<h3>Serie bearbeiten · ' + g.length + '×</h3><p class="sub" style="margin-top:-6px">' + esc(nummernText(g.map(s => s.nummer))) + ' — Änderungen gelten für alle ' + g.length + ' Stück.</p>' +
-    '<div class="grid2">' + feld("Typ", "eTyp", s0.typ) + feld("Marke", "eMarke", s0.marke, "text", ' list="markenDL"') + '</div>' + markenDL() +
+    '<div class="grid2">' + feld("Typ", "eTyp", s0.typ, "text", ' list="typenDL" autocomplete="off"') + feld("Marke", "eMarke", s0.marke, "text", ' list="markenDL"') + '</div>' + markenDL() + typenDL(stueckKategorie(s0.nummer)) +
     feld("Detail", "eDet", s0.detail) +
     ukBox(stueckKategorie(s0.nummer), alleTagsVon("stueck", s0.nummer)) +
     mkBox("stueck", zielVon("stueck", s0), s0.merkmale, stueckKategorie(s0.nummer)) +

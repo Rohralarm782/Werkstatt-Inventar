@@ -1,7 +1,7 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 21.0.0 — für eine NEUE, leere Datenbank.
+--  Stand 21.1.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
@@ -9,8 +9,8 @@
 --   db/migration_18.0.0.sql, db/migration_19.0.0.sql,
 --   db/migration_20.0.0.sql, db/migration_20.1.0.sql,
 --   db/migration_20.2.0.sql, db/migration_20.5.0.sql,
---   db/migration_20.7.0.sql, db/migration_20.8.0.sql und
---   db/migration_21.0.0.sql.)
+--   db/migration_20.7.0.sql, db/migration_20.8.0.sql,
+--   db/migration_21.0.0.sql und db/migration_21.1.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -119,8 +119,9 @@ create table kategorie (
 -- Zuordnung (mehrere je Artikel/Einzelstück möglich, siehe artikel_tag und
 -- stueck_tag) — Codes und Etiketten bleiben dabei unverändert.
 -- Übergreifende Tags (ab 20.8.0) haben keinen Buchstaben, sondern eine
--- Gruppe: Marke (kommt aus dem Feld „Marke“), Baugruppe, Disziplin. Sie
--- passen zu jeder Kategorie, z. B. Bremsscheibe (B) mit „Laufrad“ und „Shimano“.
+-- Gruppe: Marke (kommt aus dem Feld „Marke“), Disziplin (= die Radtypen,
+-- ab 21.1.0) und eigene Gruppen. Sie passen zu jeder Kategorie, z. B. ein
+-- Schlauch (L) mit „Straße“, „Cross“ und „Schwalbe“.
 create table tag (
   id          bigint generated always as identity primary key,
   buchstabe   text check (buchstabe ~ '^[A-Z]{1,3}$'),
@@ -248,7 +249,7 @@ create table radtyp (
 );
 create unique index radtyp_name_eindeutig on radtyp (coalesce(standort_id, 0), lower(name));
 
--- Gruppen übergreifender Tags (Marke, Baugruppe, Disziplin, eigene); tag.gruppe = Name.
+-- Gruppen übergreifender Tags (Marke, Disziplin, eigene); tag.gruppe = Name.
 create table tag_gruppe (
   id           bigint generated always as identity primary key,
   standort_id  bigint references standort (id),
@@ -1356,6 +1357,7 @@ begin
   insert into standort (name, kuerzel) values (trim(p_name), upper(trim(p_kuerzel))) returning id into v_id;
   perform standard_kategorien(v_id);
   perform standard_lagerorte(v_id);
+  perform disziplin_abgleich(v_id);
   return v_id;
 end $$;
 
@@ -2269,7 +2271,7 @@ begin
 end $$;
 
 -- Tags setzen (ganz oder gar nicht): Tags der eigenen Kategorie und
--- übergreifende Tags (Baugruppe, Disziplin). Marke-Tags bleiben, wie sie sind —
+-- übergreifende Tags (Disziplin, eigene Gruppen). Marke-Tags bleiben, wie sie sind —
 -- die setzt das Feld „Marke“ (marke_tag_abgleich).
 create or replace function tags_setzen(p_art text, p_schluessel text[], p_tags bigint[])
 returns void
@@ -2963,11 +2965,77 @@ create or replace function tag_gruppe_pruefen() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if new.gruppe is null or vorgabe_laeuft() then return new; end if;
-  if tg_op = 'UPDATE' and new.gruppe is not distinct from old.gruppe and new.standort_id = old.standort_id then return new; end if;
+  if tg_op = 'UPDATE' and new.gruppe is not distinct from old.gruppe and new.standort_id = old.standort_id
+     and new.name = old.name then return new; end if;
   if not exists (select 1 from tag_gruppe g where g.name = new.gruppe and (g.standort_id is null or g.standort_id = new.standort_id)) then
     raise exception 'Unbekannte Tag-Gruppe: %', new.gruppe;
   end if;
+  -- Disziplinen sind die Radtypen (ab 21.1.0): anlegen und umbenennen nur dort
+  if new.gruppe = 'Disziplin' then
+    if tg_op = 'UPDATE' and old.gruppe = 'Disziplin' and new.name <> old.name then
+      raise exception 'Disziplinen heißen wie die Radtypen – bitte den Radtyp umbenennen';
+    end if;
+    if not exists (select 1 from radtyp t
+                    where lower(t.name) = lower(new.name) and lower(t.name) <> 'sonstiges'
+                      and (t.standort_id is null or t.standort_id = new.standort_id)) then
+      raise exception 'Disziplinen sind die Radtypen – „%“ ist keiner. Neue Disziplin: eigenen Radtyp anlegen', new.name;
+    end if;
+  end if;
   return new;
+end $$;
+
+-- ---------------------------------------------------------------------
+--  Disziplin = Radtyp (ab 21.1.0). Die Tags der Gruppe „Disziplin“ führt
+--  die Datenbank selbst: je Standort ein Tag je Radtyp (Vorgabe oder
+--  eigener), außer „Sonstiges“. Umbenennen und Löschen eines Radtyps ziehen
+--  mit. Ein Teil darf mehrere Disziplinen haben; keine heißt „passt zu allem“.
+-- ---------------------------------------------------------------------
+create or replace function disziplin_abgleich(p_standort bigint) returns void
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare
+  v_vorher text := coalesce(current_setting('werkstatt.vorgabe', true), '');
+begin
+  perform set_config('werkstatt.vorgabe', 'ja', true);
+  insert into tag (standort_id, gruppe, name)
+    select distinct on (s.id, lower(t.name)) s.id, 'Disziplin', t.name
+      from standort s join radtyp t on t.standort_id is null or t.standort_id = s.id
+     where (p_standort is null or s.id = p_standort) and lower(t.name) <> 'sonstiges'
+     order by s.id, lower(t.name), t.standort_id nulls first
+  on conflict (standort_id, gruppe, lower(name)) where gruppe is not null
+  do update set name = excluded.name where tag.name <> excluded.name;
+  perform set_config('werkstatt.vorgabe', v_vorher, true);
+end $$;
+
+-- Radtyp umbenannt: Disziplin-Tags ziehen mit. Gibt es den neuen Namen am
+-- Standort schon als Disziplin, wandern die Zuordnungen dorthin.
+create or replace function disziplin_umbenennen(p_standort bigint, p_alt text, p_neu text) returns void
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare
+  v_vorher text := coalesce(current_setting('werkstatt.vorgabe', true), '');
+  r      tag;
+  v_ziel bigint;
+begin
+  perform set_config('werkstatt.vorgabe', 'ja', true);
+  for r in select * from tag where gruppe = 'Disziplin' and lower(name) = lower(p_alt)
+            and (p_standort is null or standort_id = p_standort) loop
+    select id into v_ziel from tag where gruppe = 'Disziplin' and standort_id = r.standort_id and lower(name) = lower(p_neu) and id <> r.id;
+    if v_ziel is null then
+      update tag set name = p_neu where id = r.id;
+    else
+      insert into artikel_tag (code, tag_id) select code, v_ziel from artikel_tag where tag_id = r.id on conflict do nothing;
+      insert into stueck_tag (nummer, tag_id) select nummer, v_ziel from stueck_tag where tag_id = r.id on conflict do nothing;
+      delete from tag where id = r.id;
+    end if;
+  end loop;
+  perform set_config('werkstatt.vorgabe', v_vorher, true);
+end $$;
+
+-- Disziplin-Tags löscht nur die Datenbank (mit dem Radtyp).
+create or replace function disziplin_loeschen_pruefen() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if vorgabe_laeuft() then return old; end if;
+  raise exception 'Disziplinen sind die Radtypen – „%“ verschwindet mit dem Radtyp', old.name;
 end $$;
 
 -- Vorgabe-Kategorien: Name und Buchstabe ändert nur der Gesamt-Admin
@@ -3269,10 +3337,12 @@ begin
       perform set_config('werkstatt.vorgabe', 'ja', true);
       update rad set typ = v_name where typ = t.name and (v_st is null or standort_id = v_st);
       perform set_config('werkstatt.vorgabe', '', true);
+      perform disziplin_umbenennen(v_st, t.name, v_name);
     end if;
     v_id := t.id;
   end if;
   if v_st is null then perform vorgabe_zusammenfuehren('radtyp', v_id); end if;
+  perform disziplin_abgleich(v_st);
   return v_id;
 end $$;
 
@@ -3299,6 +3369,9 @@ begin
     if not found then raise exception 'Tag-Gruppe nicht gefunden oder nicht änderbar'; end if;
     if g.name = 'Marke' and g.standort_id is null and v_name <> g.name then
       raise exception 'Die Gruppe Marke gehört zum Feld „Marke“ und behält ihren Namen';
+    end if;
+    if g.name = 'Disziplin' and g.standort_id is null and v_name <> g.name then
+      raise exception 'Die Gruppe Disziplin gehört zu den Radtypen und behält ihren Namen';
     end if;
     update tag_gruppe set name = v_name where id = g.id;
     if v_name <> g.name then
@@ -3504,8 +3577,13 @@ begin
     delete from ausblendung a using merkmal_wert w where a.art = 'merkmal_wert' and a.objekt_id = w.id and w.radtyp_id = p_id;
     delete from ausblendung where art = 'radtyp' and objekt_id = p_id;
     delete from radtyp where id = p_id;
+    -- Disziplin-Tag fällt mit weg (Teile verlieren nur diesen Tag)
+    perform set_config('werkstatt.vorgabe', 'ja', true);
+    delete from tag where gruppe = 'Disziplin' and lower(name) = lower(v_name) and (v_st is null or standort_id = v_st);
+    perform set_config('werkstatt.vorgabe', '', true);
   elsif p_art = 'tag_gruppe' then
     if v_st is null and v_name = 'Marke' then raise exception 'Die Gruppe Marke gehört zum Feld „Marke“'; end if;
+    if v_st is null and v_name = 'Disziplin' then raise exception 'Die Gruppe Disziplin gehört zu den Radtypen'; end if;
     select count(*) into v_n from tag where gruppe = v_name and (v_st is null or standort_id = v_st);
     if v_n > 0 then raise exception 'In der Gruppe % stehen noch % Tags – erst die Tags löschen', v_name, v_n; end if;
     delete from ausblendung where art = 'tag_gruppe' and objekt_id = p_id;
@@ -3647,6 +3725,7 @@ begin
     raise exception 'Unbekannte Art: %', p_art;
   end if;
   perform vorgabe_zusammenfuehren(p_art, v_id);
+  if p_art = 'radtyp' then perform disziplin_abgleich(null); end if;
   return v_id;
 end $$;
 
@@ -3775,8 +3854,10 @@ create trigger artikel_merkmale before insert or update of merkmale on artikel
   for each row execute function merkmale_pruefen();
 create trigger stueck_merkmale before insert or update of merkmale on stueck
   for each row execute function merkmale_pruefen();
-create trigger tag_gruppe before insert or update of gruppe, standort_id on tag
+create trigger tag_gruppe before insert or update of gruppe, standort_id, name on tag
   for each row execute function tag_gruppe_pruefen();
+create trigger tag_disziplin_loeschen before delete on tag
+  for each row when (old.gruppe = 'Disziplin') execute function disziplin_loeschen_pruefen();
 create trigger kategorie_vorgabe before insert or update on kategorie
   for each row execute function kategorie_vorgabe_schutz();
 
@@ -4297,7 +4378,7 @@ insert into vorgabe_kategorie (buchstabe, name) values
   ('A', 'Antrieb'), ('B', 'Bremse'), ('C', 'Cockpit & Vorbau'), ('L', 'Laufrad & Reifen'), ('R', 'Rahmen'), ('W', 'Werkstattmaterial');
 insert into radtyp (name, kuerzel, reihenfolge) values
   ('Bahn', 'BR', 1), ('Straße', 'SR', 2), ('Zeitfahren', 'ZF', 3), ('Cross', 'CX', 4), ('Sonstiges', 'SO', 5);
-insert into tag_gruppe (name, reihenfolge) values ('Marke', 1), ('Baugruppe', 2), ('Disziplin', 3);
+insert into tag_gruppe (name, reihenfolge) values ('Marke', 1), ('Disziplin', 2);
 
 insert into merkmal (name, typ, reihenfolge) values
   ('Rahmengröße', 'auswahl', 1), ('Laufraddimension', 'auswahl', 2), ('Schaltungshersteller', 'auswahl', 3),
@@ -4331,7 +4412,7 @@ insert into merkmal_ziel (merkmal_id, radtyp_id, reihenfolge)
    where m.name = x.m and m.standort_id is null and t.name = x.t and t.standort_id is null;
 insert into merkmal_ziel (merkmal_id, buchstabe, reihenfolge)
   select m.id, x.b, m.reihenfolge from merkmal m,
-         (values ('Laufraddimension', 'L'), ('Schaltungshersteller', 'A'), ('Fachzahl', 'A'), ('Kettenbreite', 'A')) x(m, b)
+         (values ('Laufraddimension', 'L'), ('Fachzahl', 'A'), ('Kettenbreite', 'A')) x(m, b)
    where m.name = x.m and m.standort_id is null;
 
 -- Erster Standort mit dem bisherigen Briefkopf (IBAN/BIC/Bank trägt die
@@ -4349,6 +4430,7 @@ values ('RSZ Schwerin',
         'data:image/jpeg' || chr(59) || 'base64,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');
 select standard_kategorien(id) from standort where name = 'RSZ Schwerin';
 select standard_lagerorte(id) from standort where name = 'RSZ Schwerin';
+select disziplin_abgleich(id) from standort where name = 'RSZ Schwerin';
 
 -- Gesamt-Admin (alle Standorte) und Werkstatt-Manager in Schwerin.
 -- Den Einrichtungscode erzeugt die Zeile ganz unten (nach commit).

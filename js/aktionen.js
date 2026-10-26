@@ -736,6 +736,7 @@ const A = {
     if(!n){ toast("Name fehlt.", true); return; }
     if(x.charAt(0) === "#"){   // übergreifender Tag einer Gruppe
       const g = x.slice(1);
+      if(mkDa() && g === DISZIPLIN){ toast("Disziplinen entstehen über die Radtypen.", true); return; }
       if(globListe(g).some(t => t.name.toLowerCase() === n.toLowerCase())){ toast(n + " gibt es schon.", true); return; }
       aktion(() => neuIn("tag", { gruppe:g, name:n }), n + " angelegt");
       return;
@@ -754,6 +755,7 @@ const A = {
   },
   ukUmbenennen: x => {
     const t = tagNachId(x); if(!t) return;
+    if(mkDa() && t.gruppe === DISZIPLIN){ toast("Disziplinen heißen wie die Radtypen — dort umbenennen.", true); return; }
     const n = tagAnzahl(t.id), markeBelegt = t.gruppe === "Marke" && (n.a || n.s);
     modal('<h3>' + (t.gruppe === "Marke" ? "Marke bearbeiten" : "Tag bearbeiten") + '</h3><p class="sub" style="margin-top:-6px">' + esc(t.gruppe ? t.gruppe + " · übergreifend" : kategorieName(t.buchstabe)) + '</p>' +
           feld("Name", "ukName", t.name, "text", t.gruppe === "Marke" ? ' list="markenDL" autocomplete="off"' : '') + (t.gruppe === "Marke" ? markenDL() : '') +
@@ -813,7 +815,7 @@ const A = {
   // Übergreifende Tags: Treffer aus dem Suchfeld wählen bzw. neu anlegen (Gruppe = x)
   gtWaehlen: x => ukBoxMit([Number(x)]),
   gtNeu: async x => {
-    const n = wert("gtSuche").trim(); if(!n || tagGruppenWahl().indexOf(x) < 0) return;
+    const n = wert("gtSuche").trim(); if(!n || tagGruppenNeu().indexOf(x) < 0) return;
     if(offline){ toast("Offline — Änderungen sind erst mit Netz möglich.", true); return; }
     const da = globListe(x).find(t => t.name.toLowerCase() === n.toLowerCase());
     try{
