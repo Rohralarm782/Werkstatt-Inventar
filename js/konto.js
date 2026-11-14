@@ -86,7 +86,7 @@ const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlau
   "zeigAus","katFilter","ukFilter","gtFilter","gtOffen","katKlapp","katAlle","serieAuf","ukKatAuf","ukKatZu","fehlerZeigen","fehlerVerwerfen","invFilter"];
 const RECHNEN_NUR = ["rechnungErstellen","rechnungStatus","rStorno","rStornoOk"];
 const MANAGER_NUR = ["terminWeg","fotoLoeschen","ukHoch","ukUmbenennen","ukNameSpeichern","ukLoeschen","katUmbenennen","katNameSpeichern",
-  "stueckLoeschen","serieLoeschen","radNrSpeichern"];
+  "stueckLoeschen","serieLoeschen","radNrSpeichern","ktKuerzel","ktKuerzelOk"];
 const LESEN_C_OK = ["suche","uzTag","etVorlage","logoDatei"];
 function aktionErlaubt(a){
   if(IMMER_OK.indexOf(a) >= 0) return true;
@@ -349,7 +349,7 @@ const ROLLEN_ERKL = { manager:"alles, auch Konten, Preise, Löschen", trainer:"b
   geschaeftsstelle:"alles ansehen, Rechnungen, Briefkopf", sportler:"eigene Räder, Tickets, Rechnungen" };
 function rollenAuswahl(pre, gewaehlt, spFest){
   const l = (darf("admin") ? ["manager"] : []).concat(["trainer", "geschaeftsstelle", "sportler"]);
-  const sp = (DB.sportler||[]).filter(s => s.aktiv && s.abrechnen && !(Array.isArray(kontenCache) && kontenCache.some(k => k.sportler_id === s.id && k.aktiv)));
+  const sp = sportlerListe().filter(s => s.aktiv && s.abrechnen && !(Array.isArray(kontenCache) && kontenCache.some(k => k.sportler_id === s.id && k.aktiv)));
   const spBox = pre + 'SpBox';
   let h = '<div class="feld"><span class="lbl">Rollen (auch mehrere)</span><div class="liste">';
   l.forEach(r => {

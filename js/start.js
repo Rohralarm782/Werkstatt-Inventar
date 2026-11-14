@@ -37,6 +37,7 @@ document.addEventListener("input", ev => {
   if(c === "nrVorschau") vorschauNummer();
   if(c === "aGroessen") grBestandFelder();
   if(c === "radNrVorschau") radNrVorschau();
+  if(c === "ktKzVorschau") C.ktKzVorschau(el.value);
   if(c === "nrBuch" || c === "nrKatName") C[c](el.value, el.dataset.x, el);
   if(c === "nWahlSuche"){ neu.wahlSuche = el.value; const l = $("wahlListe"); if(l) l.innerHTML = wahlListe(); }
   if(c === "gzSuche"){ if(gz){ gz.q = el.value; gzTeileNeu(); } }

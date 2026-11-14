@@ -47,21 +47,59 @@ function etikettenVerw(){
 
 
 function sportlerVerw(){
-  let h = '<div class="card"><span class="lbl">Neuer Sportler</span><div class="row" style="gap:8px"><input type="text" id="sName" placeholder="Name">' +
-          '<button class="btn primary" data-a="sportlerNeu">Anlegen</button></div>' +
-          '<p class="sub" style="margin:8px 0 0">Kostenträger wie LV oder BSP ebenfalls hier anlegen und „nicht abrechnen“ setzen.</p></div>';
-  h += '<div class="card liste">';
-  if(!(DB.sportler||[]).length) h += '<div class="sub">Noch niemand angelegt.</div>';
-  (DB.sportler||[]).forEach(s => {
+  let h = '<div class="card"><span class="lbl">Neu anlegen</span><input type="text" id="sName" placeholder="Name, z. B. Anna Muster oder RST Dassow">' +
+          '<div class="row" style="gap:8px;margin-top:8px"><button class="btn primary" data-a="sportlerNeu" data-x="sportler">als Sportler</button>' +
+          '<button class="btn" data-a="sportlerNeu" data-x="kostentraeger">als Kostenträger</button></div>' +
+          '<p class="sub" style="margin:8px 0 0">Sportler fahren Räder und können einen Zugang bekommen. Kostenträger sind Vereine, LV, BSP … — sie zahlen, fahren aber nicht.</p></div>';
+
+  const sp = sportlerListe(), kt = ktListe();
+  h += '<h2 class="sec">Kostenträger · ' + kt.length + '</h2><div class="card liste">';
+  if(!kt.length) h += '<div class="sub">Noch keine. Vorhandene Einträge wie LV oder BSP unten bei den Sportlern mit „→ Kostenträger“ umstellen.</div>';
+  kt.forEach(s => {
+    const n = (DB.raeder||[]).filter(r => r.eigentuemer_id === s.id).length;
+    h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.name) + '</strong>' + (s.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') +
+         
+         '<br><span class="sub">' + (n ? n + (n === 1 ? " Rad" : " Räder") : "keine Räder") +
+         (s.kuerzel ? ' · eigene Nummern ' + esc(s.kuerzel + "-" + radKuerzelVon(radTypNamen()[0] || "Bahn") + "-…") : '') + '</span>' +
+         (s.kuerzel ? '' : '<br><button class="btn small link" style="padding:0" data-a="sportlerArt" data-x="' + s.id + '">ist doch Sportler</button>') + '</div>';
+    h += '<div class="knoepfe"><button class="btn small" data-a="sportlerAbr" data-x="' + s.id + '">' + (s.abrechnen ? "wird berechnet" : "nicht abrechnen") + '</button>';
+    if(darf("manager")) h += '<button class="btn small" data-a="ktKuerzel" data-x="' + s.id + '">Nummern</button>';
+    h += '<button class="btn small" data-a="sportlerAktiv" data-x="' + s.id + '">' + (s.aktiv ? "ausblenden" : "einblenden") + '</button>';
+    h += '</div></div>';
+  });
+  h += '</div>';
+
+  h += '<h2 class="sec">Sportler · ' + sp.length + '</h2><div class="card liste">';
+  if(!sp.length) h += '<div class="sub">Noch niemand angelegt.</div>';
+  sp.forEach(s => {
     const leih = ausgeliehenVon(s.id);
     h += '<div class="eintrag"><div class="txt"><strong>' + esc(s.name) + '</strong>' + (s.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') +
-         (leih.length ? '<br><span class="sub">hat ausgeliehen: ' + esc(leihText(leih)) + '</span>' : '') + '</div>';
+         (leih.length ? '<br><span class="sub">hat ausgeliehen: ' + esc(leihText(leih)) + '</span>' : '') +
+         (DB.sportler.length && "art" in DB.sportler[0] ? '<br><button class="btn small link" style="padding:0" data-a="sportlerArt" data-x="' + s.id + '">ist Kostenträger (Verein, LV …)</button>' : '') + '</div>';
     h += '<div class="knoepfe"><button class="btn small" data-a="sportlerAbr" data-x="' + s.id + '">' + (s.abrechnen ? "wird berechnet" : "nicht abrechnen") + '</button>';
     h += '<button class="btn small" data-a="sportlerAktiv" data-x="' + s.id + '">' + (s.aktiv ? "ausblenden" : "einblenden") + '</button>';
     if(darf("manager") && s.abrechnen && s.aktiv) h += '<button class="btn small" data-a="sportlerZugang" data-x="' + s.id + '">Zugang</button>';
     h += '</div></div>';
   });
   return h + '</div>';
+}
+/** Kürzel für die Rad-Nummern eines Kostenträgers (Werkstatt-Manager). */
+function ktKuerzelForm(id){
+  const s = (DB.sportler||[]).find(x => x.id === Number(id)); if(!s) return;
+  modal('<h3>Rad-Nummern · ' + esc(s.name) + '</h3>' +
+    '<p class="sub" style="margin-top:0">Mit Kürzel bekommen neue Räder dieses Kostenträgers eine eigene Nummernreihe und zählen nicht in eure eigenen Nummern mit. ' +
+    'Vorhandene Räder behalten ihre Nummer (umstellen: Rad → bearbeiten → „Nummer ändern“, dann neues Etikett).</p>' +
+    feld("Kürzel (2–4 Buchstaben, leer = keine eigene Reihe)", "ktKz", s.kuerzel || "", "text", ' maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="z. B. DAS" data-c="ktKzVorschau"') +
+    '<p class="sub" id="ktKzVorschau" style="margin:0 0 12px">' + ktKuerzelVorschau(s.kuerzel || "") + '</p>' +
+    '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>' +
+    '<button class="btn primary" data-a="ktKuerzelOk" data-x="' + s.id + '">Speichern</button></div>');
+}
+function ktKuerzelVorschau(v){
+  v = String(v || "").toUpperCase().replace(/\s+/g, "");
+  if(!v) return 'Neue Räder bekommen eure normalen Nummern (' + esc(radPraefix("Bahn") + "1".padStart(radStellen(), "0")) + ' …).';
+  if(!/^[A-Z]{2,4}$/.test(v)) return '<span style="color:var(--sprint)">Nur 2–4 Buchstaben A–Z.</span>';
+  const t = typ => esc(v + "-" + radKuerzelVon(typ) + "-" + "1".padStart(radStellen(), "0"));
+  return 'Neue Räder: <strong class="mono">' + t("Bahn") + '</strong>, <strong class="mono">' + t("Straße") + '</strong> …';
 }
 /** Räder & Teile: Liste der Räder oder der Einzelstücke; ein Rad antippen öffnet die Rad-Seite. */
 function raederView(){
@@ -126,11 +164,11 @@ function radSeite(id){
   let h = '<button class="btn small zurueck" data-a="radZu">← Räder &amp; Teile</button>';
   h += '<div class="card"><div class="row wrapr"><span class="big" style="font-size:26px">' + esc(r.bezeichnung) + '</span><span class="sp"></span>' +
        (!r.aktiv ? '<span class="chip grau">inaktiv</span>' : steht ? '<span class="chip alarm">steht</span>' : '<span class="chip ok">fährt</span>') + '</div>';
-  h += '<p class="sub" style="margin:2px 0 ' + (mkText(r, zielRad(r.typ)) ? '4px' : '10px') + '">' + esc([r.id, r.typ, r.marke, r.groesse ? "Größe " + r.groesse : "", r.rahmennummer ? "Rahmen " + r.rahmennummer : "", r.eigentuemer_id ? "gehört " + sportlerName(r.eigentuemer_id) : ""].filter(Boolean).join(" · ")) + '</p>';
+  h += '<p class="sub" style="margin:2px 0 ' + (mkText(r, zielRad(r.typ)) ? '4px' : '10px') + '">' + esc([r.id, r.typ, r.marke, r.groesse ? "Größe " + r.groesse : "", r.rahmennummer ? "Rahmen " + r.rahmennummer : "", r.eigentuemer_fahrer ? "gehört dem Fahrer" : r.eigentuemer_id ? "gehört " + sportlerName(r.eigentuemer_id) : ""].filter(Boolean).join(" · ")) + '</p>';
   if(mkText(r, zielRad(r.typ))) h += '<p style="margin:0 0 10px">' + mkListe(r, zielRad(r.typ)).map(x => '<span class="chip grau" title="' + esc(x.m.name) + '">' + esc(x.m.typ === "janein" ? x.m.name + (x.v ? "" : ": nein") : x.text) + '</span>').join(" ") + '</p>';
   if(r.notiz && String(r.notiz).trim()) h += '<p style="margin:0 0 10px;white-space:pre-wrap;overflow-wrap:anywhere"><span class="lbl" style="display:inline;margin:0 6px 0 0">Notiz</span>' + esc(String(r.notiz).trim()) + '</p>';
   h += '<div class="row" style="gap:8px"><span class="lbl" style="margin:0">Fahrer</span><select data-c="radFahrer" data-x="' + esc(r.id) + '" style="flex:1"' + gesperrt + '><option value="">— kein Fahrer —</option>';
-  (DB.sportler||[]).filter(s => s.aktiv || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
+  (DB.sportler||[]).filter(s => (s.aktiv && !istKT(s)) || s.id === r.fahrer_id).forEach(s => h += '<option value="' + s.id + '"' + (r.fahrer_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>');
   h += '</select></div>';
   if(r.fahrer_seit) h += '<p class="sub" style="margin:4px 0 0">fährt es seit ' + deLang(r.fahrer_seit) + '</p>';
   if("ort" in r) h += '<div class="row" style="gap:8px;margin-top:8px"><span class="lbl" style="margin:0">Lagerort</span><select data-c="radOrt" data-x="' + esc(r.id) + '" style="flex:1"' + gesperrt + '>' + radOrtOptionen(r.ort) + '</select></div>';
@@ -200,7 +238,7 @@ function teilWahl(alt){
 function mehrGruppen(){
   const g = [
     ["Abrechnung", [["rechnungen", "Rechnungen", () => { const n = new Set((DB.offenePosten||[]).map(p => p.sportler_id)).size, o = (DB.rechnungen||[]).filter(r => r.status === "offen").length; return (n ? n + " mit offenen Posten" : "keine offenen Posten") + (o ? " · " + o + " Rechnung" + (o === 1 ? "" : "en") + " unbezahlt" : ""); }]]],
-    ["Stammdaten", [["sportler", "Sportler &amp; Kostenträger", () => darf("manager") ? "Wer wird berechnet · Zugänge für Sportler" : "Wer wird berechnet, wer nicht"],
+    ["Stammdaten", [["sportler", "Sportler &amp; Kostenträger", () => { const k = ktListe().length; return sportlerListe().length + " Sportler · " + k + " Kostenträger" + (darf("manager") ? " · Zugänge, Rad-Nummern" : ""); }],
                     ["artikel", "Artikel", () => "Preise, Mindestbestand, Lieferant, Arbeitszeit"],
                     ["tags", mkDa() ? "Kategorien, Tags &amp; Merkmale" : "Tags", () => !tagDa() ? "Datenbank noch nicht aktualisiert" : mkDa() ? "Radtypen, Kategorien, Merkmale wie Rahmengröße" : (DB.tags.length ? DB.tags.length + " angelegt" : "z. B. Laufrad &amp; Reifen → Schläuche")]]],
     ["Standort", []],
@@ -738,28 +776,32 @@ function ukBoxMit(ids){
 ----------------------------------------------------------------*/
 function radVorlage(){ return (STANDORT && STANDORT.rad_vorlage) || ""; }
 function radStellen(){ return Number(STANDORT && STANDORT.rad_stellen) || 2; }
-/** Fester Teil der Rad-ID ohne Kürzel, z. B. „HSG-TR-BR-“ (ohne Vorlage „BR-“). */
-function radPraefix(typ){ return (radVorlage() ? radVorlage() + "-" : "") + radKuerzelVon(typ) + "-"; }   // Kürzel aus den Radtypen (ab 21.0.0)
+/** Fester Teil der Rad-ID ohne Kürzel, z. B. „HSG-TR-BR-“ (ohne Vorlage „BR-“).
+    Gehört das Rad einem Kostenträger mit Kürzel: dessen Reihe, z. B. „DAS-BR-“ (ab 21.3.0). */
+function radPraefix(typ, eig){ const m = ktKuerzel(eig) || radVorlage(); return (m ? m + "-" : "") + radKuerzelVon(typ) + "-"; }   // Kürzel aus den Radtypen (ab 21.0.0)
+/** Eigentümer im Rad-Formular: Id des Kostenträgers oder null („Fahrer selbst“ / nicht festgelegt). */
+function formEig(){ const v = wert("rEig"); return v && v !== "fahrer" ? Number(v) : null; }
 /** Rad-ID ohne Standort-Kürzel (für Anzeige und Eingabe). */
 function ohneKuerzel(id){ const k = kuerzel() + "-"; return id && kuerzel() && String(id).indexOf(k) === 0 ? String(id).slice(k.length) : String(id || ""); }
 /** Eingabe → volle Rad-ID. Nur Ziffern (mit Vorlage): fester Teil davor, mit Nullen aufgefüllt.
     Sonst wie eingetippt, das Kürzel kommt davor. */
-function radIdAusEingabe(eingabe, typ){
+function radIdAusEingabe(eingabe, typ, eig){
   const t = String(eingabe || "").trim().toUpperCase().replace(/\s+/g, "");
   if(!t) return "";
-  if(radVorlage() && /^[0-9]+$/.test(t)) return kuerzel() + "-" + radPraefix(typ) + t.padStart(radStellen(), "0");
+  if((radVorlage() || ktKuerzel(eig)) && /^[0-9]+$/.test(t)) return kuerzel() + "-" + radPraefix(typ, eig) + t.padStart(radStellen(), "0");
   return mitKuerzel(t);
 }
 const NUMMER_FORMAT = /^[A-Z0-9]+(-[A-Z0-9]+)*$/;
 /** Eingabefeld für die Rad-Nummer mit Vorlage: fester Teil davor, nur die Zahl eintippen. */
-function radNummerFeld(typ, wertZahl){
-  return '<div class="row" style="gap:6px;align-items:center;flex-wrap:nowrap"><span class="mono" id="nrPraefix" style="white-space:nowrap">' + esc(radPraefix(typ)) + '</span>' +
+function radNummerFeld(typ, wertZahl, eig){
+  return '<div class="row" style="gap:6px;align-items:center;flex-wrap:nowrap"><span class="mono" id="nrPraefix" style="white-space:nowrap">' + esc(radPraefix(typ, eig)) + '</span>' +
          '<input type="text" id="nrEigenWert" data-c="nrEigen" inputmode="numeric" autocomplete="off" value="' + esc(wertZahl || "") + '" placeholder="' + "0".repeat(Math.max(radStellen() - 1, 0)) + '1" style="flex:1;min-width:0"></div>';
 }
 /** Nummernfeld für neue Artikel/Einzelstücke/Räder: automatisch (Standard) oder eigene Nummer.
-    Räder mit Vorlage: „eigene Nummer“ ist vorgewählt (die Räder haben schon Nummern). */
-function nummernWahl(typ, gruppe, radTyp){
-  const vorlage = typ === "rad" && !!radVorlage(), modus = vorlage ? "eigen" : "auto";
+    Räder mit Vorlage: „eigene Nummer“ ist vorgewählt (die Räder haben schon Nummern) —
+    außer das Rad gehört einem Kostenträger mit Kürzel (eigene Reihe, automatisch). */
+function nummernWahl(typ, gruppe, radTyp, eig){
+  const kt = typ === "rad" && !!ktKuerzel(eig), vorlage = typ === "rad" && !!radVorlage() && !kt, modus = vorlage ? "eigen" : "auto";
   nrForm = { typ, modus };
   let h = '<div class="feld"><span class="lbl">' + (typ === "rad" ? "Rad-ID" : typ === "stueck" ? "Nummer" : "Code") + '</span>';
   h += '<div class="seg" style="margin-bottom:8px">' + segBtn("nrModus", "auto", "automatisch", modus) + segBtn("nrModus", "eigen", "eigene Nummer", modus) + '</div>';
@@ -775,7 +817,7 @@ function nummernWahl(typ, gruppe, radTyp){
   }
   h += '<p class="sub" style="margin:6px 0 0" id="nrVorschau">' + (typ === "rad" ? "" : "Kategorie wählen …") + '</p></div>';
   h += '<div id="nrEigen"' + (modus === "eigen" ? '' : ' hidden') + '>';
-  if(vorlage) h += radNummerFeld(radTyp || "Bahn") + '<p class="sub" style="margin:6px 0 0">Nur die Zahl eintragen, z. B. 42 → ' + esc("42".padStart(radStellen(), "0")) + '. Der Teil davor folgt aus dem Typ.</p>';
+  if(vorlage || kt) h += radNummerFeld(radTyp || "Bahn", "", eig) + '<p class="sub" style="margin:6px 0 0">Nur die Zahl eintragen, z. B. 42 → ' + esc("42".padStart(radStellen(), "0")) + '. Der Teil davor folgt aus ' + (kt ? 'Eigentümer und Typ' : 'dem Typ') + '.</p>';
   else h += '<input type="text" id="nrEigenWert" data-c="nrEigen" autocapitalize="characters" placeholder="' + (typ === "rad" ? "z. B. BR-01" : typ === "stueck" ? "z. B. L-201 oder eigene Nummer" : "z. B. B-120") + ' — ' + esc(kuerzel()) + '- wird ergänzt">';
   return h + '</div></div>';
 }
@@ -791,7 +833,7 @@ async function vorschauNummer(){
   const el = $("nrVorschau"); if(!el || !nrForm || nrForm.modus !== "auto") return;
   const lauf = ++nrLauf;
   let fn, args;
-  if(nrForm.typ === "rad"){ fn = "naechste_rad_id"; args = { p_typ:wert("rTyp") || "Bahn" }; }
+  if(nrForm.typ === "rad"){ fn = "naechste_rad_id"; args = { p_typ:wert("rTyp") || "Bahn" }; if(formEig()) args.p_eigentuemer = formEig(); }
   else {
     const b = nrBuchstabe();
     if(!b){ el.textContent = wert("nrKat") === "_neu" ? "Buchstabe eingeben …" : "Kategorie wählen …"; el.style.color = ""; return; }
@@ -945,23 +987,34 @@ function artikelForm(code, zweck){
 }
 function radForm(id){
   const r = id ? rad(id) : { id:"", bezeichnung:"", typ:radTypNamen()[0] || "Bahn", marke:"", rahmennummer:"", groesse:"", eigentuemer_id:null, aktiv:true, notiz:"", ort:HAUPT, merkmale:{} };
-  const eig = [["","—"]].concat((DB.sportler||[]).map(s => [s.id, s.name]));
   if(id) nrForm = null;
   const typFeld = '<div class="feld"><span class="lbl">Typ</span><select id="rTyp" data-c="nrVorschau">' +
     radTypNamen(r.typ).map(x => '<option' + (r.typ === x ? " selected" : "") + '>' + esc(x) + '</option>').join("") + '</select></div>';
   modal('<h3>' + (id ? "Rad bearbeiten · " + esc(id) : "Neues Rad") + '</h3>' +
-    typFeld + (id ? "" : nummernWahl("rad", 0, r.typ)) +
+    typFeld + eigFeld(r) + (id ? "" : '<div id="nrWahlBox">' + nummernWahl("rad", 0, r.typ, r.eigentuemer_id) + '</div>') +
     '<div class="grid2">' + feld("Bezeichnung", "rBez", r.bezeichnung, "text", ' placeholder="z. B. Bahnrad 01"') + feld("Marke", "rMarke", r.marke, "text", ' list="markenDL" placeholder="z. B. Look"') + '</div>' + markenDL() +
     // Größe steht ab 21.0.0 in den Merkmalen (Rahmengröße, Laufraddimension); das alte Feld nur, solange noch etwas drinsteht
     (mkDa() && !r.groesse ? feld("Rahmennummer", "rRahmen", r.rahmennummer)
                           : '<div class="grid2">' + feld("Rahmennummer", "rRahmen", r.rahmennummer) + feld(mkDa() ? "Größe (alt — bitte als Merkmal)" : "Größe", "rGr", r.groesse) + '</div>') +
     mkBox("rad", zielRad(r.typ), r.merkmale) +
     (mkDa() && (!id || "ort" in r) ? '<div class="feld"><span class="lbl">Lagerort</span><select id="rOrt">' + radOrtOptionen(r.ort) + '</select></div>' : '') +
-    auswahl("Eigentümer (zahlt Material am Rad)", "rEig", eig, r.eigentuemer_id) +
     feld("Notiz", "rNotiz", r.notiz) + auswahl("Status", "rAktiv", [["true","aktiv"],["false","inaktiv"]], String(r.aktiv)) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
     (id && darf("arbeiten") ? '<button class="btn small" data-a="nrAendern" data-x="rad|' + esc(id) + '">Nummer ändern</button>' : '') +
     '<span class="sp"></span><button class="btn primary" data-a="radSpeichern" data-x="' + esc(id || "") + '">Speichern</button></div>');
+}
+/** Eigentümer des Rads (ab 21.3.0): „Fahrer selbst“ oder ein Kostenträger.
+    Steht dort noch eine einzelne Person (alter Stand), bleibt sie wählbar. */
+function eigFeld(r){
+  const w = r.eigentuemer_fahrer ? "fahrer" : r.eigentuemer_id ? String(r.eigentuemer_id) : "";
+  const o = (v, t) => '<option value="' + esc(v) + '"' + (w === String(v) ? " selected" : "") + '>' + esc(t) + '</option>';
+  let h = '<div class="feld"><span class="lbl">Eigentümer (zahlt Material am Rad)</span><select id="rEig" data-c="nrEig">' +
+          o("", "— nicht festgelegt —") + o("fahrer", "Fahrer selbst (zahlt, wer es fährt)");
+  const kt = ktListe().filter(s => s.aktiv || s.id === r.eigentuemer_id);
+  if(kt.length) h += '<optgroup label="Kostenträger">' + kt.map(s => o(s.id, s.name + (s.kuerzel ? " · " + s.kuerzel + "-Nummern" : "") + (s.aktiv ? "" : " (ausgeblendet)"))).join("") + '</optgroup>';
+  const alt = r.eigentuemer_id && !istKT((DB.sportler||[]).find(s => s.id === r.eigentuemer_id));
+  if(alt) h += '<optgroup label="bisher eingetragen">' + o(r.eigentuemer_id, sportlerName(r.eigentuemer_id) + " (Sportler)") + '</optgroup>';
+  return h + '</select></div>';
 }
 function stueckForm(nr){
   const s = nr ? (DB.stueck||[]).find(x => x.nummer === nr) : { nummer:"", typ:"", marke:"", detail:"", seriennummer:"", kaufdatum:"", wert:"", notiz:"" };
@@ -991,12 +1044,12 @@ const NR_ART_TEXT = { artikel:"Artikel", stueck:"Einzelstück", rad:"Rad" };
 function nummerAendernForm(art, alt){
   const r = art === "rad" ? rad(alt) : null;
   if(art === "rad" && !r) return;
-  const kurz = ohneKuerzel(alt), p = r ? radPraefix(r.typ) : "";
-  const mitVorlage = !!(r && radVorlage());
+  const kurz = ohneKuerzel(alt), p = r ? radPraefix(r.typ, r.eigentuemer_id) : "";
+  const mitVorlage = !!(r && (radVorlage() || ktKuerzel(r.eigentuemer_id)));
   let feldH;
   if(mitVorlage){
     const zahl = kurz.indexOf(p) === 0 && /^[0-9]+$/.test(kurz.slice(p.length)) ? kurz.slice(p.length) : "";
-    feldH = radNummerFeld(r.typ, zahl) + '<p class="sub" style="margin:6px 0 0">Nur die Zahl. Der Teil davor folgt aus Vorlage und Typ (' + esc(r.typ) + ') — stimmt der Typ nicht, erst im Rad ändern und speichern.</p>';
+    feldH = radNummerFeld(r.typ, zahl, r.eigentuemer_id) + '<p class="sub" style="margin:6px 0 0">Nur die Zahl. Der Teil davor folgt aus ' + (ktKuerzel(r.eigentuemer_id) ? 'Eigentümer (' + esc(sportlerName(r.eigentuemer_id)) + ')' : 'Vorlage') + ' und Typ (' + esc(r.typ) + ') — stimmt das nicht, erst im Rad ändern und speichern.</p>';
   } else {
     feldH = '<input type="text" id="nrEigenWert" autocapitalize="characters" autocomplete="off" value="' + esc(kurz) + '">' +
             '<p class="sub" style="margin:6px 0 0">' + esc(kuerzel()) + '- wird ergänzt.' + (art === "artikel" ? ' Format wie B-120.' : '') + '</p>';
@@ -1012,7 +1065,7 @@ function nummerAendernForm(art, alt){
 /** Neue Nummer aus dem Formular „Nummer ändern“ (voll, mit Kürzel). */
 function nummerAusFormular(art, alt){
   const eing = wert("nrEigenWert");
-  if(art === "rad"){ const r = rad(alt); return radIdAusEingabe(eing, r ? r.typ : "Sonstiges"); }
+  if(art === "rad"){ const r = rad(alt); return radIdAusEingabe(eing, r ? r.typ : "Sonstiges", r ? r.eigentuemer_id : null); }
   return mitKuerzel(eing);
 }
 

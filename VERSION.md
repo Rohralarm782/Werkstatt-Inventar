@@ -1,10 +1,10 @@
 # Version
 
-**21.2.0** — 26.10.2026
+**21.3.0** — 14.11.2026
 
-Schneller laden: alles in einer Anfrage statt rund 33 (neue Datenbankfunktion
-`app_daten`), ZXing blockiert den Start nicht mehr, Schriften fest eingebaut
-statt Google Fonts, Suche ruckelt nicht mehr, alte Migrationsprüfungen entfernt.
+Sportler und Kostenträger getrennt. Kostenträger (Vereine, LV, BSP) können
+ein Kürzel bekommen; ihre neuen Räder erhalten dann eine eigene Nummernreihe
+(SN-DAS-BR-01). Eigentümer am Rad: „Fahrer selbst“ oder ein Kostenträger.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -23,6 +23,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.3.0 | 14.11.2026 | Sportler und Kostenträger getrennt, eigene Rad-Nummern je Kostenträger (SN-DAS-BR-01), Eigentümer „Fahrer selbst“ (Migration) |
 | 21.2.0 | 26.10.2026 | Laden in einer Anfrage (app_daten), ZXing defer, Schriften lokal, Suche entprellt, Altlasten raus (Migration) |
 | 21.1.1 | 26.10.2026 | Kettenbreite: „schmal 3/32″“ → „schmal“ (Migration) |
 | 21.1.0 | 26.10.2026 | Aufräumen: Baugruppe entfällt, Disziplin = Radtyp, Schaltungshersteller nicht bei Antrieb, Typ-Vorschläge (Migration) |

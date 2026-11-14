@@ -244,7 +244,7 @@ function detailView(id){
   h += '<div class="grid2"><div><span class="lbl">Arbeitsort</span><select data-c="tOrt">';
   h += ortOptionen(t.arbeitsort);
   h += '</select></div><div><span class="lbl">Kostenträger</span><select data-c="tKosten"><option value="">—</option>';
-  (DB.sportler||[]).forEach(s => h += '<option value="' + s.id + '"' + (t.kostentraeger_id === s.id ? " selected" : "") + '>' + esc(s.name) + (s.abrechnen ? " (wird berechnet)" : "") + '</option>');
+  h += zahlerOptionen(t.kostentraeger_id, { berechnet:true });
   h += '</select></div></div></div>';
 
   h += fotoKarte(t);
@@ -666,7 +666,7 @@ async function exportiere(was){
     if(was === "stueck")  download("einzelstuecke_" + d + ".csv", csv(mitKat(DB.stueck, z => z.nummer, "stueck"),
       ["nummer","kategorie","tags","merkmale","typ","marke","detail","seriennummer","kaufdatum","wert","ort","rad_id","zustand","notiz"]));
     if(was === "raeder"){
-      const z = (DB.raeder || []).map(r => Object.assign({}, r, { merkmale:mkText(r, zielRad(r.typ), true), eigentuemer:r.eigentuemer_id ? sportlerName(r.eigentuemer_id) : "", ort:r.ort || "" }));
+      const z = (DB.raeder || []).map(r => Object.assign({}, r, { merkmale:mkText(r, zielRad(r.typ), true), eigentuemer:eigentuemerText(r), ort:r.ort || "" }));
       download("raeder_" + d + ".csv", csv(z, ["id","bezeichnung","typ","marke","merkmale","groesse","rahmennummer","fahrer","fahrer_seit","eigentuemer","ort","aktiv","notiz"]));
     }
     if(was === "buchungen"){

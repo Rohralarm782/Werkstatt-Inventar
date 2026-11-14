@@ -200,8 +200,8 @@ function formZugang(code){
 function formAusgabe(code){
   if(hatGroessen(code)) return leihStart(null, code);
   const a = artikel(code);
-  let s = '<select id="fSportler"><option value="">— Sportler wählen —</option>';
-  (DB.sportler||[]).filter(x => x.aktiv).forEach(x => s += '<option value="' + x.id + '">' + esc(x.name) + (x.abrechnen ? " (wird berechnet)" : "") + '</option>');
+  let s = '<select id="fSportler"><option value="">— Sportler oder Kostenträger —</option>';
+  s += zahlerOptionen(null, { aktiv:true, berechnet:true });
   s += '</select>';
   modal('<h3>' + (a.art === "Pauschale" ? "Leistung" : "Ausgabe") + ' · ' + esc(a.name) + '</h3>' +
     '<div class="feld"><span class="lbl">An</span>' + s + '</div>' +
@@ -543,7 +543,7 @@ function leihZeichnen(){
   const ko = kleiderOrte(), l = leih;
   let h = '<h3>Bekleidung ausleihen</h3><p class="sub" style="margin-top:-6px">Leihgabe an einen Sportler — wird nicht berechnet.</p>';
   h += '<div class="feld"><span class="lbl">An</span><select data-c="leihSportler"><option value="">— Sportler wählen —</option>' +
-       (DB.sportler||[]).filter(s => s.aktiv).map(s => '<option value="' + s.id + '"' + (String(s.id) === l.sportler ? " selected" : "") + '>' + esc(s.name) + '</option>').join("") + '</select></div>';
+       sportlerListe().filter(s => s.aktiv).map(s => '<option value="' + s.id + '"' + (String(s.id) === l.sportler ? " selected" : "") + '>' + esc(s.name) + '</option>').join("") + '</select></div>';
   if(ko.length > 1 || ko.indexOf(l.ort) < 0) h += '<div class="feld"><span class="lbl">Aus</span><select data-c="leihOrt">' + ortOptionen(l.ort) + '</select></div>';
   if(l.posten.length){
     h += '<div class="card liste" style="margin-bottom:10px">';

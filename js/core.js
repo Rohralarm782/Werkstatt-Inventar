@@ -376,6 +376,27 @@ function istKoffer(name){ const o = lagerort(name); return !!o && o.art === "kof
 function standardOrt(){ return view.lOrt && raumOrte().indexOf(view.lOrt) >= 0 ? view.lOrt : HAUPT; }
 
 function sportlerName(id){ const s = (DB.sportler||[]).find(x => x.id === id); return s ? s.name : ""; }
+/* Sportler und Kostenträger (ab 21.3.0 getrennt): beide stehen in DB.sportler,
+   Kostenträger mit art = "kostentraeger" (Verein, LV, BSP …). */
+function istKT(s){ return !!s && s.art === "kostentraeger"; }
+function sportlerListe(){ return (DB.sportler||[]).filter(s => !istKT(s)); }
+function ktListe(){ return (DB.sportler||[]).filter(istKT); }
+/** Kürzel für die Rad-Nummern des Kostenträgers (z. B. DAS), sonst "". */
+function ktKuerzel(id){ const s = id ? (DB.sportler||[]).find(x => x.id === Number(id)) : null; return istKT(s) && s.kuerzel ? s.kuerzel : ""; }
+/** Wem das Rad gehört, als Text: „Fahrer selbst“, Name des Kostenträgers oder "". */
+function eigentuemerText(r){ return r.eigentuemer_fahrer ? "Fahrer selbst" : r.eigentuemer_id ? sportlerName(r.eigentuemer_id) : ""; }
+/** <option>s für „wer zahlt“: Kostenträger und Sportler getrennt.
+    o.aktiv: nur aktive (plus der gewählte), o.berechnet: Zusatz „(wird berechnet)“. */
+function zahlerOptionen(wert, o){
+  o = o || {};
+  const opt = s => '<option value="' + s.id + '"' + (wert === s.id ? " selected" : "") + '>' + esc(s.name) +
+                   (o.berechnet && s.abrechnen ? " (wird berechnet)" : "") + (s.aktiv ? "" : " (ausgeblendet)") + '</option>';
+  const f = l => l.filter(s => !o.aktiv || s.aktiv || s.id === wert);
+  const kt = f(ktListe()), sp = f(sportlerListe());
+  if(!kt.length) return sp.map(opt).join("");
+  return '<optgroup label="Kostenträger">' + kt.map(opt).join("") + '</optgroup>' +
+         (sp.length ? '<optgroup label="Sportler">' + sp.map(opt).join("") + '</optgroup>' : '');
+}
 function rad(id){ return (DB.raeder||[]).find(r => r.id === id) || null; }
 function artikel(code){ return (DB.artikel||[]).find(a => a.code === code) || null; }
 function bestand(code){ return (DB.bestand||[]).find(b => b.code === code) || null; }

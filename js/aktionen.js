@@ -405,25 +405,50 @@ const A = {
   },
 
   /* Verwaltung */
-  sportlerNeu: () => { const n = wert("sName"); if(!n){ toast("Name fehlt.", true); return; } aktion(() => neuIn("sportler", { name:n }), n + " angelegt"); },
+  sportlerNeu: x => {
+    const n = wert("sName"); if(!n){ toast("Name fehlt.", true); return; }
+    const kt = x === "kostentraeger";
+    // Kostenträger (Verein, LV, BSP) werden meist nicht einzeln berechnet — umstellbar
+    aktion(() => neuIn("sportler", kt ? { name:n, art:"kostentraeger" } : { name:n }), n + (kt ? " als Kostenträger" : "") + " angelegt");
+  },
+  sportlerArt: x => {
+    const s = DB.sportler.find(y => y.id === Number(x)); if(!s) return;
+    const zuKT = !istKT(s);
+    if(zuKT && !confirm(s.name + " ist dann Kostenträger: fährt kein Rad, kein Zugang. Umstellen?")) return;
+    aktion(() => aendern("sportler", "id=eq." + x, { art: zuKT ? "kostentraeger" : "sportler" }), s.name + (zuKT ? " ist jetzt Kostenträger" : " ist jetzt Sportler"));
+  },
+  ktKuerzel: x => ktKuerzelForm(x),
+  ktKuerzelOk: x => {
+    const v = wert("ktKz").toUpperCase().replace(/\s+/g, "");
+    if(v && !/^[A-Z]{2,4}$/.test(v)){ toast("Kürzel: 2–4 Buchstaben, z. B. DAS.", true); return; }
+    if(v && ktListe().some(s => s.kuerzel === v && s.id !== Number(x))){ toast(v + " hat schon ein anderer Kostenträger.", true); return; }
+    if(v && v === radVorlage()){ toast(v + " ist schon der feste Teil eurer eigenen Rad-Nummern.", true); return; }
+    aktion(() => aendern("sportler", "id=eq." + x, { kuerzel: v || null }), v ? "Neue Räder bekommen " + v + "-Nummern" : "Keine eigene Nummernreihe mehr");
+  },
   sportlerAbr: x => { const s = DB.sportler.find(y => y.id === Number(x)); aktion(() => aendern("sportler", "id=eq." + x, { abrechnen:!s.abrechnen })); },
   sportlerAktiv: x => { const s = DB.sportler.find(y => y.id === Number(x)); aktion(() => aendern("sportler", "id=eq." + x, { aktiv:!s.aktiv })); },
   radNeu: () => { radForm(null); vorschauNummer(); },
   radBearbeiten: x => radForm(x),
   radSpeichern: x => {
     const d = { bezeichnung:wert("rBez"), typ:wert("rTyp"), marke:marke(wert("rMarke")), rahmennummer:wert("rRahmen") || null,
-                eigentuemer_id: wert("rEig") ? Number(wert("rEig")) : null, notiz:wert("rNotiz") || null, aktiv: wert("rAktiv") === "true" };
+                eigentuemer_id: formEig(), notiz:wert("rNotiz") || null, aktiv: wert("rAktiv") === "true" };
+    if(!DB.raeder.length || "eigentuemer_fahrer" in DB.raeder[0]) d.eigentuemer_fahrer = wert("rEig") === "fahrer";   // ab 21.3.0
     if($("rGr")) d.groesse = wert("rGr") || null;    // altes Feld Größe: nur, solange noch etwas drinsteht
     if($("rOrt")) d.ort = wert("rOrt") || null;      // Lagerort (ab 21.0.0)
     if(!d.bezeichnung){ toast("Bezeichnung fehlt.", true); return; }
     try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
-    if(x){ aktion(() => aendern("rad", "id=eq." + encodeURIComponent(x), d), "Gespeichert"); return; }
+    if(x){
+      // Neuer Eigentümer mit anderer Nummernreihe: die Nummer bleibt (Etiketten), nur Hinweis
+      const r = rad(x), anders = r && radPraefix(r.typ, r.eigentuemer_id) !== radPraefix(d.typ, d.eigentuemer_id) && ohneKuerzel(x).indexOf(radPraefix(d.typ, d.eigentuemer_id)) !== 0;
+      aktion(() => aendern("rad", "id=eq." + encodeURIComponent(x), d), anders ? "Gespeichert · Nummer bleibt " + x + " (ändern: bearbeiten → „Nummer ändern“)" : "Gespeichert");
+      return;
+    }
     if(nrForm && nrForm.modus === "auto"){
       aktion(() => rpc("rad_anlegen", { p_daten:d }), id => d.bezeichnung + " angelegt als " + id);
       return;
     }
-    const id = radIdAusEingabe(wert("nrEigenWert"), d.typ);
-    if(!id){ toast(radVorlage() ? "Bitte die Nummer (Zahl) eintragen." : "Rad-ID fehlt.", true); return; }
+    const id = radIdAusEingabe(wert("nrEigenWert"), d.typ, d.eigentuemer_id);
+    if(!id){ toast(radVorlage() || ktKuerzel(d.eigentuemer_id) ? "Bitte die Nummer (Zahl) eintragen." : "Rad-ID fehlt.", true); return; }
     if(!NUMMER_FORMAT.test(id)){ toast("Rad-ID: nur Buchstaben, Ziffern und Bindestriche.", true); return; }
     if(rad(id) || nummerVergeben(id)){ toast(id + " ist schon vergeben.", true); return; }
     aktion(() => neuIn("rad", Object.assign({ id }, d)), d.bezeichnung + " angelegt");
@@ -992,9 +1017,16 @@ const C = {
     render();
   },
   nrVorschau: () => {
-    const p = $("nrPraefix"), t = $("rTyp"); if(p && t) p.textContent = radPraefix(t.value);
+    const p = $("nrPraefix"), t = $("rTyp"); if(p && t) p.textContent = radPraefix(t.value, formEig());
     vorschauNummer(); ukBoxAktualisieren();
   },
+  /* Eigentümer im Rad-Formular gewechselt: bei neuen Rädern Nummernfeld neu (eigene Reihe des Kostenträgers) */
+  nrEig: () => {
+    const box = $("nrWahlBox"); if(!box) return;
+    box.innerHTML = nummernWahl("rad", 0, wert("rTyp") || "Bahn", formEig());
+    vorschauNummer();
+  },
+  ktKzVorschau: v => { const e = $("ktKzVorschau"); if(e) e.innerHTML = ktKuerzelVorschau(v); },
   radNrVorschau: () => radNrVorschau(),
   nrBuch: (v, x, el) => { if(el) el.dataset.selbst = el.value ? "1" : ""; vorschauNummer(); ukBoxAktualisieren(); },
   /* Name der neuen Kategorie: schlägt den Anfangsbuchstaben vor, solange er frei ist

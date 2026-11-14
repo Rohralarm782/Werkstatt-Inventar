@@ -1,7 +1,7 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 21.2.0 — für eine NEUE, leere Datenbank.
+--  Stand 21.3.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
@@ -11,7 +11,7 @@
 --   db/migration_20.2.0.sql, db/migration_20.5.0.sql,
 --   db/migration_20.7.0.sql, db/migration_20.8.0.sql,
 --   db/migration_21.0.0.sql, db/migration_21.1.0.sql,
---   db/migration_21.1.1.sql und db/migration_21.2.0.sql.)
+--   db/migration_21.1.1.sql, db/migration_21.2.0.sql und db/migration_21.3.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -59,6 +59,7 @@ create table standort (
   fuss_logo          text check (fuss_logo is null or length(fuss_logo) <= 400000),
   -- Rad-Nummern (ab 19.0.0): <Kürzel>-<Vorlage>-<BR|SR|…>-<Zahl>, z. B. XX-HSG-TR-BR-0042;
   -- ohne Vorlage wie bisher SN-BR-01. Setzt der Werkstatt-Manager (rad_nummern_setzen).
+  -- Räder von Kostenträgern mit Kürzel: eigene Reihe SN-DAS-BR-01 (ab 21.3.0).
   rad_vorlage  text check (rad_vorlage is null or (rad_vorlage ~ '^[A-Z0-9]+(-[A-Z0-9]+){0,3}$' and length(rad_vorlage) <= 20)),
   rad_stellen  integer not null default 2 check (rad_stellen between 2 and 6)
 );
@@ -94,14 +95,22 @@ create table person (
   aktiv  boolean not null default true
 );
 
+-- Sportler und Kostenträger (ab 21.3.0 getrennt über art): Kostenträger sind
+-- Vereine, Verband, BSP … — sie zahlen (Rad-Eigentümer, Rechnungen), fahren
+-- aber nicht und haben keinen Zugang. Mit kuerzel bekommen ihre neuen Räder
+-- eine eigene Nummernreihe (SN-DAS-BR-01); setzt der Werkstatt-Manager.
 create table sportler (
   id         bigint generated always as identity primary key,
   name       text not null,
   abrechnen  boolean not null default true,   -- LV / BSP: false
   aktiv      boolean not null default true,
   standort_id  bigint not null references standort (id),
-  constraint sportler_name_key unique (standort_id, name)
+  art        text not null default 'sportler' check (art in ('sportler', 'kostentraeger')),
+  kuerzel    text check (kuerzel is null or kuerzel ~ '^[A-Z]{2,4}$'),
+  constraint sportler_name_key unique (standort_id, name),
+  constraint sportler_kuerzel_nur_kt check (kuerzel is null or art = 'kostentraeger')
 );
+create unique index sportler_kuerzel_eindeutig on sportler (standort_id, kuerzel) where kuerzel is not null;
 
 -- Kategorien: der Buchstabe im Code und sein Name (O → Orga). Ab 21.0.0
 -- gibt es Vorgaben (vorgabe_kategorie), die in jeden Standort übernommen werden.
@@ -173,7 +182,9 @@ create table rad (
   standort_id  bigint not null references standort (id),
   geaendert_am  timestamptz not null default now(),  -- letzte Änderung inkl. Fahrerwechsel (ab 20.0.0)
   ort           text,   -- Raum des Standorts oder 'beim Sportler'; leer = nicht erfasst (ab 21.0.0)
-  merkmale      jsonb not null default '{}'::jsonb check (jsonb_typeof(merkmale) = 'object')   -- ab 21.0.0
+  merkmale      jsonb not null default '{}'::jsonb check (jsonb_typeof(merkmale) = 'object'),   -- ab 21.0.0
+  eigentuemer_fahrer boolean not null default false,  -- „Fahrer selbst“: zahlt, wer es fährt (ab 21.3.0)
+  constraint rad_eigentuemer_eins check (not (eigentuemer_fahrer and eigentuemer_id is not null))
 );
 
 -- Wer fährt welches Rad — mit Verlauf. Pro Rad gibt es höchstens einen
@@ -644,7 +655,8 @@ select r.id, r.bezeichnung, r.typ, r.rahmennummer, r.groesse, r.eigentuemer_id, 
        r.marke,
        r.geaendert_am,
        r.ort,
-       r.merkmale
+       r.merkmale,
+       r.eigentuemer_fahrer
 from rad r
 left join zuordnung z on z.rad_id = r.id and z.gueltig_bis is null
 left join sportler s  on s.id = z.sportler_id;
@@ -1756,9 +1768,11 @@ begin
   end if;
 
   if v_rad is not null then
-    select eigentuemer_id into v_kt from rad where id = v_rad and standort_id = v_st;
-    if not found then raise exception 'Unbekanntes Rad: %', v_rad; end if;
     select sportler_id into v_fahrer from zuordnung where rad_id = v_rad and gueltig_bis is null;
+    -- Kostenträger: Eigentümer des Rads; „Fahrer selbst“ = wer es gerade fährt (ab 21.3.0)
+    select case when eigentuemer_fahrer then v_fahrer else eigentuemer_id end into v_kt
+      from rad where id = v_rad and standort_id = v_st;
+    if not found then raise exception 'Unbekanntes Rad: %', v_rad; end if;
   end if;
 
   insert into ticket (rad_id, fahrer_id, problem, fahrbereit, soll_fertig, naechstmoeglich,
@@ -1976,6 +1990,9 @@ begin
   if not exists (select 1 from rad where id = p_rad and standort_id = v_st) then raise exception 'Unbekanntes Rad: %', p_rad; end if;
   if p_sportler is not null and not exists (select 1 from sportler where id = p_sportler and standort_id = v_st) then
     raise exception 'Unbekannter Sportler';
+  end if;
+  if p_sportler is not null and exists (select 1 from sportler where id = p_sportler and art = 'kostentraeger') then
+    raise exception 'Ein Kostenträger kann kein Rad fahren – bitte einen Sportler wählen';
   end if;
   update zuordnung set gueltig_bis = current_date
    where rad_id = p_rad and gueltig_bis is null;
@@ -2213,17 +2230,25 @@ language sql stable set search_path = public, pg_temp as $$
                     order by standort_id nulls first limit 1), 'SO');
 $$;
 
-create or replace function naechste_rad_id(p_typ text)
+-- Nächste Rad-Nummer. Gehört das Rad einem Kostenträger mit Kürzel, eigene
+-- Reihe <Standort>-<Kürzel>-<Typ>-<Zahl> (SN-DAS-BR-01, ab 21.3.0); sonst
+-- wie bisher mit der Vorlage des Standorts (SN-HSG-TR-BR-0042) oder ohne (SN-BR-01).
+create or replace function naechste_rad_id(p_typ text, p_eigentuemer bigint default null)
 returns text
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare
   st     standort;
+  v_kt   text;
   v_k    text;
   v_max  integer;
 begin
   select * into st from standort where id = akt_standort();
   if st.id is null then raise exception 'Kein Zugriff auf diesen Standort'; end if;
-  v_k := st.kuerzel || coalesce('-' || st.rad_vorlage, '') || '-' || rad_kuerzel(p_typ);
+  if p_eigentuemer is not null then
+    select kuerzel into v_kt from sportler
+     where id = p_eigentuemer and standort_id = st.id and art = 'kostentraeger';
+  end if;
+  v_k := st.kuerzel || coalesce('-' || coalesce(v_kt, st.rad_vorlage), '') || '-' || rad_kuerzel(p_typ);
   select max(substring(id from '-([0-9]+)$')::integer) into v_max
     from rad where id ~ ('^' || v_k || '-[0-9]+$');
   return v_k || '-' || lpad((coalesce(v_max, 0) + 1)::text, st.rad_stellen, '0');
@@ -2242,6 +2267,9 @@ begin
   end if;
   if p_stellen is null or p_stellen < 2 or p_stellen > 6 then
     raise exception 'Stellen: 2 bis 6';
+  end if;
+  if v_v is not null and exists (select 1 from sportler where standort_id = v_st and kuerzel = v_v) then
+    raise exception '% ist schon das Kürzel eines Kostenträgers', v_v;
   end if;
   update standort set rad_vorlage = v_v, rad_stellen = p_stellen where id = v_st;
 end $$;
@@ -2500,8 +2528,8 @@ begin
     raise exception 'Unbekannter Kostenträger';
   end if;
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
-  v_id := naechste_rad_id(v_typ);
-  insert into rad (id, bezeichnung, typ, marke, rahmennummer, groesse, eigentuemer_id, aktiv, notiz, standort_id, ort, merkmale)
+  v_id := naechste_rad_id(v_typ, v_ei);
+  insert into rad (id, bezeichnung, typ, marke, rahmennummer, groesse, eigentuemer_id, eigentuemer_fahrer, aktiv, notiz, standort_id, ort, merkmale)
   values (v_id,
           p_daten ->> 'bezeichnung',
           v_typ,
@@ -2509,6 +2537,7 @@ begin
           nullif(p_daten ->> 'rahmennummer', ''),
           nullif(p_daten ->> 'groesse', ''),
           v_ei,
+          v_ei is null and coalesce((p_daten ->> 'eigentuemer_fahrer')::boolean, false),
           coalesce((p_daten ->> 'aktiv')::boolean, true),
           nullif(p_daten ->> 'notiz', ''),
           v_st,
@@ -2666,6 +2695,53 @@ begin
           or new.standort_id is distinct from old.standort_id)
      and not exists (select 1 from artikel v where v.code = new.verbraucht_code and v.standort_id = new.standort_id) then
     raise exception 'Unbekannter Verbrauchsartikel: %', new.verbraucht_code;
+  end if;
+  return new;
+end $$;
+
+-- Sportler / Kostenträger (ab 21.3.0): Kürzel nur für Kostenträger und nur
+-- vom Werkstatt-Manager; wer fährt oder einen Zugang hat, bleibt Sportler.
+create or replace function sportler_pruefen() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_alt text := case when tg_op = 'UPDATE' then old.kuerzel end;
+begin
+  new.kuerzel := nullif(upper(regexp_replace(coalesce(new.kuerzel, ''), '\s+', '', 'g')), '');
+  if new.kuerzel is distinct from v_alt then
+    if ich_id() is not null and not rolle_in('admin', 'manager') then
+      raise exception 'Das Kürzel für die Rad-Nummern setzt nur der Werkstatt-Manager';
+    end if;
+    if new.kuerzel is not null then
+      if new.art <> 'kostentraeger' then raise exception 'Ein Kürzel für Rad-Nummern gibt es nur bei Kostenträgern'; end if;
+      if new.kuerzel !~ '^[A-Z]{2,4}$' then raise exception 'Kürzel: 2 bis 4 Buchstaben, z. B. DAS'; end if;
+      if exists (select 1 from sportler where standort_id = new.standort_id and kuerzel = new.kuerzel and id is distinct from new.id) then
+        raise exception 'Das Kürzel % hat schon ein anderer Kostenträger', new.kuerzel;
+      end if;
+      if exists (select 1 from standort where id = new.standort_id and rad_vorlage = new.kuerzel) then
+        raise exception 'Das Kürzel % ist schon der feste Teil eurer eigenen Rad-Nummern', new.kuerzel;
+      end if;
+    end if;
+  end if;
+  if tg_op = 'UPDATE' and new.art = 'kostentraeger' and old.art <> 'kostentraeger' then
+    if exists (select 1 from zuordnung where sportler_id = new.id and gueltig_bis is null) then
+      raise exception '% fährt gerade ein Rad – erst dort den Fahrer ändern', new.name;
+    end if;
+    if exists (select 1 from konto where sportler_id = new.id) then
+      raise exception '% hat einen Sportler-Zugang und bleibt deshalb Sportler', new.name;
+    end if;
+  end if;
+  if new.art = 'sportler' and new.kuerzel is not null then
+    raise exception 'Erst das Kürzel für die Rad-Nummern entfernen';
+  end if;
+  return new;
+end $$;
+
+-- Ein Sportler-Zugang gehört zu einem Sportler, nicht zu einem Kostenträger.
+create or replace function konto_sportler_pruefen() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if new.sportler_id is not null and exists (select 1 from sportler where id = new.sportler_id and art = 'kostentraeger') then
+    raise exception 'Kostenträger bekommen keinen Sportler-Zugang';
   end if;
   return new;
 end $$;
@@ -3883,6 +3959,8 @@ create trigger ticket_uebernahme     before update on ticket     for each row ex
 create trigger artikel_preis         before update on artikel    for each row execute function preis_schutz();
 create trigger artikel_verbrauch     before insert or update on artikel for each row execute function verbrauch_pruefen();
 create trigger sportler_konto        after update on sportler    for each row execute function sportler_konto_abgleich();
+create trigger sportler_pruefen      before insert or update on sportler for each row execute function sportler_pruefen();   -- ab 21.3.0
+create trigger konto_sportler        before insert or update of sportler_id on konto for each row execute function konto_sportler_pruefen();
 create trigger koffer_soll_ort       before insert or update on koffer_soll for each row execute function koffer_pruefen();
 create trigger termin_koffer         before insert or update on termin      for each row execute function koffer_pruefen();
 create trigger buchung_groesse       before insert on buchung    for each row execute function groesse_pruefen();
@@ -4403,7 +4481,7 @@ grant execute on function
   buchung_stornieren(bigint, text, text),
   naechster_code(text, integer),
   rad_kuerzel(text),
-  naechste_rad_id(text),
+  naechste_rad_id(text, bigint),
   artikel_anlegen(text, integer, jsonb),
   stueck_anlegen(text, integer, jsonb),
   stueck_serie_anlegen(text, integer, jsonb, integer),
