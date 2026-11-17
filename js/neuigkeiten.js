@@ -13,12 +13,6 @@
    Teil der App, geladen von index.html (Reihenfolge dort beachten). */
 
 const NEUIGKEITEN = [
-  { version:"21.6.1", datum:"2026-11-17", titel:"Fehler behoben", punkte:[
-    { art:"behoben", fuer:"manager", titel:"Kategorie umbenennen",
-      text:"„Name ändern“ bei einer Kategorie speichert wieder. Auch Kategorien, die bisher nur als Buchstabe in den Codes standen, bekommen so einen Namen." },
-    { art:"behoben", fuer:"werkstatt", titel:"Scannen im Ticket",
-      text:"Bekleidung, Vorrat und ausgeblendete Artikel lassen sich nicht mehr ins Ticket scannen. Sie blockierten sonst das Abschließen." }
-  ]},
   { version:"21.6.0", datum:"2026-11-17", titel:"Probleme am eigenen Material melden", punkte:[
     { art:"neu", fuer:"sportler", titel:"Problem melden für dein Material",
       text:"Unter „Mein Material“ kannst du für jedes Teil ein Problem melden und Fotos schicken, genau wie bei deinen Rädern." },
@@ -89,6 +83,9 @@ function versionVergleich(a, b){
   for(let i = 0; i < 3; i++){ const d = (x[i] || 0) - (y[i] || 0); if(d) return d; }
   return 0;
 }
+/** „Was ist neu?“ gibt es nur für X.Y.0 (ab 21.6.2): Patches (X.Y.Z mit Z > 0) bekommen keinen Eintrag und kein Fenster. */
+function neuStufe(v){ const x = String(v).split("."); return (x[0] || 0) + "." + (x[1] || 0) + ".0"; }
+function neuIstStufe(v){ return versionVergleich(v, neuStufe(v)) === 0; }
 function neuGesehenAlle(){ try{ return JSON.parse(localStorage.getItem("wNeuGesehen") || "{}") || {}; }catch(e){ return {}; } }
 function neuKonto(){ const s = aktiveSitzung(); return s ? String(s.konto_id) : ""; }
 function neuMerken(){
@@ -105,7 +102,7 @@ function neuFuerMich(p){
 }
 /** Versionen (neueste zuerst) mit den Punkten für diese Person; ab = nur neuer als diese Version. */
 function neuVersionen(ab){
-  return NEUIGKEITEN.filter(v => (!ab || versionVergleich(v.version, ab) > 0) && versionVergleich(v.version, APP_VERSION) <= 0)
+  return NEUIGKEITEN.filter(v => neuIstStufe(v.version) && (!ab || versionVergleich(v.version, ab) > 0) && versionVergleich(v.version, APP_VERSION) <= 0)
     .map(v => Object.assign({}, v, { punkte:v.punkte.filter(neuFuerMich) })).filter(v => v.punkte.length);
 }
 function neuDatum(d){
@@ -135,11 +132,11 @@ function neuFenster(liste, alle){
 function neuigkeitenPruefen(){
   const k = neuKonto(); if(!k || !DB) return;
   const ab = neuGesehenAlle()[k];
-  if(ab && versionVergleich(ab, APP_VERSION) >= 0) return;
+  if(ab && versionVergleich(ab, neuStufe(APP_VERSION)) >= 0) return;   // Patch derselben X.Y: kein Fenster
   if(String($("modal").innerHTML).trim()) return;   // ein anderes Fenster ist offen → beim nächsten Laden
   // Erstes Mal mit diesem Konto: auf einem neuen Gerät nichts zeigen, sonst nur die aktuelle Version
   const liste = ab ? neuVersionen(ab).slice(0, NEU_MAX)
-                   : NEU_GERAET_BEKANNT ? neuVersionen(null).filter(v => v.version === APP_VERSION) : [];
+                   : NEU_GERAET_BEKANNT ? neuVersionen(null).filter(v => v.version === neuStufe(APP_VERSION)) : [];
   if(!liste.length){ neuMerken(); return; }   // nichts, was diese Person betrifft
   neuFenster(liste, false);
   neuMerken();

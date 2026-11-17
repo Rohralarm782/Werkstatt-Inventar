@@ -22,7 +22,7 @@ Live: https://rohralarm782.github.io/Werkstatt-Inventar/
 | `js/konto.js` | Konten, Sitzungen, Rollen, Anmeldung, Standorte, Briefkopf, Sportler-Ansicht |
 | `js/merkmale.js` | Vorgaben und eigene Einträge (ab 21.0.0): Radtypen, Tag-Gruppen, Merkmale mit Werten, Lagerort am Rad; Merkmal-Felder und -Filter; Mehr → Kategorien, Tags & Merkmale; Mehr → Vorgaben (Gesamt-Admin) |
 | `js/push.js` | Morgen-Benachrichtigungen: Mehr → Benachrichtigungen, Gerät an-/abmelden, Sprung aus einer Nachricht (ab 20.2.0) |
-| `js/neuigkeiten.js` | „Was ist neu?“ (ab 21.4.0): Einträge je Version (`NEUIGKEITEN`) und das Fenster nach einem Update; bei jedem spürbaren Update oben einen Eintrag ergänzen |
+| `js/neuigkeiten.js` | „Was ist neu?“ (ab 21.4.0): Einträge je Version (`NEUIGKEITEN`) und das Fenster nach einem Update; nur für X.Y.0 oben einen Eintrag ergänzen, Patches zeigen kein Fenster (ab 21.6.2) |
 | `js/start.js` | Globale Ereignisse und Programmstart (immer zuletzt laden) |
 | `sw.js` | Service Worker, nur für Push-Nachrichten (kein Zwischenspeicher); muss im Hauptverzeichnis liegen |
 | `manifest.webmanifest`, `icons/` | Installierbar als App (Home-Bildschirm), App-Icons |

@@ -1,17 +1,16 @@
 # Version
 
-**21.6.1** — 17.11.2026
+**21.6.2** — 17.11.2026
 
-Fehlerbehebungen: Kategorie umbenennen geht wieder, Scannen nimmt nur noch
-Artikel ins Ticket, die dort auch gebucht werden können, und ein Sportler mit
-fest zugeordnetem Material wird nicht mehr zum Kostenträger.
+„Was ist neu?“ erscheint nur noch bei neuen X.Y.0-Versionen, nicht bei Patches.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
 `?v=…`-Angaben an den eingebundenen Dateien auf die neue Version setzen,
 damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
-Bei spürbaren Änderungen außerdem oben in `js/neuigkeiten.js` einen Eintrag
-für „Was ist neu?“ ergänzen (für Nutzer geschrieben, ohne Technik).
+Bei neuen X.Y.0-Versionen außerdem oben in `js/neuigkeiten.js` einen Eintrag
+für „Was ist neu?“ ergänzen (für Nutzer geschrieben, ohne Technik). Patches
+(X.Y.Z mit Z > 0) bekommen keinen Eintrag und lösen kein Fenster aus.
 
 Nummernschema (ab 20.1.0 bewusst sparsamer):
 
@@ -25,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.6.2 | 17.11.2026 | „Was ist neu?“ nur bei X.Y.0, nicht bei Patches |
 | 21.6.1 | 17.11.2026 | Kategorie umbenennen repariert, Scannen ins Ticket nur für buchbare Artikel, Kostenträger-Umwandlung prüft festes Material (Migration) |
 | 21.6.0 | 17.11.2026 | Sportler melden Probleme für eigenes Material, Packliste per ✕ aufräumen (auch Trainer), Etiketten ohne Standort-Kürzel (Migration) |
 | 21.5.0 | 17.11.2026 | Einzelstücke fest einem Sportler zuordnen, Name/Code wählbar auf Etiketten, Name rot auf Laufradtaschen-Tag, „Mein Material“ für Sportler, Koffer-Packliste mobil (Migration) |
