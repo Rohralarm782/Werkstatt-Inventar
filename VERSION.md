@@ -1,10 +1,10 @@
 # Version
 
-**21.6.0** — 17.11.2026
+**21.6.1** — 17.11.2026
 
-Sportler melden Probleme für ihr fest zugeordnetes Material. Koffer-Packliste:
-Artikel per ✕ herausnehmen, auch für Trainer/Mechaniker. Etiketten zeigen die
-Nummer ohne Standort-Kürzel.
+Fehlerbehebungen: Kategorie umbenennen geht wieder, Scannen nimmt nur noch
+Artikel ins Ticket, die dort auch gebucht werden können, und ein Sportler mit
+fest zugeordnetem Material wird nicht mehr zum Kostenträger.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -25,6 +25,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.6.1 | 17.11.2026 | Kategorie umbenennen repariert, Scannen ins Ticket nur für buchbare Artikel, Kostenträger-Umwandlung prüft festes Material (Migration) |
 | 21.6.0 | 17.11.2026 | Sportler melden Probleme für eigenes Material, Packliste per ✕ aufräumen (auch Trainer), Etiketten ohne Standort-Kürzel (Migration) |
 | 21.5.0 | 17.11.2026 | Einzelstücke fest einem Sportler zuordnen, Name/Code wählbar auf Etiketten, Name rot auf Laufradtaschen-Tag, „Mein Material“ für Sportler, Koffer-Packliste mobil (Migration) |
 | 21.4.0 | 17.11.2026 | Größen für Werkstattmaterial (Bestand, Entnahme, Einpacken je Größe), Mindestbestand je Größe, „Was ist neu?“ nach Updates (Migration) |

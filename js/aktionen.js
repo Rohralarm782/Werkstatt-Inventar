@@ -807,7 +807,8 @@ const A = {
     const namen = katNamen();
     if(Object.keys(namen).some(k => k !== x && namen[k].toLowerCase() === n.toLowerCase())){ toast("„" + n + "“ gibt es schon.", true); return; }
     // Upsert: Buchstaben, die bisher nur in Codes vorkamen, bekommen so erstmals einen Namen.
-    aktion(() => rest("/kategorie?on_conflict=buchstabe", { method:"POST", body:{ buchstabe:x, name:n },
+    // Schlüssel ist Standort + Buchstabe (seit 14.0.0); der Standort kommt aus dem Vorgabewert der Spalte.
+    aktion(() => rest("/kategorie?on_conflict=standort_id,buchstabe", { method:"POST", body:{ buchstabe:x, name:n },
                       headers:{ Prefer:"resolution=merge-duplicates,return=minimal" } }), "Gespeichert");
   },
   ukNeu: x => {

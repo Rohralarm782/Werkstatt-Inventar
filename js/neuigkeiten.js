@@ -13,6 +13,12 @@
    Teil der App, geladen von index.html (Reihenfolge dort beachten). */
 
 const NEUIGKEITEN = [
+  { version:"21.6.1", datum:"2026-11-17", titel:"Fehler behoben", punkte:[
+    { art:"behoben", fuer:"manager", titel:"Kategorie umbenennen",
+      text:"„Name ändern“ bei einer Kategorie speichert wieder. Auch Kategorien, die bisher nur als Buchstabe in den Codes standen, bekommen so einen Namen." },
+    { art:"behoben", fuer:"werkstatt", titel:"Scannen im Ticket",
+      text:"Bekleidung, Vorrat und ausgeblendete Artikel lassen sich nicht mehr ins Ticket scannen. Sie blockierten sonst das Abschließen." }
+  ]},
   { version:"21.6.0", datum:"2026-11-17", titel:"Probleme am eigenen Material melden", punkte:[
     { art:"neu", fuer:"sportler", titel:"Problem melden für dein Material",
       text:"Unter „Mein Material“ kannst du für jedes Teil ein Problem melden und Fotos schicken, genau wie bei deinen Rädern." },

@@ -1,7 +1,7 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 21.6.0 — für eine NEUE, leere Datenbank.
+--  Stand 21.6.1 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
@@ -12,8 +12,8 @@
 --   db/migration_20.7.0.sql, db/migration_20.8.0.sql,
 --   db/migration_21.0.0.sql, db/migration_21.1.0.sql,
 --   db/migration_21.1.1.sql, db/migration_21.2.0.sql, db/migration_21.3.0.sql,
---   db/migration_21.4.0.sql, db/migration_21.5.0.sql und
---   db/migration_21.6.0.sql.)
+--   db/migration_21.4.0.sql, db/migration_21.5.0.sql,
+--   db/migration_21.6.0.sql und db/migration_21.6.1.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -2743,6 +2743,7 @@ create or replace function sportler_pruefen() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_alt text := case when tg_op = 'UPDATE' then old.kuerzel end;
+  v_fest text;
 begin
   new.kuerzel := nullif(upper(regexp_replace(coalesce(new.kuerzel, ''), '\s+', '', 'g')), '');
   if new.kuerzel is distinct from v_alt then
@@ -2766,6 +2767,11 @@ begin
     end if;
     if exists (select 1 from konto where sportler_id = new.id) then
       raise exception '% hat einen Sportler-Zugang und bleibt deshalb Sportler', new.name;
+    end if;
+    -- Fest zugeordnetes Material (ab 21.6.1): erst dort die Zuordnung ändern
+    select string_agg(nummer, ', ' order by nummer) into v_fest from stueck where sportler_id = new.id;
+    if v_fest is not null then
+      raise exception '% hat fest zugeordnetes Material (%) – erst dort „Fest zugeordnet an“ ändern', new.name, v_fest;
     end if;
   end if;
   if new.art = 'sportler' and new.kuerzel is not null then

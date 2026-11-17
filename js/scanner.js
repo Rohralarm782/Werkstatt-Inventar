@@ -130,7 +130,13 @@ function scanTreffer(ziel, code){
     return;
   }
   if(!a){ piep(false); toast("Kein Artikel: " + code, true); return; }
-  if((ziel === "neuMaterial" || ziel === "ticketMaterial") && istWMat(code)){ piep(false); toast(a.name + " ist Werkstattmaterial — wird nicht an Tickets gebucht.", true); return; }
+  // An Tickets nur, was auch in der Auswahlliste steht (vormerkbar); Größen bräuchten eine Größe je Schritt (ab 21.6.1)
+  if((ziel === "neuMaterial" || ziel === "ticketMaterial") && !vormerkbar(a)){
+    piep(false);
+    toast(a.name + (istWMat(code) ? " ist Werkstattmaterial" : hatGroessen(code) ? " hat Größen" : !a.aktiv ? " ist ausgeblendet" : " ist Vorrat") +
+          " — wird nicht an Tickets gebucht.", true);
+    return;
+  }
   if(ziel === "neuMaterial"){ neuMaterial(code); return; }
   if(ziel === "ticketMaterial"){ reservieren(code); return; }
   artikelMenue(code);
