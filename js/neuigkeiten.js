@@ -13,6 +13,26 @@
    Teil der App, geladen von index.html (Reihenfolge dort beachten). */
 
 const NEUIGKEITEN = [
+  { version:"21.6.0", datum:"2026-11-17", titel:"Probleme am eigenen Material melden", punkte:[
+    { art:"neu", fuer:"sportler", titel:"Problem melden für dein Material",
+      text:"Unter „Mein Material“ kannst du für jedes Teil ein Problem melden und Fotos schicken, genau wie bei deinen Rädern." },
+    { art:"neu", fuer:"werkstatt", titel:"Packliste aufräumen",
+      text:"In der Koffer-Packliste nimmt ✕ einen Artikel heraus. Das dürfen jetzt auch Trainer und Mechaniker. Liegt davon noch etwas im Koffer, erst mit „Menge…“ zurückbuchen." },
+    { art:"besser", fuer:"werkstatt", titel:"Kürzere Nummern auf Etiketten",
+      text:"Auf den Etiketten steht die Nummer ohne Standort-Kürzel, z. B. LR-014 statt SN-LR-014. Der Code selbst bleibt gleich." },
+    { art:"besser", fuer:"werkstatt", titel:"Tickets für Material eines Sportlers",
+      text:"Ein Ticket nur für Teile, die fest einem Sportler gehören, zeigt diesen Sportler als Fahrer." }
+  ]},
+  { version:"21.5.0", datum:"2026-11-17", titel:"Material fest beim Sportler", punkte:[
+    { art:"neu", fuer:"werkstatt", titel:"Teile fest einem Sportler zuordnen",
+      text:"Im Einzelstück (oder in der Serie) gibt es „Fest zugeordnet an“, z. B. für die Laufräder in der Laufradtasche. Der Name steht auf der Karte und ist in der Suche zu finden." },
+    { art:"neu", fuer:"werkstatt", titel:"Name auf dem Etikett",
+      text:"Beim Etikettendruck per Häkchen wählen: mit Name und mit Code. Ohne Code stehen nur Nummer und Name groß drauf. Auf dem Laufradtaschen-Tag steht der Name rot unter dem Typ. Bei Rädern ist es der aktuelle Fahrer." },
+    { art:"behoben", fuer:"werkstatt", titel:"Koffer-Packliste auf dem Handy",
+      text:"Die Packliste passt wieder auf schmale Bildschirme. Die Knöpfe +1, −1 und „Menge…“ stehen dort unter dem Artikel." },
+    { art:"neu", fuer:"sportler", titel:"Mein Material",
+      text:"Teile, die dir fest zugeordnet sind, z. B. deine Laufräder, siehst du jetzt unter „Mein Material“." }
+  ]},
   { version:"21.4.0", datum:"2026-11-17", titel:"Größen für Werkstattmaterial", punkte:[
     { art:"neu", fuer:"werkstatt", titel:"Ein Artikel, mehrere Größen",
       text:"Zipper-Beutel, Kabelbinder oder Tape können Größen haben, z. B. 1 L, 3 L, 5 L. Der Bestand wird je Größe geführt. Beim „−“ und beim Einpacken in den Koffer tippst du die Größe an." },

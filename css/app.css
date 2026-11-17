@@ -202,6 +202,8 @@
   #druck .etikett .txt{min-width:0}
   #druck .etikett .t{font-weight:700;line-height:1.05;letter-spacing:.02em;white-space:nowrap}
   #druck .etikett .z{line-height:1.2}
+  #druck .etikett .z.name{font-weight:700}
+  #druck .etikett.text .t, #druck .etikett.text .z{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #druck .etikett .nr{font-size:4mm;color:#888}
   #druck .tband, #druck .schnitt{position:absolute;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #druck .schnitt{background:#000}
@@ -210,6 +212,7 @@
   #druck .tasche .v1{font-size:2.6mm;letter-spacing:.08em}
   #druck .tasche .v2{font-size:4.2mm;font-weight:700}
   #druck .tasche .typ{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;line-height:1.05;letter-spacing:-.01em}
+  #druck .tasche .name{flex:0 0 auto;text-align:center;font-weight:700;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #druck .tasche .fuss{flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:3mm}
   #druck .tasche .marke{font-size:3mm;color:#444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #druck .tasche .nr{font-size:6.5mm;font-weight:700;color:#042C53;letter-spacing:.02em;white-space:nowrap}
@@ -259,6 +262,18 @@
   td{padding:9px 5px;border-bottom:1px solid var(--line);font-size:14px;text-align:right}
   tr.low td{background:#FFF7F8}
   .tabwrap{overflow-x:auto}
+  /* Koffer-Packliste auf schmalen Handys (ab 21.5.0): Knöpfe in eine eigene Zeile unter dem Artikel */
+  @media (max-width:560px){
+    table.ktab, table.ktab thead, table.ktab tbody{display:block}
+    table.ktab tr{display:grid;grid-template-columns:minmax(0,1fr) 70px 62px 44px;column-gap:4px;align-items:center;border-bottom:1px solid var(--line)}
+    table.ktab tr.low{background:#FFF7F8}
+    table.ktab th, table.ktab td{border-bottom:none;min-width:0}
+    table.ktab th{overflow:hidden;letter-spacing:.04em;padding-left:2px;padding-right:2px}
+    table.ktab th:last-child{display:none}
+    table.ktab td:first-child{overflow-wrap:anywhere}
+    table.ktab td.akt{grid-column:1/-1;padding-top:0;text-align:right}
+  }
+  .sub.fest{color:var(--ink)}
   /* Lager → Orte (Werkstatt, Koffer als Unterbereiche) */
   .orte .zeile-btn{padding:10px 0 10px 28px}
   .orte .kopfzeile{display:flex;align-items:center;gap:10px;padding:2px 0 8px}

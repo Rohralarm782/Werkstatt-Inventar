@@ -87,7 +87,7 @@ const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlau
 const RECHNEN_NUR = ["rechnungErstellen","rechnungStatus","rStorno","rStornoOk"];
 const MANAGER_NUR = ["terminWeg","fotoLoeschen","ukHoch","ukUmbenennen","ukNameSpeichern","ukLoeschen","katUmbenennen","katNameSpeichern",
   "stueckLoeschen","serieLoeschen","radNrSpeichern","ktKuerzel","ktKuerzelOk"];
-const LESEN_C_OK = ["suche","uzTag","etVorlage","logoDatei"];
+const LESEN_C_OK = ["suche","uzTag","etVorlage","etMitCode","logoDatei"];
 function aktionErlaubt(a){
   if(IMMER_OK.indexOf(a) >= 0) return true;
   const r = rolle();
@@ -493,6 +493,19 @@ function sportlerView(){
          '<button class="btn voll ' + (t.length ? "" : "rot") + '" style="margin-top:10px" data-a="spProblem" data-x="' + esc(r.id) + '">' +
          (t.length ? tnr(t[0].id) + ' ansehen · Fotos ergänzen' : 'Problem melden') + '</button></div>';
   });
+  // Fest zugeordnetes Material (ab 21.5.0), z. B. Laufräder in der Laufradtasche
+  const ich = ICH && ICH.sportler_id, fest = ich ? (DB.stueck || []).filter(x => x.sportler_id === ich && x.ort !== "ausgemustert") : [];
+  if(fest.length){
+    h += '<h2 class="sec">Mein Material</h2><div class="card liste">';
+    fest.forEach(x => {
+      const t = spOffenesTicket("stueck:" + x.nummer);
+      const st = t ? '<span class="chip warn">Ticket offen</span>' : x.zustand === "defekt" ? '<span class="chip alarm">defekt</span>' : x.zustand === "zu prüfen" ? '<span class="chip warn">wird geprüft</span>' : '<span class="chip ok">ok</span>';
+      h += '<div class="eintrag"><div class="txt"><strong>' + esc(x.typ) + (x.marke ? ' · ' + esc(x.marke) : '') + '</strong><br><span class="sub">' +
+           esc([anzeigeNummer(x.nummer), x.detail, stueckOrtText(x)].filter(Boolean).join(" · ")) + '</span></div>' + st +
+           '<button class="btn small' + (t ? '' : ' rot') + '" data-a="spProblem" data-x="stueck:' + esc(x.nummer) + '">' + (t ? tnr(t.id) + ' · Fotos' : 'Problem melden') + '</button></div>';
+    });
+    h += '</div>';
+  }
   const leih = (DB.ausgeliehen || []).filter(z => num(z.menge) > 0);
   if(leih.length){
     h += '<h2 class="sec">Ausgeliehene Bekleidung</h2><div class="card liste">';
@@ -528,25 +541,36 @@ function sportlerView(){
   }
   return h;
 }
+/** Offenes Ticket für ein Rad (id) oder ein eigenes Teil ("stueck:NR"), sonst undefined. */
+function spOffenesTicket(ziel){
+  const nr = String(ziel).indexOf("stueck:") === 0 ? String(ziel).slice(7) : null;
+  return (DB.tickets||[]).filter(x => (x.status === "offen" || x.status === "angenommen") && (nr ? tStuecke(x).indexOf(nr) >= 0 : x.rad_id === ziel))
+    .sort((a, b) => a.id - b.id)[0];
+}
+/** Problem melden als Sportler: für ein eigenes Rad (radId) oder ab 21.6.0 für eigenes Material ("stueck:NR"). */
 function spProblemForm(radId){
-  const r = rad(radId);
+  const nr = String(radId).indexOf("stueck:") === 0 ? String(radId).slice(7) : null;
+  const s = nr ? stueckNr(nr) : null;
+  if(nr && !s){ toast("Das Teil gehört nicht zu dir.", true); return; }
+  const r = nr ? { id:anzeigeNummer(s.nummer), bezeichnung:s.typ + (s.marke ? " · " + s.marke : "") } : rad(radId);
   if(!r){ toast("Das Rad gehört nicht zu dir.", true); return; }
-  // Pro Rad nur ein offenes Ticket — dann dort Fotos ergänzen
-  const t = (DB.tickets||[]).filter(x => x.rad_id === r.id && (x.status === "offen" || x.status === "angenommen")).sort((a, b) => a.id - b.id)[0];
+  const was = nr ? "Teil" : "Rad";
+  // Pro Rad bzw. Teil nur ein offenes Ticket — dann dort Fotos ergänzen
+  const t = spOffenesTicket(radId);
   if(t){
     const n = (DB.fotoAnzahl || {})[t.id] || 0, frei = Math.max(FOTOS_PRO_TICKET - n, 0);
     modal('<h3>' + tnr(t.id) + ' ist offen</h3><p class="sub" style="margin-top:-6px">' + esc(r.bezeichnung || r.id) + ' · ' + esc(r.id) + '</p>' +
       '<div class="card"><strong>' + esc(t.problem) + '</strong><br><span class="sub">' + (t.status === "angenommen" ? "in Arbeit" : "gemeldet") + ' · ' + de(t.angelegt) +
       (t.fahrbereit ? '' : ' · steht') + '</span></div>' +
-      '<p class="sub">Für dieses Rad ist schon ein Ticket offen. Ein neues kannst du melden, wenn es erledigt ist — sonst sprich die Werkstatt direkt an.</p>' +
+      '<p class="sub">Für dieses ' + was + ' ist schon ein Ticket offen. Ein neues kannst du melden, wenn es erledigt ist — sonst sprich die Werkstatt direkt an.</p>' +
       (frei ? '<div class="feld"><span class="lbl">Fotos ergänzen (' + n + '/' + FOTOS_PRO_TICKET + ')</span><input type="file" id="spFotos" accept="image/*" multiple></div>' +
               '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Schließen</button><span class="sp"></span><button class="btn primary" data-a="spFotosOk" data-x="' + t.id + '">Fotos senden</button></div>'
             : '<p class="sub">Das Ticket hat schon ' + FOTOS_PRO_TICKET + ' Fotos.</p><div class="row"><span class="sp"></span><button class="btn" data-a="modalZu">Schließen</button></div>'));
     return;
   }
   modal('<h3>Problem melden</h3><p class="sub" style="margin-top:-6px">' + esc(r.bezeichnung || r.id) + ' · ' + esc(r.id) + '</p>' +
-    '<div class="feld"><span class="lbl">Was ist los?</span><textarea id="spText" placeholder="z. B. Kette springt im großen Gang"></textarea></div>' +
-    '<div class="feld"><span class="lbl">Kannst du noch fahren?</span><select id="spFahr"><option value="ja">Ja, fahrbereit</option><option value="nein">Nein — das Rad steht</option></select></div>' +
+    '<div class="feld"><span class="lbl">Was ist los?</span><textarea id="spText" placeholder="' + (nr ? 'z. B. Speiche lose, Lager läuft rau' : 'z. B. Kette springt im großen Gang') + '"></textarea></div>' +
+    '<div class="feld"><span class="lbl">' + (nr ? 'Kannst du es noch benutzen?' : 'Kannst du noch fahren?') + '</span><select id="spFahr"><option value="ja">' + (nr ? 'Ja, geht noch' : 'Ja, fahrbereit') + '</option><option value="nein">' + (nr ? 'Nein — nicht benutzbar' : 'Nein — das Rad steht') + '</option></select></div>' +
     '<div class="feld"><span class="lbl">Bis wann brauchst du es? (optional)</span><input type="date" id="spDatum"></div>' +
     '<div class="feld"><span class="lbl">Fotos (optional)</span><input type="file" id="spFotos" accept="image/*" multiple></div>' +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn rot" data-a="spProblemOk" data-x="' + esc(radId) + '">Melden</button></div>');
@@ -780,7 +804,8 @@ Object.assign(A, {
     const el = $("spFotos"), alle = el ? Array.from(el.files || []) : [];
     if(alle.length > FOTOS_PRO_TICKET) toast("Höchstens " + FOTOS_PRO_TICKET + " Fotos pro Ticket — es werden die ersten " + FOTOS_PRO_TICKET + " gesendet.", true);
     const dateien = alle.slice(0, FOTOS_PRO_TICKET);
-    const op = { p_rad:x, p_problem:text, p_fahrbereit:wert("spFahr") !== "nein", p_soll_fertig:wert("spDatum") || null,
+    const nr = String(x).indexOf("stueck:") === 0 ? String(x).slice(7) : null;
+    const op = { p_rad:nr ? null : x, p_stueck:nr, p_problem:text, p_fahrbereit:wert("spFahr") !== "nein", p_soll_fertig:wert("spDatum") || null,
                  p_naechstmoeglich:false, p_anlass:null, p_arbeitsort:"Werkstatt", p_positionen:[], p_client_id:neueId() };
     aktion(async () => {
       const id = await rpc("ticket_anlegen", op);

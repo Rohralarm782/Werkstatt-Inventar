@@ -333,6 +333,15 @@ const A = {
   },
 
   /* Koffer */
+  /* Position aus der Packliste nehmen (ab 21.6.0 mit eigenem Knopf, auch für Trainer/Mechaniker).
+     Liegt noch etwas davon im Koffer, erst zurückbuchen — sonst wäre es dort unsichtbar. */
+  kofferWeg: x => {
+    const [c, o] = x.split("|"), k = (DB.koffer||[]).find(y => y.code === c && y.ort === o);
+    if(!k) return;
+    if(num(k.ist) !== 0){ toast("Im Koffer liegen noch " + zahl(k.ist) + " " + ((artikel(c) || {}).einheit || "") + " — erst mit „Menge…“ zurück in die Werkstatt buchen.", true); render(); return; }
+    if(!confirm(k.name + " aus der Packliste von " + o + " nehmen?")){ render(); return; }
+    aktion(() => loeschen("koffer_soll", "code=eq." + encodeURIComponent(c) + "&ort=eq." + encodeURIComponent(o)), "Aus der Packliste genommen");
+  },
   kofferRein: x => {
     const [c, o] = x.split("|");
     if(hatGroessen(c)) return grWahl(c, "Werkstatt", "+1 in " + o, gr => { if(genugDaGr(c, "Werkstatt", gr, 1)) kofferUmbuchen(c, "Werkstatt", o, 1, gr + " eingepackt", gr); });
@@ -396,6 +405,7 @@ const A = {
     let kauf;
     try{ kauf = kaufWert("eKauf"); }catch(e){ toast(e.message, true); return; }
     const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:kauf, notiz:wert("eNotiz") || null };
+    if($("eFest")) d.sportler_id = wert("eFest") ? Number(wert("eFest")) : null;
     try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const mitTags = tags === undefined ? d : Object.assign({}, d, { tags });   // für die Anlege-Funktionen
@@ -635,11 +645,9 @@ const A = {
   radEtikett: x => { const r = rad(x); if(r) etikettDialog([etikettRad(r)], "QR-Etikett " + r.bezeichnung); },
   radEtikettenAlle: () => { const l = (DB.raeder||[]).filter(r => r.aktiv); etikettDialog(l.map(etikettRad), "QR-Etiketten · " + l.length + " Räder"); },
   etDrucken: () => {
-    const v = vorlage(wert("etVorlage")), start = Math.min(felderJeSeite(v), Math.max(1, Number(wert("etStart") || 1)));
+    const w = etikettWahl(), v = w.v, art = w.art, start = Math.min(felderJeSeite(v), Math.max(1, Number(wert("etStart") || 1)));
     const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1)));
-    const wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
-    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); if($("etKurz")) localStorage.setItem("wEtikettKurz", $("etKurz").checked ? "1" : "0"); }catch(e){}
-    const items = etikettAuftrag || [], quelle = etikettQuelle, leeren = !!($("etLeeren") && $("etLeeren").checked);
+    const items = (etikettAuftrag || []).map(it => etikettFuer(it, w.name, w.code)), quelle = etikettQuelle, leeren = !!($("etLeeren") && $("etLeeren").checked);
     let schmal = 0;
     if(art === "bar" && !v.tasche){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
@@ -652,9 +660,8 @@ const A = {
     etikettenDrucken(items, v, v.seite === "A4" ? start : 1, k, false, art);
   },
   etBilder: () => {
-    const v = vorlage(wert("etVorlage")), wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
-    try{ localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art); if($("etKurz")) localStorage.setItem("wEtikettKurz", $("etKurz").checked ? "1" : "0"); }catch(e){}
-    const items = etikettAuftrag || [];
+    const w = etikettWahl(), v = w.v, art = w.art;
+    const items = (etikettAuftrag || []).map(it => etikettFuer(it, w.name, w.code));
     if(v.tasche){ toast("Laufradtaschen-Tags gibt es nur zum Drucken auf A4 — bitte „Drucken“ nehmen.", true); return; }
     if(art === "bar"){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
@@ -923,6 +930,7 @@ const A = {
     let kauf;
     try{ kauf = kaufWert("eKauf"); }catch(e){ toast(e.message, true); return; }
     const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, notiz:wert("eNotiz") || null };
+    if($("eFest")) d.sportler_id = wert("eFest") ? Number(wert("eFest")) : null;
     if(!d.typ){ toast("Typ fehlt.", true); return; }
     const monate = Array.from(new Set(g.map(s => (s.kaufdatum || "").slice(0, 7))));
     if(kauf){ if(!(monate.length === 1 && monate[0] === kauf.slice(0, 7))) d.kaufdatum = kauf; }   // gleicher Monat: genaue Daten behalten
@@ -1085,7 +1093,14 @@ const C = {
     vorschauNummer(); ukBoxAktualisieren();
   },
   nrEigen: () => ukBoxAktualisieren(),
-  etVorlage: v => { const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"), c = $("etCodeFeld"); if(f) f.hidden = vo.seite !== "A4"; if(c) c.hidden = !!vo.tasche; if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; } },
+  etVorlage: v => {
+    const vo = vorlage(v), f = $("etStartFeld"), i = $("etStart"), c = $("etCodeFeld"), mc = $("etMitCodeFeld"), cb = $("etMitCode");
+    if(f) f.hidden = vo.seite !== "A4";
+    if(mc) mc.hidden = !!vo.tasche;
+    if(c) c.hidden = !!vo.tasche || !!(cb && !cb.checked);
+    if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; }
+  },
+  etMitCode: () => { const c = $("etCodeFeld"), cb = $("etMitCode"), vo = vorlage(wert("etVorlage")); if(c) c.hidden = !!vo.tasche || !!(cb && !cb.checked); },
   artGruppe: v => {
     artikelSichtbar();
     const g = $("nrGruppe"), k = $("nrKat");
@@ -1139,9 +1154,8 @@ const C = {
   kofferSoll: (v, x) => {
     const [c, o] = x.split("|"), s = Number(String(v).replace(",", "."));
     if(isNaN(s) || s < 0) return;
-    if(s === 0 && !darf("manager")){ toast("Positionen aus der Packliste entfernt der Werkstatt-Manager.", true); render(); return; }
-    aktion(() => s === 0 ? loeschen("koffer_soll", "code=eq." + encodeURIComponent(c) + "&ort=eq." + encodeURIComponent(o))
-                         : aendern("koffer_soll", "code=eq." + encodeURIComponent(c) + "&ort=eq." + encodeURIComponent(o), { soll:s }));
+    if(s === 0){ A.kofferWeg(x); return; }
+    aktion(() => aendern("koffer_soll", "code=eq." + encodeURIComponent(c) + "&ort=eq." + encodeURIComponent(o), { soll:s }));
   },
   kofferNeu: (v, x) => { if(v) aktion(() => neuIn("koffer_soll", { code:v, ort:x, soll:1 }), "Zur Packliste hinzugefügt"); },
   stueckOrt: (v, x) => {

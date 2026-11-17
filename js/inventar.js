@@ -11,7 +11,9 @@ function stueckKategorie(nr){ return codeBuchstabe(nr) || "?"; }
 function kategorieName(k){ return katNamen()[k] || "Kategorie " + k; }
 /** Gleiche Teile = gleicher Typ, Marke, Detail, in derselben Kategorie und mit denselben Tags
     (Kategorie-Tags und übergreifende; die Marke steckt schon im Feld). */
-function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).concat([stueckKategorie(s.nummer), tagsVon("stueck", s.nummer).concat(globTagsVon("stueck", s.nummer, true)).join("+"), mkSchluessel(s)]).join("|"); }
+function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).concat([stueckKategorie(s.nummer), tagsVon("stueck", s.nummer).concat(globTagsVon("stueck", s.nummer, true)).join("+"), mkSchluessel(s), s.sportler_id || ""]).join("|"); }
+/** „fest: Max Mustermann“ für Karten, sonst "" (ab 21.5.0). */
+function festText(s){ return s && s.sportler_id ? "fest: " + sportlerName(s.sportler_id) : ""; }
 
 /* ---------------------------------------------------------------
    Tags — je Kategorie-Buchstabe eine eigene Liste (wie früher die
@@ -276,7 +278,7 @@ function stueckKarte(s, gesperrt, zusatz){
   const tk = stueckTicket(s.nummer);
   if(tk) h += '<button class="chip warn" style="border:none;cursor:pointer;margin-left:4px" data-a="zumTicket" data-x="' + tk.id + '">Ticket ' + tnr(tk.id) + ' ›</button>';
   const mt = mkText(s, zielVon("stueck", s));
-  h += '</div>' + (mt ? '<p class="sub" style="margin:6px 0 0">' + esc(mt) + '</p>' : '') + '<p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';
+  h += '</div>' + (mt ? '<p class="sub" style="margin:6px 0 0">' + esc(mt) + '</p>' : '') + (s.sportler_id ? '<p class="sub fest" style="margin:6px 0 0">' + esc(festText(s)) + '</p>' : '') + '<p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';
   h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
   orte().concat(s.ort !== "am Rad" && orte().indexOf(s.ort) < 0 && s.ort !== "ausgemustert" ? [s.ort] : [], ["ausgemustert"])
     .forEach(o => h += '<option value="' + esc(o) + '"' + (s.ort === o ? " selected" : "") + '>' + esc(o) + '</option>');
@@ -295,7 +297,8 @@ function serienKarte(gruppe, offen, zusatz){
   const ortText = Object.keys(orte).length === 1 ? "alle " + Object.keys(orte)[0] : Object.keys(orte).map(o => orte[o] + "× " + o).join(" · ");
   const mt = mkText(s0, zielVon("stueck", s0));
   let h = '<div class="card serie"><div class="row wrapr"><span><strong class="anzahl">' + gruppe.length + '×</strong> ' + esc(s0.typ) + (s0.marke ? ' · ' + esc(s0.marke) : '') +
-          (s0.detail || mt ? '<br><span class="sub">' + esc([s0.detail, mt].filter(Boolean).join(" · ")) + '</span>' : '') + '</span><span class="sp"></span><span class="chips">' + chips + '</span></div>';
+          (s0.detail || mt ? '<br><span class="sub">' + esc([s0.detail, mt].filter(Boolean).join(" · ")) + '</span>' : '') +
+          (s0.sportler_id ? '<br><span class="sub fest">' + esc(festText(s0)) + '</span>' : '') + '</span><span class="sp"></span><span class="chips">' + chips + '</span></div>';
   const daten = Array.from(new Set(gruppe.map(s => (s.kaufdatum || "").slice(0, 7))));
   const kauf = daten.length === 1 ? (daten[0] ? " · gekauft " + monatJahr(daten[0]) : "") : " · verschiedene Kaufdaten";
   h += '<p class="sub" style="margin:8px 0"><span class="mono">' + esc(nummernText(gruppe.map(s => s.nummer))) + '</span> · ' + esc(ortText) + esc(kauf) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';
@@ -320,6 +323,7 @@ function serieForm(key){
     mkBox("stueck", zielVon("stueck", s0), s0.merkmale, stueckKategorie(s0.nummer)) +
     kaufFeld("eKauf", kaufVerschieden ? "" : (monate[0] ? monate[0] + "-01" : "")) +
     (kaufVerschieden ? '<p class="sub" style="margin:-4px 0 8px">Die Stücke haben verschiedene Kaufdaten. Leer lassen = unverändert.</p>' : '') +
+    festFeld(s0.sportler_id || null) +
     feld("Notiz", "eNotiz", gleich("notiz")) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="serieSpeichern" data-x="' + esc(key) + '">Für alle speichern</button></div>');
 }
@@ -395,7 +399,7 @@ function inventarView(){
   const alle = view.zeigAus ? roh : roh.filter(s => s.ort !== "ausgemustert" || (qRoh && s.nummer.toLowerCase() === qRoh));
   // Suche zuerst; Kategorie/Tag filtern danach (die Zahlen an den Knöpfen passen zur Suche)
   const q = view.suche.toLowerCase();
-  const gesucht = alle.filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "") + " " + tagNamen(alleTagsVon("stueck", s.nummer)) + " " + mkSuchtext(s)).toLowerCase().indexOf(q) >= 0);
+  const gesucht = alle.filter(s => !q || (s.nummer + " " + s.typ + " " + (s.marke||"") + " " + (s.detail||"") + " " + (s.rad_id ? (rad(s.rad_id)||{}).fahrer || "" : "") + " " + (s.sportler_id ? sportlerName(s.sportler_id) : "") + " " + tagNamen(alleTagsVon("stueck", s.nummer)) + " " + mkSuchtext(s)).toLowerCase().indexOf(q) >= 0);
   h += katFilterZeile("inv", gesucht);
   h += '<div class="feld"><input type="search" data-c="suche" placeholder="Nummer, Typ, Marke, Fahrer, Tag" value="' + esc(view.suche) + '"></div>';
   h += sortZeile("inv", "Kategorie");

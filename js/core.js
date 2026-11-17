@@ -377,6 +377,16 @@ function istKoffer(name){ const o = lagerort(name); return !!o && o.art === "kof
 function standardOrt(){ return view.lOrt && raumOrte().indexOf(view.lOrt) >= 0 ? view.lOrt : HAUPT; }
 
 function sportlerName(id){ const s = (DB.sportler||[]).find(x => x.id === id); return s ? s.name : ""; }
+/** Kurzform für Etiketten (ab 21.5.0): „Max Mustermann“ → „Max M.“; ein Wort bleibt, wie es ist. */
+function kurzName(name){
+  const w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return w.length < 2 ? (w[0] || "") : w[0] + " " + w[w.length - 1].charAt(0).toUpperCase() + ".";
+}
+/** <option>s „fest zugeordnet an“: aktive Sportler (keine Kostenträger) plus der gewählte. */
+function festOptionen(wert){
+  return '<option value="">niemand</option>' + sportlerListe().filter(s => s.aktiv || s.id === wert)
+    .map(s => '<option value="' + s.id + '"' + (s.id === wert ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>').join("");
+}
 /* Sportler und Kostenträger (ab 21.3.0 getrennt): beide stehen in DB.sportler,
    Kostenträger mit art = "kostentraeger" (Verein, LV, BSP …). */
 function istKT(s){ return !!s && s.art === "kostentraeger"; }

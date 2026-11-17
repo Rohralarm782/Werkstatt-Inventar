@@ -1,11 +1,10 @@
 # Version
 
-**21.4.0** — 17.11.2026
+**21.6.0** — 17.11.2026
 
-Größen für Werkstattmaterial: Zipper-Beutel, Kabelbinder, Tape usw. bleiben
-ein Artikel, der Bestand wird aber je Größe geführt. Mindestbestand je Größe,
-Bestellliste je Größe. Der Koffer bleibt pro Artikel. Dazu „Was ist neu?“:
-Nach einem Update sieht jede Person einmal, was sich für sie geändert hat.
+Sportler melden Probleme für ihr fest zugeordnetes Material. Koffer-Packliste:
+Artikel per ✕ herausnehmen, auch für Trainer/Mechaniker. Etiketten zeigen die
+Nummer ohne Standort-Kürzel.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -26,6 +25,8 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.6.0 | 17.11.2026 | Sportler melden Probleme für eigenes Material, Packliste per ✕ aufräumen (auch Trainer), Etiketten ohne Standort-Kürzel (Migration) |
+| 21.5.0 | 17.11.2026 | Einzelstücke fest einem Sportler zuordnen, Name/Code wählbar auf Etiketten, Name rot auf Laufradtaschen-Tag, „Mein Material“ für Sportler, Koffer-Packliste mobil (Migration) |
 | 21.4.0 | 17.11.2026 | Größen für Werkstattmaterial (Bestand, Entnahme, Einpacken je Größe), Mindestbestand je Größe, „Was ist neu?“ nach Updates (Migration) |
 | 21.3.0 | 14.11.2026 | Sportler und Kostenträger getrennt, eigene Rad-Nummern je Kostenträger (SN-DAS-BR-01), Eigentümer „Fahrer selbst“ (Migration) |
 | 21.2.0 | 26.10.2026 | Laden in einer Anfrage (app_daten), ZXing defer, Schriften lokal, Suche entprellt, Altlasten raus (Migration) |

@@ -405,7 +405,7 @@ function kofferDetail(ort){
   }
   h += '<div class="card">';
   if(zeilen.length){
-    h += '<div class="tabwrap"><table><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th></th></tr></thead><tbody>';
+    h += '<div class="tabwrap"><table class="ktab"><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th></th></tr></thead><tbody>';
     zeilen.forEach(k => {
       // Artikel mit Größen (ab 21.4.0): was im Koffer je Größe liegt
       const grK = hatGroessen(k.code) ? groessenSpalten(k.code, ort).filter(g => amOrtGr(k.code, ort, g) !== 0).map(g => grName(g) + " " + zahl(amOrtGr(k.code, ort, g))) : [];
@@ -414,9 +414,10 @@ function kofferDetail(ort){
       const ein = (artikel(k.code) || {}).einheit || "";
       h += '<td class="mono"><strong>' + zahl(k.ist) + '</strong>' + (ein && ein !== "Stück" ? ' <span class="sub">' + esc(ein) + '</span>' : '') + '</td>';
       h += '<td class="mono" style="color:' + (num(k.fehlt) > 0 ? "var(--sprint)" : "var(--ink-2)") + '">' + (num(k.fehlt) > 0 ? zahl(k.fehlt) : "–") + '</td>';
-      h += '<td style="white-space:nowrap"><button class="btn small" data-a="kofferRein" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>+1</button> ' +
+      h += '<td class="akt" style="white-space:nowrap"><button class="btn small" data-a="kofferRein" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>+1</button> ' +
            '<button class="btn small" data-a="kofferRaus" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>−1</button> ' +
-           '<button class="btn small" data-a="kofferMenge" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>Menge…</button></td></tr>';
+           '<button class="btn small" data-a="kofferMenge" data-x="' + esc(k.code) + '|' + ort + '"' + gesperrt + '>Menge…</button> ' +
+           '<button class="btn small" data-a="kofferWeg" data-x="' + esc(k.code) + '|' + ort + '" title="aus der Packliste entfernen" aria-label="' + esc(k.name) + ' aus der Packliste entfernen"' + gesperrt + '>✕</button></td></tr>';
     });
     h += '</tbody></table></div>';
     const offen = zeilen.filter(k => num(k.fehlt) > 0).length;
@@ -431,7 +432,7 @@ function kofferDetail(ort){
     st.forEach(s => h += '<div class="sub" style="color:var(--ink)">' + esc(s.nummer) + ' · ' + esc(s.typ) + '</div>');
     h += '</div>';
   }
-  h += '<p class="sub">+1, −1 und „Menge…“ buchen zwischen Werkstatt und Koffer um, „Alles Fehlende einpacken“ füllt jede Position bis zum Soll auf (soweit in der Werkstatt frei; Artikel mit Größen einzeln mit +1 oder „Menge…“, dort die Größe wählen). Der Lagerbestand bleibt gleich, nur „frei“ ändert sich.</p>';
+  h += '<p class="sub">✕ nimmt einen Artikel aus der Packliste (geht, wenn nichts mehr davon im Koffer liegt). +1, −1 und „Menge…“ buchen zwischen Werkstatt und Koffer um, „Alles Fehlende einpacken“ füllt jede Position bis zum Soll auf (soweit in der Werkstatt frei; Artikel mit Größen einzeln mit +1 oder „Menge…“, dort die Größe wählen). Der Lagerbestand bleibt gleich, nur „frei“ ändert sich.</p>';
   const n = (DB.termine||[]).length;
   h += '<button class="btn small link" data-a="geheMehr" data-x="termine">Rennen &amp; Termine' + (n ? ' · ' + n : '') + ' — warnt 10 Tage vorher, wenn im Koffer etwas fehlt</button>';
   return h;

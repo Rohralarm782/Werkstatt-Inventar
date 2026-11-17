@@ -28,9 +28,10 @@ function felderJeSeite(v){ return v.seite === "A4" ? v.sp * v.ze : 1; }
 let etikettAuftrag = null, etikettQuelle = null;
 function appUrl(){ return location.origin + location.pathname; }
 function radQrText(id){ return appUrl() + "?rad=" + encodeURIComponent(id); }
-function etikettStueck(s){ return { typ:"stueck", id:s.nummer, qr:s.nummer, bc:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : ""), art:s.typ, marke:s.marke || "" }; }
+function etikettStueck(s){ return { typ:"stueck", id:s.nummer, qr:s.nummer, bc:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : ""), art:s.typ, marke:s.marke || "",
+                                     name:s.sportler_id ? kurzName(sportlerName(s.sportler_id)) : "" }; }
 function etikettArtikel(a){ return { typ:"artikel", id:a.code, qr:a.code, bc:a.code, titel:a.code, zeile:a.name }; }
-function etikettRad(r){ return { typ:"rad", id:r.id, qr:radQrText(r.id), bc:r.id, titel:r.id, zeile:r.bezeichnung, fuss:"Problem? Scannen → Ticket" }; }
+function etikettRad(r){ return { typ:"rad", id:r.id, qr:radQrText(r.id), bc:r.id, titel:r.id, zeile:r.bezeichnung, fuss:"Problem? Scannen → Ticket", name:r.fahrer ? kurzName(r.fahrer) : "" }; }
 /** Eintrag der Druckliste → Etikett mit aktuellen Daten (oder null, wenn es das nicht mehr gibt). */
 function etikettAus(e){
   if(e.typ === "stueck"){ const s = stueckNr(e.id); return s ? etikettStueck(s) : null; }
@@ -62,9 +63,16 @@ function etikettDialog(items, titel, mitKopien, quelle){
   h += '<div class="feld"><span class="lbl">Etiketten-Art</span><div class="row" style="gap:8px"><select id="etVorlage" data-c="etVorlage" style="flex:1">' +
        alleVorlagen().map(x => '<option value="' + esc(x.id) + '"' + (x.id === v.id ? " selected" : "") + '>' + esc(vorlageText(x)) + '</option>').join("") +
        '</select><button class="btn small" data-a="vorlagenVerwalten">eigene …</button></div></div>';
-  h += '<div class="feld" id="etCodeFeld"' + (v.tasche ? " hidden" : "") + '><span class="lbl">Code</span><div class="row" style="gap:16px">' +
+  const mitN = items.filter(x => x.name).length;
+  h += '<div class="feld"><span class="lbl">Auf dem Etikett</span><div class="row wrapr" style="gap:16px">' +
+       '<label class="row" style="gap:6px"><input type="checkbox" id="etName"' + (mitName() ? " checked" : "") + '> Name (Sportler bzw. Fahrer)</label>' +
+       '<label class="row" style="gap:6px" id="etMitCodeFeld"' + (v.tasche ? " hidden" : "") + '><input type="checkbox" id="etMitCode" data-c="etMitCode"' + (mitCode() ? " checked" : "") + '> Code</label></div>' +
+       '<p class="sub" style="margin:6px 0 0">' + (mitN ? (mitN === items.length ? (items.length === 1 ? 'Name: ' + esc(items[0].name) : 'Alle haben einen Namen.') : mitN + ' von ' + items.length + ' haben einen Namen, die anderen bleiben ohne.')
+                                                    : 'Keins hat einen zugeordneten Sportler bzw. Fahrer.') +
+       ' Ohne Code: nur Name und Nummer, groß.</p></div>';
+  h += '<div class="feld" id="etCodeFeld"' + (v.tasche || !mitCode() ? " hidden" : "") + '><span class="lbl">Code</span><div class="row" style="gap:16px">' +
        [["qr","QR-Code"],["bar","Barcode (für schmale Etiketten)"]].map(o => '<label class="row" style="gap:6px"><input type="radio" name="etCode" value="' + o[0] + '"' + (codeArt() === o[0] ? " checked" : "") + '> ' + o[1] + '</label>').join("") +
-       '</div><label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" id="etKurz"' + (barKurz() ? " checked" : "") + '> Barcode ohne Standort-Kürzel (dickere Striche, besser lesbar)</label></div>';
+       '</div><label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" id="etKurz"' + (barKurz() ? " checked" : "") + '> Kurzer Barcode: Standort-Kürzel nicht mit in die Striche (dickere Striche, besser lesbar)</label></div>';
   h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (v.seite === "A4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld</span>' +
        '<input type="number" id="etStart" value="1" min="1" max="' + felderJeSeite(v) + '" inputmode="numeric"></div>';
   h += mitKopien ? feld("Anzahl je Etikett", "etKopien", 1, "number", ' min="1" max="50" inputmode="numeric"') : '';
@@ -77,6 +85,36 @@ function etikettDialog(items, titel, mitKopien, quelle){
   h += '<button class="btn" data-a="etBilder" title="für Etikettendrucker mit Handy-App">als Bild</button>';
   h += '<button class="btn primary" data-a="etDrucken">Drucken</button></div>';
   modal(h);
+}
+
+/** Name mit drucken? / Code mit drucken? (Gerät merkt es sich; Standard: ja.) */
+function mitName(){ try{ return localStorage.getItem("wEtikettName") !== "0"; }catch(e){ return true; } }
+function mitCode(){ try{ return localStorage.getItem("wEtikettMitCode") !== "0"; }catch(e){ return true; } }
+/** Häkchen und Auswahl aus dem Druckdialog lesen und merken. Gibt { v, art, name, code }. */
+function etikettWahl(){
+  const v = vorlage(wert("etVorlage")), wahl = document.querySelector('input[name="etCode"]:checked'), art = wahl && wahl.value === "bar" ? "bar" : "qr";
+  const name = !$("etName") || $("etName").checked, code = v.tasche || !$("etMitCode") || $("etMitCode").checked;
+  try{
+    localStorage.setItem("wEtikettVorlage", v.id); localStorage.setItem("wEtikettCode", art);
+    if($("etKurz")) localStorage.setItem("wEtikettKurz", $("etKurz").checked ? "1" : "0");
+    if($("etName")) localStorage.setItem("wEtikettName", name ? "1" : "0");
+    if($("etMitCode") && !v.tasche) localStorage.setItem("wEtikettMitCode", code ? "1" : "0");
+  }catch(e){}
+  return { v, art:code ? art : "text", name, code };
+}
+/** Etikett für den Druck: ohne Name, wenn nicht gewählt; ohne Code fällt der Scan-Hinweis weg. */
+function etikettFuer(it, name, code){
+  const x = Object.assign({}, it);
+  if(!name) x.name = "";
+  if(!code) x.fuss = "";
+  return x;
+}
+/** Barcode-Etikett: wo der Name hinkommt. Mit Platz für zwei Textzeilen unten statt des Hinweises,
+    sonst ersetzt er die Bezeichnung oben (kleine Etiketten wie 62 × 29 mm). */
+function barMitName(it, v){
+  if(!it.name) return it;
+  const L = barLayout(Object.assign({}, it, { fuss:"x" }), v);
+  return Object.assign({}, it, L.mitFuss ? { fuss:it.name, nameUnten:true } : { zeile:it.name, nameOben:true });
 }
 
 /** Gewählte Code-Art auf diesem Gerät: "qr" oder "bar". */
@@ -152,7 +190,7 @@ function barLayout(it, v){
   const b = Number(v.b), h = Number(v.h), rund = v.form === "rund", d = Math.min(b, h);
   const W = barBreiteMm(v), H = rund ? d * 0.6 : h - 2 * Math.min(2, b * 0.05, h * 0.08);
   const pad = rund ? 0 : Math.min(2, b * 0.05, h * 0.08);
-  const titel = String(it.titel || it.bc);
+  const titel = anzeigeNummer(it.titel || it.bc);   // ohne eigenes Standort-Kürzel (ab 21.6.0)
   const t = Math.max(1.6, Math.min(4.5, H * 0.2, W / (anzeigeNummer(titel).length * 0.7)));
   const mitZeile = !!it.zeile && H >= 14, z = Math.max(1.6, Math.min(2.8, H * 0.12));
   const mitFuss = !!it.fuss && !rund && H >= 26;
@@ -163,10 +201,10 @@ function barLayout(it, v){
 function barcodeInhalt(it, v, cache){
   const L = barLayout(it, v), mm = x => x.toFixed(2) + "mm";
   return { cls:"hoch barcode" + (L.rund ? " rund" : ""), stil:"padding:" + mm(L.pad),
-    html:(L.mitZeile ? '<div class="z" style="font-size:' + mm(L.z) + ';max-width:' + mm(L.W) + '">' + esc(it.zeile) + '</div>' : '') +
+    html:(L.mitZeile ? '<div class="z' + (it.nameOben ? ' name' : '') + '" style="font-size:' + mm(L.z) + ';max-width:' + mm(L.W) + '">' + esc(it.zeile) + '</div>' : '') +
          '<div class="bar" style="width:' + mm(L.W) + ';height:' + mm(L.strich) + '">' + barSvg(barText(it), cache) + '</div>' +
          '<div class="t" style="font-size:' + mm(L.t) + ';margin-top:' + mm(0.4) + '">' + esc(L.titel) + '</div>' +
-         (L.mitFuss ? '<div class="z" style="font-size:' + mm(L.z * 0.8) + '">' + esc(it.fuss) + '</div>' : '') };
+         (L.mitFuss ? '<div class="z' + (it.nameUnten ? ' name' : '') + '" style="font-size:' + mm(L.z * (it.nameUnten ? 1 : 0.8)) + ';max-width:' + mm(L.W) + '">' + esc(it.fuss) + '</div>' : '') };
 }
 
 /* ---- Etikett als Bild (PNG) — für Etikettendrucker mit Handy-App (z. B. Katasymbol E11):
@@ -211,14 +249,25 @@ function etikettBild(it, v, art){
   ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.fillStyle = "#000"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
   const titel = anzeigeNummer(it.titel || it.bc || it.qr);
+  if(art === "text"){
+    // ohne Code (ab 21.5.0): Nummer groß, Name darunter, Bezeichnung klein
+    const L = textLayout(it, v);
+    const hoch = L.t * 1.05 + (L.mitName ? L.n * 1.2 : 0) + (L.mitZeile ? L.z * 1.3 : 0);
+    let y = (h - hoch) / 2;
+    bildText(ctx, L.titel, b * P / 2, (y + L.t * 0.85) * P, L.W * P, L.t * P, true); y += L.t * 1.05;
+    if(L.mitName){ bildText(ctx, it.name, b * P / 2, (y + L.n * 0.95) * P, L.W * P, L.n * P, true); y += L.n * 1.2; }
+    if(L.mitZeile) bildText(ctx, it.zeile, b * P / 2, (y + L.z * 1.05) * P, L.W * P, L.z * P, false);
+    return cv;
+  }
   if(art === "bar" && it.bc){
+    it = barMitName(it, v);
     const L = barLayout(it, v);
     const hoch = (L.mitZeile ? L.z * 1.3 : 0) + L.strich + 0.4 + L.t * 1.15 + (L.mitFuss ? L.z * 1.1 : 0);
     let y = (h - hoch) / 2;
-    if(L.mitZeile){ bildText(ctx, it.zeile, b * P / 2, (y + L.z) * P, L.W * P, L.z * P, false); y += L.z * 1.3; }
+    if(L.mitZeile){ bildText(ctx, it.zeile, b * P / 2, (y + L.z) * P, L.W * P, L.z * P, !!it.nameOben); y += L.z * 1.3; }
     bildBarcode(ctx, barText(it), (b - L.W) / 2 * P, y * P, L.W * P, L.strich * P); y += L.strich + 0.4;
     bildText(ctx, titel, b * P / 2, (y + L.t * 0.95) * P, L.W * P, L.t * P, true); y += L.t * 1.15;
-    if(L.mitFuss) bildText(ctx, it.fuss, b * P / 2, (y + L.z * 0.8) * P, L.W * P, L.z * 0.8 * P, false);
+    if(L.mitFuss) bildText(ctx, it.fuss, b * P / 2, (y + L.z * 0.8) * P, L.W * P, L.z * (it.nameUnten ? 1 : 0.8) * P, !!it.nameUnten);
     return cv;
   }
   if(!rund && b / h >= 1.4){
@@ -227,20 +276,22 @@ function etikettBild(it, v, art){
     const t = Math.min(5.5, h * 0.15), z = Math.max(2.2, Math.min(3, h * 0.08));
     bildQr(ctx, it.qr, pad * P, pad * P, q * P);
     ctx.textAlign = "left";
-    let y = h / 2 - (t + (it.zeile ? z * 1.4 : 0) + (it.fuss ? z * 1.2 : 0)) / 2 + t * 0.85;
+    let y = h / 2 - (t + (it.zeile ? z * 1.4 : 0) + (it.name ? z * 1.5 : 0) + (it.fuss ? z * 1.2 : 0)) / 2 + t * 0.85;
     bildText(ctx, titel, tx * P, y * P, tw * P, t * P, true); y += z * 1.4;
     if(it.zeile){ bildText(ctx, anzeigeNummer(it.zeile), tx * P, y * P, tw * P, z * P, false); y += z * 1.2; }
+    if(it.name){ y += z * 0.2; bildText(ctx, it.name, tx * P, y * P, tw * P, z * 1.15 * P, true); y += z * 1.3; }
     if(it.fuss) bildText(ctx, it.fuss, tx * P, y * P, tw * P, z * 0.8 * P, false);
     return cv;
   }
   // hoch oder rund: QR oben, Nummer darunter
   const d = Math.min(b, h), q = rund ? d * 0.5 : Math.min(b * 0.75, h * 0.62), t = Math.min(5, d * 0.12), z = Math.max(1.8, d * 0.06);
-  const mitZeile = !!it.zeile && (!rund || d >= 35);
-  const hoch = q + d * 0.03 + t * 1.05 + (mitZeile ? z * 1.2 : 0);
+  const mitZeile = !!it.zeile && (!rund || d >= 35), mitN = !!it.name && (!rund || d >= 35);
+  const hoch = q + d * 0.03 + t * 1.05 + (mitZeile ? z * 1.2 : 0) + (mitN ? z * 1.35 : 0);
   let y = (h - hoch) / 2;
   bildQr(ctx, it.qr, (b - q) / 2 * P, y * P, q * P); y += q + d * 0.03;
   bildText(ctx, titel, b * P / 2, (y + t * 0.9) * P, (rund ? d * 0.8 : b * 0.94) * P, t * P, true); y += t * 1.05;
-  if(mitZeile) bildText(ctx, anzeigeNummer(it.zeile), b * P / 2, (y + z) * P, (rund ? d * 0.7 : b * 0.94) * P, z * P, false);
+  if(mitZeile){ bildText(ctx, anzeigeNummer(it.zeile), b * P / 2, (y + z) * P, (rund ? d * 0.7 : b * 0.94) * P, z * P, false); y += z * 1.2; }
+  if(mitN) bildText(ctx, it.name, b * P / 2, (y + z * 1.15) * P, (rund ? d * 0.7 : b * 0.94) * P, z * 1.15 * P, true);
   return cv;
 }
 function leinwandBlob(cv){ return new Promise((ok, nein) => cv.toBlob(bl => bl ? ok(bl) : nein(new Error("Bild konnte nicht erstellt werden.")), "image/png")); }
@@ -283,7 +334,7 @@ async function etikettBilderTeilen(art){
 /* ---- Laufradtaschen-Tag (80 × 53 mm, Klarsichttasche): Kopfband mit Verband, Typ groß, Nummer ohne Standort-Kürzel.
    Bogen: 2 Spalten ohne Lücke (die Bänder stoßen aneinander, ein Schnitt in der Mitte), Zeilen mit 3 mm Lücke.
    Das Band läuft 2 mm über den Rand nach oben und außen (Beschnitt), damit schiefe Schnitte keine weißen Blitzer geben. ---- */
-const TASCHE = { verband1:"RADSPORT-VERBAND", verband2:"Mecklenburg-Vorpommern", farbe:"#0C447C", band:14, beschnitt:2 };
+const TASCHE = { verband1:"RADSPORT-VERBAND", verband2:"Mecklenburg-Vorpommern", farbe:"#0C447C", nameFarbe:"#A32D2D", band:14, beschnitt:2 };
 /** Typ einpassen: eine Zeile, bei langem Text zwei Zeilen an der Leerstelle nahe der Mitte. Gibt { zeilen, mm }. */
 function taschenTyp(text, breite, hoehe){
   text = String(text || "").trim() || "Laufrad";
@@ -300,10 +351,13 @@ function taschenTyp(text, breite, hoehe){
 function taschenInhalt(it, v){
   const b = Number(v.b), h = Number(v.h), mm = x => x.toFixed(2) + "mm", rand = 4, fuss = 9;
   const nummer = anzeigeNummer(it.titel || it.bc || "");
-  const typ = taschenTyp(it.art || it.zeile || "", b - 2 * rand, h - TASCHE.band - fuss - 2);
+  // Name (ab 21.5.0): rot unter dem Typ, nimmt dem Typ etwas Höhe
+  const nameMm = it.name ? Math.max(4, Math.min(8, (b - 2 * rand) / (it.name.length * 0.62))) : 0;
+  const typ = taschenTyp(it.art || it.zeile || "", b - 2 * rand, h - TASCHE.band - fuss - 2 - (nameMm ? nameMm * 1.25 : 0));
   return { cls:"tasche", stil:"",
     html:'<div class="kopf" style="height:' + mm(TASCHE.band) + ';padding:0 ' + mm(rand) + '"><div class="v1">' + esc(TASCHE.verband1) + '</div><div class="v2">' + esc(TASCHE.verband2) + '</div></div>' +
          '<div class="typ" style="font-size:' + mm(typ.mm) + ';padding:0 ' + mm(rand) + '">' + typ.zeilen.map(esc).join("<br>") + '</div>' +
+         (nameMm ? '<div class="name" style="font-size:' + mm(nameMm) + ';padding:0 ' + mm(rand) + ';color:' + TASCHE.nameFarbe + '">' + esc(it.name) + '</div>' : '') +
          '<div class="fuss" style="height:' + mm(fuss) + ';padding:0 ' + mm(rand) + ' ' + mm(2.5) + '"><span class="marke">' + esc(it.marke || "") + '</span>' +
          '<span class="nr">' + esc(nummer) + '</span></div>' };
 }
@@ -338,24 +392,45 @@ function qrSvg(text, cache){
 /** Inhalt eines Etiketts passend zur Größe: quer (QR links, Text rechts) oder hoch/rund (QR oben, Nummer darunter). */
 function etikettInhalt(it, v, cache, art){
   if(v.tasche) return taschenInhalt(it, v);
-  if(art === "bar" && it.bc) return barcodeInhalt(it, v, cache);
+  if(art === "text") return textInhalt(it, v);
+  if(art === "bar" && it.bc) return barcodeInhalt(barMitName(it, v), v, cache);
   const b = Number(v.b), h = Number(v.h), rund = v.form === "rund";
   const mm = x => x.toFixed(2) + "mm";
   if(!rund && b / h >= 1.4){
     const pad = Math.min(3, h * 0.08), q = h - 2 * pad;
     const t = Math.min(5.5, h * 0.15, (b - q - 3 * pad) / 4.2), z = Math.max(2.2, Math.min(3, h * 0.08));
     return { cls:"quer", stil:"padding:" + mm(pad) + ";gap:" + mm(pad),
-      html:'<div class="qr" style="width:' + mm(q) + ';height:' + mm(q) + '">' + qrSvg(it.qr, cache) + '</div><div class="txt"><div class="t" style="font-size:' + mm(t) + '">' + esc(it.titel) + '</div>' +
+      html:'<div class="qr" style="width:' + mm(q) + ';height:' + mm(q) + '">' + qrSvg(it.qr, cache) + '</div><div class="txt"><div class="t" style="font-size:' + mm(t) + '">' + esc(anzeigeNummer(it.titel)) + '</div>' +
            '<div class="z" style="font-size:' + mm(z) + ';margin-top:' + mm(z * 0.4) + '">' + esc(it.zeile || "") + '</div>' +
+           (it.name ? '<div class="z name" style="font-size:' + mm(z * 1.15) + ';margin-top:' + mm(z * 0.4) + '">' + esc(it.name) + '</div>' : '') +
            (it.fuss ? '<div class="z" style="font-size:' + mm(z * 0.8) + ';margin-top:' + mm(z * 0.4) + '">' + esc(it.fuss) + '</div>' : '') + '</div>' };
   }
   // hoch oder rund: QR oben, Nummer darunter; bei rund kleiner, damit alles im Kreis liegt
   const d = Math.min(b, h), q = rund ? d * 0.5 : Math.min(b * 0.75, h * 0.62), t = Math.min(5, d * 0.12), z = Math.max(1.8, d * 0.06);
   return { cls:"hoch" + (rund ? " rund" : ""), stil:"padding:" + mm(d * 0.06),
     html:'<div class="qr" style="width:' + mm(q) + ';height:' + mm(q) + '">' + qrSvg(it.qr, cache) + '</div>' +
-         '<div class="t" style="font-size:' + mm(t) + ';margin-top:' + mm(d * 0.03) + '">' + esc(it.titel) + '</div>' +
+         '<div class="t" style="font-size:' + mm(t) + ';margin-top:' + mm(d * 0.03) + '">' + esc(anzeigeNummer(it.titel)) + '</div>' +
          (it.zeile && !rund ? '<div class="z" style="font-size:' + mm(z) + '">' + esc(it.zeile) + '</div>' : '') +
-         (it.zeile && rund && d >= 35 ? '<div class="z" style="font-size:' + mm(z) + ';max-width:' + mm(d * 0.7) + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(it.zeile) + '</div>' : '') };
+         (it.zeile && rund && d >= 35 ? '<div class="z" style="font-size:' + mm(z) + ';max-width:' + mm(d * 0.7) + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(it.zeile) + '</div>' : '') +
+         (it.name && (!rund || d >= 35) ? '<div class="z name" style="font-size:' + mm(z * 1.15) + ';max-width:' + mm(rund ? d * 0.7 : b * 0.94) + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(it.name) + '</div>' : '') };
+}
+/** Maße für ein Etikett ohne Code: Nummer groß, Name darunter, Bezeichnung klein (wenn Platz). Werte in mm. */
+function textLayout(it, v){
+  const b = Number(v.b), h = Number(v.h), rund = v.form === "rund", d = Math.min(b, h);
+  const W = rund ? d * 0.78 : b - 2 * Math.min(3, b * 0.06), H = rund ? d * 0.7 : h - 2 * Math.min(2.5, h * 0.08);
+  const titel = anzeigeNummer(it.titel || it.bc || "");
+  const mitName = !!it.name, mitZeile = !!it.zeile && H >= (mitName ? 24 : 14);
+  const t = Math.max(3, Math.min(H * (mitName ? 0.36 : 0.5), W / (Math.max(1, titel.length) * 0.62), 14));
+  const n = mitName ? Math.max(2.5, Math.min(H * 0.26, W / (Math.max(1, it.name.length) * 0.58), 10)) : 0;
+  const z = mitZeile ? Math.max(1.8, Math.min(3, H * 0.11)) : 0;
+  return { b, h, rund, W, titel, t, n, z, mitName, mitZeile };
+}
+function textInhalt(it, v){
+  const L = textLayout(it, v), mm = x => x.toFixed(2) + "mm";
+  return { cls:"hoch text" + (L.rund ? " rund" : ""), stil:"",
+    html:'<div class="t" style="font-size:' + mm(L.t) + ';max-width:' + mm(L.W) + '">' + esc(L.titel) + '</div>' +
+         (L.mitName ? '<div class="z name" style="font-size:' + mm(L.n) + ';max-width:' + mm(L.W) + ';margin-top:' + mm(L.n * 0.15) + '">' + esc(it.name) + '</div>' : '') +
+         (L.mitZeile ? '<div class="z" style="font-size:' + mm(L.z) + ';max-width:' + mm(L.W) + ';margin-top:' + mm(L.z * 0.3) + '">' + esc(it.zeile) + '</div>' : '') };
 }
 /** Druckt items auf Vorlage v; start = erstes freies Feld (Bogen); test = nur Umrisse mit Feldnummern; art = "qr" oder "bar". */
 function etikettenDrucken(items, v, start, kopien, test, art){

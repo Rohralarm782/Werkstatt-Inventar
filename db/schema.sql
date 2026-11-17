@@ -1,7 +1,7 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 21.4.0 — für eine NEUE, leere Datenbank.
+--  Stand 21.6.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
@@ -11,8 +11,9 @@
 --   db/migration_20.2.0.sql, db/migration_20.5.0.sql,
 --   db/migration_20.7.0.sql, db/migration_20.8.0.sql,
 --   db/migration_21.0.0.sql, db/migration_21.1.0.sql,
---   db/migration_21.1.1.sql, db/migration_21.2.0.sql, db/migration_21.3.0.sql
---   und db/migration_21.4.0.sql.)
+--   db/migration_21.1.1.sql, db/migration_21.2.0.sql, db/migration_21.3.0.sql,
+--   db/migration_21.4.0.sql, db/migration_21.5.0.sql und
+--   db/migration_21.6.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -217,9 +218,11 @@ create table stueck (
   check ((ort = 'am Rad') = (rad_id is not null)),
   standort_id  bigint not null references standort (id),
   geaendert_am  timestamptz not null default now(),  -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
-  merkmale      jsonb not null default '{}'::jsonb check (jsonb_typeof(merkmale) = 'object')   -- ab 21.0.0
+  merkmale      jsonb not null default '{}'::jsonb check (jsonb_typeof(merkmale) = 'object'),   -- ab 21.0.0
+  sportler_id   bigint references sportler (id)   -- fest zugeordneter Sportler, z. B. Laufradtasche (ab 21.5.0; Trigger stueck_sportler)
 );
 create index stueck_standort on stueck (standort_id);
+create index stueck_sportler on stueck (sportler_id) where sportler_id is not null;
 
 -- Tags der Artikel und Einzelstücke (Tags der eigenen Kategorie und
 -- übergreifende Tags; geändert wird über tags_setzen / tag_zuordnen bzw.
@@ -1714,11 +1717,12 @@ declare
   v_raeder   text[];
   v_wer      text;
   v_aufwand  text;
+  v_fest     boolean;
 begin
   if ich_id() is null then raise exception 'Nicht angemeldet – bitte neu anmelden' using errcode = '28000'; end if;
   v_st := akt_standort();
   if v_st is null then raise exception 'Kein Zugriff auf diesen Standort'; end if;
-  -- Werkstatt-Rolle geht vor; sonst nur als Sportler (eigene Räder)
+  -- Werkstatt-Rolle geht vor; sonst nur als Sportler (eigene Räder und fest zugeordnetes Material)
   v_rolle := case when rolle_in('admin', 'manager', 'trainer') then 'werkstatt'
                   when mein_sportler() is not null then 'sportler' end;
   if v_rolle is null then raise exception 'Keine Berechtigung'; end if;
@@ -1742,25 +1746,40 @@ begin
     from unnest(v_stuecke) as n where not exists (select 1 from stueck where nummer = n and standort_id = v_st);
   if v_fehlt is not null then raise exception 'Unbekanntes Einzelstück: %', v_fehlt; end if;
 
+  -- Sportler meldet für eigenes Material (ab 21.6.0): alle Teile fest ihm zugeordnet
+  v_fest := v_rolle = 'sportler' and cardinality(v_stuecke) > 0
+            and not exists (select 1 from stueck where nummer = any (v_stuecke) and sportler_id is distinct from mein_sportler());
+
   -- Ohne Rad: stecken die Teile an genau einem Rad, gilt das Ticket für dieses Rad
-  if v_rad is null and cardinality(v_stuecke) > 0 then
+  -- (nicht bei eigenem Material eines Sportlers: dann gilt es für die Teile)
+  if v_rad is null and cardinality(v_stuecke) > 0 and not v_fest then
     select array_agg(distinct rad_id) into v_raeder from stueck where nummer = any (v_stuecke) and rad_id is not null;
     if cardinality(v_raeder) = 1 then v_rad := v_raeder[1]; end if;
   end if;
   -- Ohne Rad und ohne Einzelstück: allgemeines Ticket (z. B. Werkstatt aufräumen), nicht für Sportler
 
   if v_rolle = 'sportler' then
-    if v_rad is null or not mein_rad(v_rad) then raise exception 'Tickets nur für die eigenen Räder'; end if;
-    if exists (select 1 from stueck where nummer = any (v_stuecke) and rad_id is distinct from v_rad) then
-      raise exception 'Nur Teile, die an deinem Rad sind';
-    end if;
     p_positionen := '[]'::jsonb;
     p_arbeitsort := 'Werkstatt';
-    -- Pro Rad höchstens ein offenes Ticket, wenn ein Sportler meldet
-    perform pg_advisory_xact_lock(hashtext('ticket_rad_' || v_rad));
-    select id into v_id from ticket where rad_id = v_rad and status in ('offen', 'angenommen') order by id limit 1;
-    if v_id is not null then
-      raise exception 'Für dieses Rad ist schon ein Ticket offen (T-%) – ergänze dort Fotos oder sprich die Werkstatt an', lpad(v_id::text, 4, '0');
+    if v_rad is null and v_fest then
+      -- Eigenes Material: pro Teil höchstens ein offenes Ticket
+      perform pg_advisory_xact_lock(hashtext('ticket_sportler_' || mein_sportler()));
+      select t.id into v_id from ticket t join ticket_stueck ts on ts.ticket_id = t.id
+       where ts.nummer = any (v_stuecke) and t.status in ('offen', 'angenommen') order by t.id limit 1;
+      if v_id is not null then
+        raise exception 'Für dieses Teil ist schon ein Ticket offen (T-%) – ergänze dort Fotos oder sprich die Werkstatt an', lpad(v_id::text, 4, '0');
+      end if;
+    else
+      if v_rad is null or not mein_rad(v_rad) then raise exception 'Tickets nur für die eigenen Räder und das eigene Material'; end if;
+      if exists (select 1 from stueck where nummer = any (v_stuecke) and rad_id is distinct from v_rad) then
+        raise exception 'Nur Teile, die an deinem Rad sind';
+      end if;
+      -- Pro Rad höchstens ein offenes Ticket, wenn ein Sportler meldet
+      perform pg_advisory_xact_lock(hashtext('ticket_rad_' || v_rad));
+      select id into v_id from ticket where rad_id = v_rad and status in ('offen', 'angenommen') order by id limit 1;
+      if v_id is not null then
+        raise exception 'Für dieses Rad ist schon ein Ticket offen (T-%) – ergänze dort Fotos oder sprich die Werkstatt an', lpad(v_id::text, 4, '0');
+      end if;
     end if;
   end if;
 
@@ -1786,6 +1805,10 @@ begin
     select case when eigentuemer_fahrer then v_fahrer else eigentuemer_id end into v_kt
       from rad where id = v_rad and standort_id = v_st;
     if not found then raise exception 'Unbekanntes Rad: %', v_rad; end if;
+  elsif cardinality(v_stuecke) > 0 then
+    -- Nur Einzelstücke, alle fest bei einem Sportler (ab 21.6.0): er ist der Fahrer des Tickets
+    select min(sportler_id) into v_fahrer from stueck where nummer = any (v_stuecke)
+    having count(distinct sportler_id) = 1 and count(*) = count(sportler_id);
   end if;
 
   insert into ticket (rad_id, fahrer_id, problem, fahrbereit, soll_fertig, naechstmoeglich,
@@ -2336,7 +2359,7 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtext('nummernvergabe'));
   v_nr := naechster_code(p_buchstabe, p_gruppe);
-  insert into stueck (nummer, typ, marke, detail, seriennummer, kaufdatum, wert, notiz, standort_id, merkmale)
+  insert into stueck (nummer, typ, marke, detail, seriennummer, kaufdatum, wert, notiz, standort_id, merkmale, sportler_id)
   values (v_nr,
           p_daten ->> 'typ',
           nullif(p_daten ->> 'marke', ''),
@@ -2346,7 +2369,8 @@ begin
           (p_daten ->> 'wert')::numeric,
           nullif(p_daten ->> 'notiz', ''),
           v_st,
-          coalesce(p_daten -> 'merkmale', '{}'::jsonb));
+          coalesce(p_daten -> 'merkmale', '{}'::jsonb),
+          nullif(p_daten ->> 'sportler_id', '')::bigint);
   insert into stueck_tag (nummer, tag_id)
     select v_nr, t.id from tag t
      where (t.buchstabe = p_buchstabe or t.gruppe <> 'Marke') and t.standort_id = v_st
@@ -2931,6 +2955,18 @@ begin
 end $$;
 
 -- Einzelstücke liegen an einem Lagerort des Standorts, am Rad oder sind ausgemustert.
+-- Fest zugeordnet (ab 21.5.0): nur Sportler desselben Standorts, keine Kostenträger.
+create or replace function stueck_sportler_pruefen() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if new.sportler_id is null then return new; end if;
+  if tg_op = 'UPDATE' and new.sportler_id is not distinct from old.sportler_id and new.standort_id = old.standort_id then return new; end if;
+  if not exists (select 1 from sportler where id = new.sportler_id and standort_id = new.standort_id and art = 'sportler') then
+    raise exception 'Fest zuordnen geht nur an einen Sportler dieses Standorts (kein Kostenträger)';
+  end if;
+  return new;
+end $$;
+
 create or replace function stueck_ort_pruefen() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -3979,6 +4015,8 @@ create trigger koffer_soll_ort       before insert or update on koffer_soll for 
 create trigger termin_koffer         before insert or update on termin      for each row execute function koffer_pruefen();
 create trigger buchung_groesse       before insert on buchung    for each row execute function groesse_pruefen();
 create trigger stueck_ort            before insert or update of ort, standort_id on stueck for each row execute function stueck_ort_pruefen();
+create trigger stueck_sportler before insert or update of sportler_id, standort_id on stueck
+  for each row execute function stueck_sportler_pruefen();
 create trigger artikel_nummer before update of code on artikel
   for each row when (new.code is distinct from old.code) execute function nummer_schutz();
 create trigger stueck_nummer before update of nummer on stueck
@@ -4228,7 +4266,8 @@ end $$;
 --    R  = Rechnungen: admin, manager, geschaeftsstelle
 --  Ein Konto kann mehrere Rollen haben (ab 18.0.0); es darf, was
 --  eine seiner Rollen darf.
---  Sportler sehen nur, was ihnen zugeordnet ist (ihre Räder, Tickets,
+--  Sportler sehen nur, was ihnen zugeordnet ist (ihre Räder, fest
+--  zugeordnete Einzelstücke, Tickets,
 --  Rechnungen, Buchungen) und die Artikel- und Kategorienamen.
 --  Buchungen außer Zugängen, Abschließen, Stornieren, Rechnungen und
 --  Konten laufen ausschließlich über die Datenbankfunktionen.
@@ -4326,7 +4365,9 @@ create policy lesen on zuordnung for select to anonymous
 
 create policy lesen on stueck for select to anonymous
   using (standort_id = (select akt_standort())
-         and ((select rolle_in('admin', 'manager', 'trainer', 'geschaeftsstelle')) or (rad_id is not null and mein_rad(rad_id))));
+         and ((select rolle_in('admin', 'manager', 'trainer', 'geschaeftsstelle'))
+              or (rad_id is not null and mein_rad(rad_id))
+              or (sportler_id is not null and sportler_id = (select mein_sportler()))));
 create policy anlegen on stueck for insert to anonymous
   with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager', 'trainer')) and eigener_code(nummer)
               and (rad_id is null or exists (select 1 from rad r where r.id = stueck.rad_id)));
@@ -4400,8 +4441,8 @@ create policy anlegen on koffer_soll for insert to anonymous
 create policy aendern on koffer_soll for update to anonymous
   using (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager', 'trainer')))
   with check (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager', 'trainer')));
-create policy loeschen on koffer_soll for delete to anonymous
-  using (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager')));
+create policy loeschen on koffer_soll for delete to anonymous   -- ab 21.6.0 auch Trainer/Mechaniker
+  using (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager', 'trainer')));
 
 create policy lesen on termin for select to anonymous
   using (standort_id = (select akt_standort()) and (select rolle_in('admin', 'manager', 'trainer', 'geschaeftsstelle')));
