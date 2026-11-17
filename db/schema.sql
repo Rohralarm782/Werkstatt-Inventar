@@ -1,7 +1,7 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 21.3.0 — für eine NEUE, leere Datenbank.
+--  Stand 21.4.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
@@ -11,7 +11,8 @@
 --   db/migration_20.2.0.sql, db/migration_20.5.0.sql,
 --   db/migration_20.7.0.sql, db/migration_20.8.0.sql,
 --   db/migration_21.0.0.sql, db/migration_21.1.0.sql,
---   db/migration_21.1.1.sql, db/migration_21.2.0.sql und db/migration_21.3.0.sql.)
+--   db/migration_21.1.1.sql, db/migration_21.2.0.sql, db/migration_21.3.0.sql
+--   und db/migration_21.4.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -161,11 +162,12 @@ create table artikel (
   aktiv            boolean not null default true,
   dauer_min        integer check (dauer_min is null or dauer_min >= 0),  -- Arbeitszeit je Stück bzw. Leistung
   standort_id  bigint not null references standort (id),
-  groessen  text[] check (groessen is null or cardinality(groessen) between 1 and 40),   -- Bekleidung: Größen (ab 16.0.0), sonst leer
+  groessen  text[] check (groessen is null or cardinality(groessen) between 1 and 40),   -- Größen: Bekleidung (ab 16.0.0), Werkstattmaterial (ab 21.4.0); sonst leer
   geaendert_am  timestamptz not null default now(),  -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
   packungsinhalt  numeric check (packungsinhalt is null or packungsinhalt > 0),  -- Inhalt einer Shop-Packung in der Einheit des Artikels (ab 20.7.0), z. B. 500 bei Bremsöl in ml
   marke  text,   -- Hersteller (ab 20.8.0); setzt den passenden Tag der Gruppe „Marke“
-  merkmale jsonb not null default '{}'::jsonb check (jsonb_typeof(merkmale) = 'object')   -- ab 21.0.0, siehe merkmal
+  merkmale jsonb not null default '{}'::jsonb check (jsonb_typeof(merkmale) = 'object'),   -- ab 21.0.0, siehe merkmal
+  mindest_groesse jsonb check (mindest_groesse is null or jsonb_typeof(mindest_groesse) = 'object')   -- ab 21.4.0: Mindestbestand je Größe {"3 L": 2}; fehlt eine Größe, gilt mindestbestand
 );
 create index artikel_standort on artikel (standort_id);
 
@@ -1586,7 +1588,7 @@ end $$;
 create or replace function material_ausgeben(
   p_code text, p_menge numeric, p_ort text default 'Werkstatt',
   p_sportler bigint default null, p_ticket bigint default null, p_notiz text default null,
-  p_bearbeiter text default null
+  p_bearbeiter text default null, p_groesse text default null
 ) returns numeric
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -1600,6 +1602,9 @@ begin
   select * into a from artikel where code = p_code and standort_id = v_st;
   if not found then raise exception 'Unbekannter Artikel: %', p_code; end if;
   perform ort_pruefen(v_st, p_ort);
+  -- Größen (ab 21.4.0): bei Artikeln mit Größen muss die Größe dabei sein; die prüft der Trigger groesse_pruefen
+  p_groesse := nullif(btrim(p_groesse), '');
+  if a.groessen is not null and p_groesse is null then raise exception 'Bitte eine Größe angeben (%)', a.name; end if;
   if p_sportler is not null then
     select abrechnen into v_abr from sportler where id = p_sportler and standort_id = v_st;
     if not found then raise exception 'Unbekannter Sportler'; end if;
@@ -1614,8 +1619,8 @@ begin
     v_grp := gen_random_uuid();
   end if;
 
-  insert into buchung (art, code, menge, ort, sportler_id, ticket_id, einzelpreis, abrechnen, notiz, bearbeiter, gruppe, standort_id)
-  values ('entnahme', p_code, -p_menge, p_ort, p_sportler, p_ticket, a.preis, coalesce(v_abr, false), p_notiz, p_bearbeiter, v_grp, v_st);
+  insert into buchung (art, code, groesse, menge, ort, sportler_id, ticket_id, einzelpreis, abrechnen, notiz, bearbeiter, gruppe, standort_id)
+  values ('entnahme', p_code, p_groesse, -p_menge, p_ort, p_sportler, p_ticket, a.preis, coalesce(v_abr, false), p_notiz, p_bearbeiter, v_grp, v_st);
 
   if v_grp is not null then
     insert into buchung (art, code, menge, ort, sportler_id, ticket_id, einzelpreis, abrechnen, notiz, bearbeiter, gruppe, standort_id)
@@ -1628,22 +1633,27 @@ end $$;
 
 -- Material zwischen Lagerorten verschieben (zwei Buchungen).
 create or replace function umbuchen(p_code text, p_menge numeric, p_von text, p_nach text,
-                                    p_notiz text default null, p_bearbeiter text default null)
+                                    p_notiz text default null, p_bearbeiter text default null, p_groesse text default null)
 returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_st bigint := recht_arbeiten();
   g    uuid   := gen_random_uuid();
+  v_gr text[];
 begin
   p_bearbeiter := ich_name();
   if p_von = p_nach then raise exception 'Von und nach sind gleich'; end if;
   if p_menge is null or p_menge <= 0 then raise exception 'Menge muss größer als 0 sein'; end if;
-  if not exists (select 1 from artikel where code = p_code and standort_id = v_st) then raise exception 'Unbekannter Artikel: %', p_code; end if;
+  select groessen into v_gr from artikel where code = p_code and standort_id = v_st;
+  if not found then raise exception 'Unbekannter Artikel: %', p_code; end if;
+  -- Größen (ab 21.4.0): bei Artikeln mit Größen wird je Größe umgebucht
+  p_groesse := nullif(btrim(p_groesse), '');
+  if v_gr is not null and p_groesse is null then raise exception 'Bitte eine Größe angeben (%)', p_code; end if;
   perform ort_pruefen(v_st, p_von);
   perform ort_pruefen(v_st, p_nach);
-  insert into buchung (art, code, menge, ort, gruppe, notiz, bearbeiter, standort_id) values
-    ('umbuchung', p_code, -p_menge, p_von,  g, p_notiz, p_bearbeiter, v_st),
-    ('umbuchung', p_code,  p_menge, p_nach, g, p_notiz, p_bearbeiter, v_st);
+  insert into buchung (art, code, groesse, menge, ort, gruppe, notiz, bearbeiter, standort_id) values
+    ('umbuchung', p_code, p_groesse, -p_menge, p_von,  g, p_notiz, p_bearbeiter, v_st),
+    ('umbuchung', p_code, p_groesse,  p_menge, p_nach, g, p_notiz, p_bearbeiter, v_st);
 end $$;
 
 -- Inventur: gezählten Bestand eintragen, die Differenz wird gebucht.
@@ -1658,6 +1668,9 @@ begin
   p_bearbeiter := ich_name();
   if p_gezaehlt is null or p_gezaehlt < 0 then raise exception 'Gezählte Menge fehlt'; end if;
   if not exists (select 1 from artikel where code = p_code and standort_id = v_st) then raise exception 'Unbekannter Artikel: %', p_code; end if;
+  if exists (select 1 from artikel where code = p_code and groessen is not null) then   -- ab 21.4.0
+    raise exception 'Artikel mit Größen bitte je Größe zählen (Artikel antippen → Inventur)';
+  end if;
   perform ort_pruefen(v_st, p_ort);
   select coalesce(sum(menge), 0) into v_ist from buchung where code = p_code and ort = p_ort and standort_id = v_st;
   v_diff := p_gezaehlt - v_ist;
@@ -2285,7 +2298,7 @@ begin
   v_code := naechster_code(p_buchstabe, p_gruppe);
   insert into artikel (code, name, einheit, preis, mindestbestand, lieferzeit_tage, art,
                        verbraucht_code, verbrauch_menge, lieferant, bestellnummer, shop_link, aktiv, dauer_min, standort_id, groessen,
-                       packungsinhalt, marke, merkmale)
+                       packungsinhalt, marke, merkmale, mindest_groesse)
   values (v_code,
           p_daten ->> 'name',
           coalesce(nullif(p_daten ->> 'einheit', ''), 'Stück'),
@@ -2305,7 +2318,8 @@ begin
                then array(select jsonb_array_elements_text(p_daten -> 'groessen')) end,
           (p_daten ->> 'packungsinhalt')::numeric,
           nullif(btrim(p_daten ->> 'marke'), ''),
-          coalesce(p_daten -> 'merkmale', '{}'::jsonb));
+          coalesce(p_daten -> 'merkmale', '{}'::jsonb),
+          case when jsonb_typeof(p_daten -> 'mindest_groesse') = 'object' then p_daten -> 'mindest_groesse' end);
   insert into artikel_tag (code, tag_id)
     select v_code, t.id from tag t
      where (t.buchstabe = p_buchstabe or t.gruppe <> 'Marke') and t.standort_id = v_st
@@ -4464,8 +4478,8 @@ grant execute on function
   standorte_verwaltung(), standort_manager_einladen(bigint, text), manager_neuer_code(bigint), manager_aktiv(bigint, boolean),
   -- Werkstatt
   rad_zuordnen(text, bigint),
-  material_ausgeben(text, numeric, text, bigint, bigint, text, text),
-  umbuchen(text, numeric, text, text, text, text),
+  material_ausgeben(text, numeric, text, bigint, bigint, text, text, text),
+  umbuchen(text, numeric, text, text, text, text, text),
   inventur(text, text, numeric, text),
   inventur_buchen(text, jsonb, text, uuid),
   ticket_anlegen(text, text, boolean, date, boolean, text, text, jsonb, text, uuid, text, text[], text, text),

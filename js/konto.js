@@ -78,7 +78,7 @@ const IMMER_OK = ["anmWahl","anmName","anmNameOk","anmCode","anmCodeOk","anmCode
   "geraetEinstellen","geraetModus","werWahl","werWahlAbbrechen","codeKopieren","codeTeilen",
   "kontNeu","kontNeuOk","kontBearbeiten","kontSpeichern","kontCode","kontAktiv","sportlerZugang","standortNeu","standortNeuOk","standortHin",
   "stManagerNeu","stManagerNeuOk","stManagerCode","stManagerAktiv",
-  "briefkopfSpeichern","logoWeg","spProblem","spProblemOk","spFotosOk","spTicket","modalZu","modalHintergrund"];
+  "briefkopfSpeichern","logoWeg","spProblem","spProblemOk","spFotosOk","spTicket","modalZu","modalHintergrund","neuigkeiten","neuGelesen"];
 const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlaufTicket","verlaufRad","mat","matFilter","kofferAuf","kofferZu","rt","radAuf","radZu",
   "geheMehr","mehrZu","teilZeigen","oeffnen","zurueck","scan","drucken","artikelMenue","export","rechnungZeigen","rechnungDrucken","postenZeigen","fotoZeigen",
   "bestellZu","bestellKopieren","bestellWarenkorb","bestellWarenkorbOk","buchungenArtikel","serieEtiketten","stueckEtikett","artikelEtikett","radEtikett","radEtikettenAlle","etDrucken","etSammeln","etZurueck","etBilder","etTeilen","sortWahl",

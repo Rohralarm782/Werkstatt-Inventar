@@ -292,14 +292,22 @@ const A = {
   formInventur: x => formInventur(x),
   formEntnahme: x => formEntnahme(x),
   entnahmeBuchen: x => {
-    const m = zahlOderNull("fMenge");
+    const m = zahlOderNull("fMenge"), gr = hatGroessen(x) ? wert("fGr") : "";
     if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
-    if(!genugDa(x, wert("fOrt"), m)) return;
-    const a = artikel(x);
-    aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:m, p_ort:wert("fOrt"), p_notiz:wert("fNotiz") || null, p_bearbeiter:bearbeiter || null }),
-           "Entnahme gebucht · " + zahl(m) + " " + (a ? a.einheit : ""));
+    if(hatGroessen(x) && !gr){ toast("Bitte die Größe wählen.", true); return; }
+    if(gr ? !genugDaGr(x, wert("fOrt"), gr, m) : !genugDa(x, wert("fOrt"), m)) return;
+    const a = artikel(x), p = { p_code:x, p_menge:m, p_ort:wert("fOrt"), p_notiz:wert("fNotiz") || null, p_bearbeiter:bearbeiter || null };
+    if(gr) p.p_groesse = gr;
+    aktion(() => rpc("material_ausgeben", p), "Entnahme gebucht · " + zahl(m) + " " + (a ? a.einheit : "") + (gr ? " " + gr : ""));
   },
   wEntnahme: x => {
+    // Mit Größen (ab 21.4.0): erst die Größe antippen
+    if(hatGroessen(x)) return grWahl(x, HAUPT, "Eins entnehmen", gr => {
+      if(!genugDaGr(x, HAUPT, gr, 1)) return;
+      const a = artikel(x);
+      aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:1, p_ort:HAUPT, p_bearbeiter:bearbeiter || null, p_groesse:gr }),
+             () => "−1 " + (a ? a.name : x) + " " + gr + " · noch " + zahl(amOrtGr(x, HAUPT, gr)));
+    });
     if(!genugDa(x, "Werkstatt", 1)) return;
     const a = artikel(x);
     aktion(() => rpc("material_ausgeben", { p_code:x, p_menge:1, p_ort:"Werkstatt", p_bearbeiter:bearbeiter || null }),
@@ -325,32 +333,46 @@ const A = {
   },
 
   /* Koffer */
-  kofferRein: x => { const [c, o] = x.split("|"); if(!genugDa(c, "Werkstatt", 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null })); },
-  kofferRaus: x => { const [c, o] = x.split("|"); if(!genugDa(c, o, 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt", p_bearbeiter:bearbeiter || null })); },
+  kofferRein: x => {
+    const [c, o] = x.split("|");
+    if(hatGroessen(c)) return grWahl(c, "Werkstatt", "+1 in " + o, gr => { if(genugDaGr(c, "Werkstatt", gr, 1)) kofferUmbuchen(c, "Werkstatt", o, 1, gr + " eingepackt", gr); });
+    if(!genugDa(c, "Werkstatt", 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null }));
+  },
+  kofferRaus: x => {
+    const [c, o] = x.split("|");
+    if(hatGroessen(c)) return grWahl(c, o, "−1 aus " + o, gr => { if(genugDaGr(c, o, gr, 1)) kofferUmbuchen(c, o, "Werkstatt", 1, gr + " zurück in die Werkstatt", gr); });
+    if(!genugDa(c, o, 1)) return; aktion(() => rpc("umbuchen", { p_code:c, p_menge:1, p_von:o, p_nach:"Werkstatt", p_bearbeiter:bearbeiter || null }));
+  },
+  grWahlOk: x => { const z = grWahlZiel; if(!z) return; const gr = z.l[Number(x)]; grWahlZiel = null; modalZu(); if(gr != null) z.cb(gr); },
   kofferMenge: x => { const [c, o] = x.split("|"); formKofferMenge(c, o); },
   kofferMengeRein: x => {
-    const [c, o] = x.split("|"), m = zahlOderNull("fMenge");
+    const [c, o] = x.split("|"), m = zahlOderNull("fMenge"), gr = hatGroessen(c) ? wert("fGr") : "";
     if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
-    if(!genugDa(c, "Werkstatt", m)) return;
-    kofferUmbuchen(c, "Werkstatt", o, m, zahl(m) + " " + ((artikel(c)||{}).einheit || "") + " eingepackt");
+    if(hatGroessen(c) && !gr){ toast("Bitte die Größe wählen.", true); return; }
+    if(gr ? !genugDaGr(c, "Werkstatt", gr, m) : !genugDa(c, "Werkstatt", m)) return;
+    kofferUmbuchen(c, "Werkstatt", o, m, zahl(m) + " " + ((artikel(c)||{}).einheit || "") + (gr ? " " + gr : "") + " eingepackt", gr);
   },
   kofferMengeRaus: x => {
-    const [c, o] = x.split("|"), m = zahlOderNull("fMenge");
+    const [c, o] = x.split("|"), m = zahlOderNull("fMenge"), gr = hatGroessen(c) ? wert("fGr") : "";
     if(!m || m <= 0){ toast("Menge fehlt.", true); return; }
-    if(!genugDa(c, o, m)) return;
-    kofferUmbuchen(c, o, "Werkstatt", m, zahl(m) + " " + ((artikel(c)||{}).einheit || "") + " zurück in die Werkstatt");
+    if(hatGroessen(c) && !gr){ toast("Bitte die Größe wählen.", true); return; }
+    if(gr ? !genugDaGr(c, o, gr, m) : !genugDa(c, o, m)) return;
+    kofferUmbuchen(c, o, "Werkstatt", m, zahl(m) + " " + ((artikel(c)||{}).einheit || "") + (gr ? " " + gr : "") + " zurück in die Werkstatt", gr);
   },
   kofferAuffuellen: o => {
     const plan = [], knapp = [];
+    const mitGr = [];   // Artikel mit Größen: einzeln einpacken, dort die Größe wählen (ab 21.4.0)
     (DB.koffer||[]).filter(k => k.ort === o && num(k.fehlt) > 0).forEach(k => {
+      if(hatGroessen(k.code)){ mitGr.push(k.name); return; }
       const b = bestand(k.code), frei = istLeistung(k.code) || !b ? num(k.fehlt) : Math.max(greifbar(k.code, HAUPT, null), 0);
       const m = Math.min(num(k.fehlt), frei);
       if(m > 0) plan.push({ code:k.code, menge:m });
       if(m < num(k.fehlt)) knapp.push(k.name + " (" + zahl(m) + " von " + zahl(k.fehlt) + ")");
     });
-    if(!plan.length){ toast("In der Werkstatt ist nichts davon frei.", true); return; }
+    if(!plan.length){ toast(mitGr.length ? "Artikel mit Größen bitte einzeln einpacken (+1 oder „Menge…“): " + mitGr.join(", ") : "In der Werkstatt ist nichts davon frei.", true); return; }
     const text = "Einpacken in " + o + ":\n" + plan.map(p => "• " + zahl(p.menge) + " " + ((artikel(p.code)||{}).einheit || "") + " " + ((artikel(p.code)||{}).name || p.code)).join("\n") +
-                 (knapp.length ? "\n\nNicht genug frei in der Werkstatt:\n" + knapp.map(t => "• " + t).join("\n") : "") + "\n\nUmbuchen?";
+                 (knapp.length ? "\n\nNicht genug frei in der Werkstatt:\n" + knapp.map(t => "• " + t).join("\n") : "") +
+                 (mitGr.length ? "\n\nMit Größen, bitte einzeln einpacken:\n" + mitGr.map(t => "• " + t).join("\n") : "") + "\n\nUmbuchen?";
     if(!confirm(text)) return;
     aktion(async () => {
       for(const p of plan) await rpc("umbuchen", { p_code:p.code, p_menge:p.menge, p_von:"Werkstatt", p_nach:o, p_bearbeiter:bearbeiter || null });
@@ -462,36 +484,61 @@ const A = {
                 verbrauch_menge: zahlOderNull("aVerbM"), lieferant:wert("aLief") || null, bestellnummer:wert("aBest") || null,
                 shop_link:wert("aLink") || null, packungsinhalt: zahlOderNull("aPack") > 0 ? zahlOderNull("aPack") : null, aktiv: wert("aAktiv") === "true",
                 dauer_min: zahlOderNull("aDauer") == null ? null : Math.max(0, Math.round(zahlOderNull("aDauer"))) };
-    // Werkstatt-Artikel haben keine Größen; Bekleidung braucht welche
-    let gr = null;
+    // Bekleidung braucht Größen; Werkstattmaterial darf welche haben (ab 21.4.0), andere Artikel nicht
+    let gr = null, mg = null;
+    const wGr = !kleid && grFeldAn();
     if(kleid){
       gr = groessenLesen(wert("aGroessen"));
       if(gr === false) return;
       if(!gr){ toast("Bitte Größen eintragen (oder „One Size“).", true); return; }
+    } else if(wGr){
+      gr = groessenLesen(wert("aGroessen"));
+      if(gr === false) return;
+      if(gr){
+        mg = {};
+        let falsch = false;
+        document.querySelectorAll("#modal [data-agm]").forEach(e => {
+          const t = String(e.value).trim(); if(t === "" || gr.indexOf(e.dataset.agm) < 0) return;
+          const n = Number(t.replace(",", "."));
+          if(isNaN(n) || n < 0) falsch = true; else mg[e.dataset.agm] = n;
+        });
+        if(falsch){ toast("Mindestbestand: ungültige Zahl.", true); return; }
+      }
+      if(x && hatGroessen(x) && !gr && !confirm("Größen entfernen? Der Bestand wird dann nicht mehr je Größe geführt.")) return;
     } else if(x && hatGroessen(x) && !confirm("Als Werkstatt-Artikel speichern? Die Größen (" + groessen(x).join(", ") + ") werden entfernt.")) return;
     d.groessen = gr;
+    if(grDa()) d.mindest_groesse = mg && Object.keys(mg).length ? mg : null;   // ab 21.4.0
+    const grNeu = wGr && gr && x && !hatGroessen(x) && num((bestand(x) || {}).gesamt) !== 0;   // vorhandener Bestand ist noch ohne Größe
     if($("aMarke")) d.marke = marke(wert("aMarke"));   // ab 20.8.0; setzt den Marke-Tag
     try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const tagsSetzen = c => tags === undefined ? null : rpc("tags_setzen", { p_art:"artikel", p_schluessel:[c], p_tags:tags });
     if(!d.name){ toast("Bezeichnung fehlt.", true); return; }
-    if(x){ aktion(async () => { await aendern("artikel", "code=eq." + encodeURIComponent(x), d); await tagsSetzen(x); }, "Gespeichert"); return; }
+    if(x){ aktion(async () => { await aendern("artikel", "code=eq." + encodeURIComponent(x), d); await tagsSetzen(x); },
+                  grNeu ? "Gespeichert · Bestand bitte einmal je Größe zählen (Artikel → Inventur)" : "Gespeichert"); return; }
     // Anfangsbestand: wird direkt nach dem Anlegen als Zugang gebucht (nicht bei Pauschalen).
     // Bekleidung: je Größe ins gewählte Bekleidungslager.
     const startGr = [];
     let falsch = false;
+    // Werkstattmaterial mit Größen (ab 21.4.0): Bestand jetzt je Größe aus der Größen-Tabelle
+    if(wGr && gr) document.querySelectorAll("#modal [data-agj]").forEach(e => {
+      const t = String(e.value).trim(); if(t === "") return;
+      const n = Number(t.replace(",", "."));
+      if(isNaN(n) || n < 0) falsch = true; else if(n > 0 && gr.indexOf(e.dataset.agj) >= 0) startGr.push({ gr:e.dataset.agj, n });
+    });
     if(kleid) document.querySelectorAll("#modal [data-agr]").forEach(e => {
       const t = String(e.value).trim(); if(t === "") return;
       const n = Number(t.replace(",", "."));
       if(isNaN(n) || n < 0) falsch = true; else if(n > 0 && gr.indexOf(e.dataset.agr) >= 0) startGr.push({ gr:e.dataset.agr, n });
     });
     if(falsch){ toast("Bestand: ungültige Zahl.", true); return; }
-    const start = kleid ? startGr.reduce((m, w) => m + w.n, 0) : d.art === "Pauschale" ? 0 : (zahlOderNull("aBestand") || 0);
+    const mitGr = kleid || (wGr && gr);
+    const start = mitGr ? startGr.reduce((m, w) => m + w.n, 0) : d.art === "Pauschale" ? 0 : (zahlOderNull("aBestand") || 0);
     if(start < 0){ toast("Bestand darf nicht negativ sein.", true); return; }
     const startOrt = (kleid ? wert("aKleidOrt") : wert("aBestandOrt")) || "Werkstatt";
     const mitBestand = async c => {
-      if(kleid && startGr.length) await neuIn("buchung", startGr.map(w => ({ art:"zugang", code:c, groesse:w.gr, menge:w.n, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null })));
-      else if(!kleid && start > 0) await neuIn("buchung", { art:"zugang", code:c, menge:start, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null });
+      if(mitGr && startGr.length) await neuIn("buchung", startGr.map(w => ({ art:"zugang", code:c, groesse:w.gr, menge:w.n, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null })));
+      else if(!mitGr && start > 0) await neuIn("buchung", { art:"zugang", code:c, menge:start, ort:startOrt, notiz:"Anfangsbestand", bearbeiter:bearbeiter || null });
       return c;
     };
     const meldung = c => c + " angelegt" + (start > 0 ? " · " + zahl(start) + " " + d.einheit + " in " + startOrt : "");
@@ -1052,6 +1099,7 @@ const C = {
     if(v === "_neu"){ const e = $("nrKatName") || $("nrBuch"); if(e) e.focus(); }
     vorschauNummer();
     ukBoxAktualisieren();
+    if($("aGroessen")) artikelSichtbar();   // Größen beim Werkstattmaterial (ab 21.4.0)
   },
   invZahl: (v, x) => invSetzen(x, v),
   fotoDatei: (v, x, el) => {

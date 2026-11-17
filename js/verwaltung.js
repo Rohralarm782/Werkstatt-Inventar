@@ -908,13 +908,45 @@ function einheitenListe(aktuell){
    Variante und zur Art passt; ausgeblendete Felder behalten ihren Wert.
    Steuerung über data-zeig="W K L P A" (eines davon muss zutreffen):
    W = Werkstatt, K = Bekleidung, L = mit Bestand (Bekleidung oder kein Pauschale),
-   P = Pauschale (Werkstatt), A = Arbeitszeit (Werkstatt, Stück oder Pauschale). */
+   P = Pauschale (Werkstatt), A = Arbeitszeit (Werkstatt, Stück oder Pauschale),
+   G = Größen beim Werkstattmaterial (Kategorie W, kein Pauschale; ab 21.4.0). */
 let artZweck = "werkstatt";
 function artikelSichtbar(){
   const k = artZweck === "kleidung", art = wert("aArt") || "Stück";
-  const an = { W:!k, K:k, L:k || art !== "Pauschale", P:!k && art === "Pauschale", A:!k && art !== "Vorrat" };
+  const an = { W:!k, K:k, L:k || art !== "Pauschale", P:!k && art === "Pauschale", A:!k && art !== "Vorrat", G:!k && art !== "Pauschale" && grWmatForm() };
   document.querySelectorAll("#modal [data-zeig]").forEach(e => { e.hidden = !e.dataset.zeig.split(" ").some(t => an[t]); });
   const m = $("aMinLbl"); if(m) m.textContent = k ? "Mindestbestand je Größe" : "Mindestbestand";
+  const g = $("aGroessen"); if(g) g.placeholder = k ? "z. B. XS, S, M, L, XL" : "z. B. 1 L, 3 L, 5 L — leer = ohne Größen";
+  grMinFelder();
+}
+/** Steht das Formular auf Werkstattmaterial (Kategorie W) und ist Migration 21.4.0 gelaufen? */
+function grWmatForm(){
+  const box = $("ukBox"), kat = box && box.dataset.kat ? box.dataset.kat : formKat();
+  return kat === W_MAT && grDa();
+}
+/** Größen-Feld beim Werkstattmaterial sichtbar? (sonst gelten die Größen dort nicht) */
+function grFeldAn(){ const b = $("aGrMinBox"); return !!b && !b.hidden && grWmatForm(); }
+/** Werkstattmaterial mit Größen (ab 21.4.0): je Größe Mindestbestand (und beim neuen Artikel
+    „Bestand jetzt“). Mit Größen treten die allgemeinen Felder Mindestbestand und Bestand zurück.
+    Eingaben bleiben beim Ändern der Größenliste erhalten. */
+function grMinFelder(){
+  const box = $("aGrMin"), wrap = $("aGrMinBox"); if(!box || !wrap) return;
+  const alt = JSON.parse(box.dataset.alt || "{}"), altJ = {};
+  box.querySelectorAll("[data-agm]").forEach(e => { alt[e.dataset.agm] = e.value; });
+  box.querySelectorAll("[data-agj]").forEach(e => { altJ[e.dataset.agj] = e.value; });
+  box.dataset.alt = JSON.stringify(alt);
+  const gr = grWmatForm() && artZweck !== "kleidung" ? groessenLesenStill(wert("aGroessen")) : [], neu = box.dataset.neu === "1";
+  const an = !wrap.hidden && gr.length > 0;
+  box.innerHTML = gr.length
+    ? '<div class="grtab" style="grid-template-columns:auto 1fr' + (neu ? ' 1fr' : '') + '"><span class="lbl">Größe</span><span class="lbl">Mindestbestand</span>' + (neu ? '<span class="lbl">Bestand jetzt</span>' : '') +
+      gr.map(x => '<strong>' + esc(x) + '</strong><input type="number" min="0" step="any" inputmode="decimal" data-agm="' + esc(x) + '" value="' + esc(alt[x] == null ? "" : alt[x]) + '" placeholder="–" aria-label="Mindestbestand ' + esc(x) + '">' +
+                  (neu ? '<input type="number" min="0" step="any" inputmode="decimal" data-agj="' + esc(x) + '" value="' + esc(altJ[x] || "") + '" placeholder="0" aria-label="Bestand jetzt ' + esc(x) + '">' : '')).join("") + '</div>'
+    : "";
+  box.parentElement.querySelector(".lbl").hidden = !gr.length;
+  // Mit Größen: allgemeiner Mindestbestand und „Bestand jetzt“ zurücktreten lassen
+  const min = $("aMin"), bst = $("aBestandBox");
+  if(min) min.closest(".feld").style.display = an ? "none" : "";
+  if(bst) bst.style.display = an ? "none" : "";
 }
 /** Anfangsbestand je Größe (nur neue Bekleidung): ein Feld je Größe aus dem Größen-Feld, Eingaben bleiben erhalten. */
 function grBestandFelder(){
@@ -936,7 +968,7 @@ function artikelForm(code, zweck){
   const verbrauch = [["","—"]].concat((DB.artikel||[]).filter(x => x.art === "Vorrat").map(x => [x.code, x.name]));
   if(code) nrForm = null;
   const ko = kleiderOrte();
-  artZweck = code ? (hatGroessen(code) ? "kleidung" : "werkstatt") : (zweck === "kleidung" && ko.length ? "kleidung" : "werkstatt");
+  artZweck = code ? (istKleidung(code) ? "kleidung" : "werkstatt") : (zweck === "kleidung" && ko.length ? "kleidung" : "werkstatt");
   const wahl = ko.length || artZweck === "kleidung";
   const preisGesperrt = code && !darf("manager");
   const bestellOffen = !!(a.lieferant || a.bestellnummer || a.shop_link || a.packungsinhalt || (num(a.lieferzeit_tage) && num(a.lieferzeit_tage) !== LIEFERZEIT_STANDARD));
@@ -950,9 +982,11 @@ function artikelForm(code, zweck){
     feld("Bezeichnung", "aName", a.name) +
     // Marke (ab 20.8.0): setzt in der Datenbank den Marke-Tag gleichen Namens
     (globDa() ? feld("Marke", "aMarke", a.marke, "text", ' list="markenDL" placeholder="z. B. Shimano" autocomplete="off"') + markenDL() : '') +
-    // Bekleidung: Größen
-    '<div class="feld" data-zeig="K"><span class="lbl">Größen (durch Komma getrennt)</span><input type="text" id="aGroessen" data-c="aGroessen" value="' + esc((a.groessen || []).join(", ")) + '" placeholder="z. B. XS, S, M, L, XL">' +
-      '<div class="row wrapr" style="gap:6px;margin-top:6px">' + GROESSEN_VORLAGEN.map((v, i) => '<button class="btn small" data-a="grVorlage" data-x="' + i + '">' + esc(v[0]) + '</button>').join("") + '</div></div>' +
+    // Größen: Bekleidung, ab 21.4.0 auch Werkstattmaterial (G)
+    '<div class="feld" data-zeig="K G"><span class="lbl">Größen (durch Komma getrennt)</span><input type="text" id="aGroessen" data-c="aGroessen" value="' + esc((a.groessen || []).join(", ")) + '" placeholder="z. B. XS, S, M, L, XL">' +
+      '<div class="row wrapr" data-zeig="K" style="gap:6px;margin-top:6px">' + GROESSEN_VORLAGEN.map((v, i) => '<button class="btn small" data-a="grVorlage" data-x="' + i + '">' + esc(v[0]) + '</button>').join("") + '</div></div>' +
+    '<div class="feld" id="aGrMinBox" data-zeig="G"><span class="lbl">Je Größe</span><div id="aGrMin" data-neu="' + (code ? 0 : 1) + '" data-alt="' + esc(JSON.stringify(a.mindest_groesse || {})) + '"></div>' +
+      '<p class="sub" style="margin:4px 0 0">Mindestbestand leer = ' + (num(a.mindestbestand) ? zahl(a.mindestbestand) + ' (allgemeiner Wert)' : 'keine Warnung') + '. Die Bestellliste meldet, welche Größe nachgekauft werden muss.</p></div>' +
     // kleine Felder: im Raster rücken ausgeblendete Felder einfach heraus
     '<div class="grid2">' +
       auswahl("Einheit", "aEinheit", einheitenListe(a.einheit), a.einheit || "Stück") +
@@ -962,7 +996,7 @@ function artikelForm(code, zweck){
     '</div>' +
     // Anfangsbestand (nur neu)
     (code ? '' :
-      '<div class="grid2" data-zeig="W"><div data-zeig="L">' + feld("Bestand jetzt", "aBestand", "", "number", ' step="any" min="0" inputmode="decimal" placeholder="0"') + '</div>' +
+      '<div class="grid2" id="aBestandBox" data-zeig="W"><div data-zeig="L">' + feld("Bestand jetzt", "aBestand", "", "number", ' step="any" min="0" inputmode="decimal" placeholder="0"') + '</div>' +
         '<div class="feld" data-zeig="L"><span class="lbl">liegt in</span><select id="aBestandOrt">' + ortOptionen(standardOrt(), true) + '</select></div></div>' +
       (ko.length ? '<div class="feld" data-zeig="K"><span class="lbl">Bestand jetzt je Größe' + (ko.length > 1 ? '' : ' · ' + esc(ko[0])) + '</span>' +
         (ko.length > 1 ? '<select id="aKleidOrt" style="margin-bottom:8px">' + ko.map(o => '<option' + (o === view.kOrt ? " selected" : "") + '>' + esc(o) + '</option>').join("") + '</select>' : '<input type="hidden" id="aKleidOrt" value="' + esc(ko[0]) + '">') +

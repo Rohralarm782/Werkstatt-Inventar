@@ -35,7 +35,7 @@ document.addEventListener("input", ev => {
   }
   if(c === "nProblem" || c === "nAnlass") C[c](el.value);
   if(c === "nrVorschau") vorschauNummer();
-  if(c === "aGroessen") grBestandFelder();
+  if(c === "aGroessen"){ grBestandFelder(); grMinFelder(); }
   if(c === "radNrVorschau") radNrVorschau();
   if(c === "ktKzVorschau") C.ktKzVorschau(el.value);
   if(c === "nrBuch" || c === "nrKatName") C[c](el.value, el.dataset.x, el);
@@ -103,6 +103,7 @@ async function start(){
     await holeJwt(true);
     await ladeAlles();
     render();
+    neuigkeitenPruefen();   // „Was ist neu?“ einmal nach einem Update (ab 21.4.0)
     radAusLink();
     zielAusLink();       // aus einer Benachrichtigung: Tickets oder Bestellliste (push.js)
     sendeWarteschlange();

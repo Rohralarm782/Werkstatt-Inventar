@@ -1,15 +1,18 @@
 # Version
 
-**21.3.0** — 14.11.2026
+**21.4.0** — 17.11.2026
 
-Sportler und Kostenträger getrennt. Kostenträger (Vereine, LV, BSP) können
-ein Kürzel bekommen; ihre neuen Räder erhalten dann eine eigene Nummernreihe
-(SN-DAS-BR-01). Eigentümer am Rad: „Fahrer selbst“ oder ein Kostenträger.
+Größen für Werkstattmaterial: Zipper-Beutel, Kabelbinder, Tape usw. bleiben
+ein Artikel, der Bestand wird aber je Größe geführt. Mindestbestand je Größe,
+Bestellliste je Größe. Der Koffer bleibt pro Artikel. Dazu „Was ist neu?“:
+Nach einem Update sieht jede Person einmal, was sich für sie geändert hat.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
 `?v=…`-Angaben an den eingebundenen Dateien auf die neue Version setzen,
 damit Browser keine alten Dateien aus dem Zwischenspeicher mischen.
+Bei spürbaren Änderungen außerdem oben in `js/neuigkeiten.js` einen Eintrag
+für „Was ist neu?“ ergänzen (für Nutzer geschrieben, ohne Technik).
 
 Nummernschema (ab 20.1.0 bewusst sparsamer):
 
@@ -23,6 +26,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.4.0 | 17.11.2026 | Größen für Werkstattmaterial (Bestand, Entnahme, Einpacken je Größe), Mindestbestand je Größe, „Was ist neu?“ nach Updates (Migration) |
 | 21.3.0 | 14.11.2026 | Sportler und Kostenträger getrennt, eigene Rad-Nummern je Kostenträger (SN-DAS-BR-01), Eigentümer „Fahrer selbst“ (Migration) |
 | 21.2.0 | 26.10.2026 | Laden in einer Anfrage (app_daten), ZXing defer, Schriften lokal, Suche entprellt, Altlasten raus (Migration) |
 | 21.1.1 | 26.10.2026 | Kettenbreite: „schmal 3/32″“ → „schmal“ (Migration) |

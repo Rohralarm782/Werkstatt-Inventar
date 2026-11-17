@@ -30,7 +30,8 @@ let invAnsicht = { filter:"alle", buchstabe:"" };
 
 const INV_ALLE = "alle";
 function invTitel(){ return inv.ort === INV_ALLE ? "alle Orte" : inv.ort; }
-/** Artikel mit Größen (Bekleidung) werden je Größe gezählt: Material → Bekleidung → „Zählen“. */
+/** Artikel mit Größen werden je Größe gezählt: Bekleidung unter Material → Bekleidung → „Zählen“,
+    Werkstattmaterial mit Größen über Artikel antippen → Inventur (ab 21.4.0). */
 function invArtikel(){ return (DB.bestand||[]).filter(b => b.aktiv && b.art !== "Pauschale" && !hatGroessen(b.code)); }
 /** Wo wird dieser Artikel gezählt? Bei „alle“: Werkstatt immer, andere Räume und Koffer nur, wenn dort
     etwas liegt, ein Koffer-Soll besteht oder dort schon gezählt wurde. */
@@ -125,7 +126,7 @@ function invStartView(){
     '<button class="btn primary" data-a="invNeu" data-x="' + INV_ALLE + '"' + g + '>Ganzes Lager (alle Orte)</button>' +
     '<span class="lbl" style="margin:6px 0 0">' + (raumOrte().length > 1 ? 'Einzelner Raum' : 'Nur Werkstatt') + '</span>' +
     raumOrte().map(o => '<button class="btn" data-a="invNeu" data-x="' + esc(o) + '"' + g + '>' + (raumOrte().length > 1 ? esc(o) : 'Nur ' + esc(o)) + '</button>').join("") +
-    (kleiderOrte().length ? '<span class="lbl" style="margin:6px 0 0">Bekleidung</span><p class="sub" style="margin:0">Artikel mit Größen werden unter Material → Bekleidung je Größe gezählt („Zählen“).</p>' : '') +
+    ((DB.artikel || []).some(a => a.aktiv && hatGroessen(a.code)) ? '<span class="lbl" style="margin:6px 0 0">Artikel mit Größen</span><p class="sub" style="margin:0">Werden je Größe gezählt: Bekleidung unter Material → Bekleidung („Zählen“), Werkstattmaterial über Artikel antippen → Inventur.</p>' : '') +
     (kofferOrte().length ? '<span class="lbl" style="margin:6px 0 0">Einzelner Koffer</span>' : '') +
     kofferOrte().map(o => '<button class="btn" data-a="invNeu" data-x="' + esc(o) + '"' + g + '>' + esc(o) + '</button>').join("") + '</div>' +
     '<p class="sub" style="margin:10px 0 0">Gezählt wird auf diesem Gerät; gebucht wird erst mit „Übernehmen“. Einen einzelnen Artikel korrigieren: Lager → Artikel antippen → Inventur.</p></div>';

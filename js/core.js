@@ -202,6 +202,7 @@ async function frischLaden(){
     await ladeAlles();
     render();
     sendeWarteschlange();
+    if(typeof neuigkeitenPruefen === "function") neuigkeitenPruefen();   // „Was ist neu?“ (ab 21.4.0)
   }catch(e){
     if(e instanceof AbgemeldetFehler){ DB = null; ICH = null; render(); toast(e.message, true); return; }
     if(e instanceof NetzFehler){ offlineAnzeigen(); return; }
@@ -466,6 +467,19 @@ function reserviertAm(code, ort, tid){
 /* Bekleidung (ab 16.0.0): Artikel mit Größenliste, Bestand je Größe, Ausleihe an Sportler. */
 function groessen(code){ const a = artikel(code); return a && Array.isArray(a.groessen) && a.groessen.length ? a.groessen : null; }
 function hatGroessen(code){ return !!groessen(code); }
+/* Größen beim Werkstattmaterial (ab 21.4.0): Bestand je Größe, Entnahme und Einpacken je Größe,
+   Mindestbestand je Größe. Bekleidung = Artikel mit Größen außerhalb des Werkstattmaterials
+   (Ausleihe an Sportler, Material → Bekleidung). */
+function istKleidung(code){ return hatGroessen(code) && !istWMat(code); }
+/** Mindestbestand einer Größe: eigener Wert (mindest_groesse) oder der allgemeine. */
+function mindestGr(a, g){ const m = a && a.mindest_groesse; return m && m[g] != null ? num(m[g]) : num(a && a.mindestbestand); }
+/** Ist Migration 21.4.0 gelaufen (Spalte mindest_groesse)? Ohne Artikel: ja annehmen. */
+function grDa(){ const l = (DB && DB.artikel) || []; return !l.length || "mindest_groesse" in l[0]; }
+/** Bestand je Größe im Lager (alle Räume, ohne Koffer): [[Größe, Menge], …], dazu „ohne Größe“, wenn etwas da ist. */
+function grImLager(code){
+  const raeume = orte().filter(o => !istKoffer(o));
+  return groessenSpalten(code, null).map(g => [g, raeume.reduce((m, o) => m + amOrtGr(code, o, g), 0)]).filter(x => x[0] || x[1] !== 0);
+}
 /** Bestand einer Größe an einem Ort ("" = ohne Größe). */
 function amOrtGr(code, ort, gr){ const z = ((DB.groesseBestand || {})[code] || {})[ort]; return z ? num(z[gr || ""]) : 0; }
 /** Spalten für die Größen-Tabelle: Größenliste + Altbestand ohne/mit entfernter Größe an diesem Ort (oder allen Orten). */

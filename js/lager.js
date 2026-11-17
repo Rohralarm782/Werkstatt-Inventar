@@ -93,6 +93,14 @@ function lagerZeile(b, zuBestellen, gesperrt, imOrt, zusatz){
       h += '<br><span class="sub" style="font-size:12px">' + esc(vt.map(x => x[0] + " " + zahl(x[1])).join(" · ")) + '</span>' + aufteilungsBalken(b, knapp);
     }
     if(hatGroessen(b.code) && verliehen(b.code)) h += '<br><span class="sub" style="font-size:12px">' + zahl(verliehen(b.code)) + ' verliehen</span>';
+    // Werkstattmaterial mit Größen (ab 21.4.0): Bestand je Größe, unter Mindestbestand rot
+    if(hatGroessen(b.code) && !istKleidung(b.code)){
+      const a = artikel(b.code);
+      h += '<br><span class="sub" style="font-size:12px">' + grImLager(b.code).map(([g, n]) => {
+        const knappGr = g && n < mindestGr(a, g);
+        return '<span style="' + (knappGr ? 'color:var(--sprint);font-weight:700' : '') + '">' + esc(grName(g)) + ' ' + zahl(n) + '</span>';
+      }).join(" · ") + '</span>';
+    }
     const off = (DB.bestellungen||[]).filter(o => o.code === b.code);
     if(off.length) h += '<br><span class="sub" style="color:var(--warn)">bestellt ' + off.map(o => zahl(o.menge) + ' am ' + de(o.bestellt_am)).join(", ") + '</span>';
     else if(zuBestellen[b.code]) h += '<br><span class="sub" style="color:var(--warn)">zu bestellen: ' + zahl(zuBestellen[b.code]) + ' ' + esc(b.einheit) + '</span>';
@@ -100,7 +108,7 @@ function lagerZeile(b, zuBestellen, gesperrt, imOrt, zusatz){
   if(zusatz) h += '<br><span class="sub" style="font-size:12px">' + esc(zusatz) + '</span>';
   if(!leistung && istWMat(b.code))
     return h + '</button><div class="knoepfe"><button class="btn small" data-a="wEntnahme" data-x="' + esc(b.code) + '" aria-label="Eins entnehmen: ' + esc(b.name) + '"' + gesperrt + ' style="min-width:46px;font-size:20px">−</button></div></div>';
-  h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : hatGroessen(b.code) ? "Ausleihen" : "Ausgeben") + '</button>';
+  h += '</button><div class="knoepfe"><button class="btn small" data-a="formAusgabe" data-x="' + esc(b.code) + '"' + gesperrt + '>' + (leistung ? "Buchen" : istKleidung(b.code) ? "Ausleihen" : "Ausgeben") + '</button>';
   if(!leistung) h += '<button class="btn small" data-a="formZugang" data-x="' + esc(b.code) + '" aria-label="Zugang ' + esc(b.name) + '"' + gesperrt + '>+</button>';
   h += '</div></div>';
   return h;
@@ -178,7 +186,7 @@ function artikelMenue(code){
     h += '<button class="btn" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
   } else {
   if(a.art !== "Pauschale") h += '<button class="btn primary" data-a="formZugang" data-x="' + esc(code) + '">Zugang buchen</button>';
-  h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : hatGroessen(code) ? "An Sportler ausleihen" : "An Sportler ausgeben") + '</button>';
+  h += '<button class="btn" data-a="formAusgabe" data-x="' + esc(code) + '">' + (a.art === "Pauschale" ? "Leistung buchen" : istKleidung(code) ? "An Sportler ausleihen" : "An Sportler ausgeben") + '</button>';
   if(a.art !== "Pauschale") h += '<button class="btn" data-a="formInventur" data-x="' + esc(code) + '">Inventur / Bestand korrigieren</button>';
   }
   h += '<button class="btn" data-a="buchungenArtikel" data-x="' + esc(code) + '">Buchungen · Fehlbuchung stornieren</button>';
@@ -198,7 +206,7 @@ function formZugang(code){
   setTimeout(() => { const e = $("fMenge"); if(e) e.focus(); }, 50);
 }
 function formAusgabe(code){
-  if(hatGroessen(code)) return leihStart(null, code);
+  if(istKleidung(code)) return leihStart(null, code);
   const a = artikel(code);
   let s = '<select id="fSportler"><option value="">— Sportler oder Kostenträger —</option>';
   s += zahlerOptionen(null, { aktiv:true, berechnet:true });
@@ -214,6 +222,8 @@ function formAusgabe(code){
 function formEntnahme(code){
   const a = artikel(code);
   modal('<h3>Entnahme · ' + esc(a.name) + '</h3><p class="sub" style="margin-top:-6px">Verbrauch in der Werkstatt, wird nicht berechnet.</p>' +
+    (hatGroessen(code) ? '<div class="feld"><span class="lbl">Größe</span><select id="fGr"><option value="">— Größe wählen —</option>' +
+       groessen(code).map(g => '<option value="' + esc(g) + '">' + esc(g) + ' · ' + zahl(amOrtGr(code, standardOrt(), g)) + ' da</option>').join("") + '</select></div>' : '') +
     '<div class="grid2"><div class="feld"><span class="lbl">Menge (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" value="1" min="0" step="any" inputmode="decimal"></div>' +
     '<div class="feld"><span class="lbl">Aus</span>' + ortSelect("fOrt",standardOrt()) + '</div></div>' +
     '<div class="feld"><span class="lbl">Notiz</span><input type="text" id="fNotiz"></div>' +
@@ -259,22 +269,24 @@ function bestellBedarf(){
     const b = bestand(a.code), frei = b ? num(b.frei) : 0, mind = num(a.mindestbestand);
     const kofferFehlt = (DB.koffer||[]).filter(k => k.code === a.code).reduce((m, k) => m + num(k.fehlt), 0);
     // Bekleidung: Mindestbestand gilt je Größe (über alle Lager-Orte)
+    // Artikel mit Größen: Mindestbestand je Größe (ab 21.4.0 eigener Wert je Größe möglich), über alle Lager-Orte
     const grFehlt = [];
-    if(hatGroessen(a.code) && mind) groessen(a.code).forEach(g => {
+    if(hatGroessen(a.code)) groessen(a.code).forEach(g => {
+      const mg = mindestGr(a, g); if(!mg) return;
       const da = orte().filter(o => !istKoffer(o)).reduce((m, o) => m + amOrtGr(a.code, o, g), 0);
-      if(da < mind) grFehlt.push([g, mind - da]);
+      if(da < mg) grFehlt.push([g, mg - da]);
     });
     const bedarf = hatGroessen(a.code) ? grFehlt.reduce((m, x) => m + x[1], 0) : Math.max(0, mind + kofferFehlt - frei);
     const bestellt = (offen[a.code] || []).reduce((m, x) => m + num(x.menge), 0);
     if(bedarf <= 0 && !bestellt) return;
     const gruende = [];
-    if(grFehlt.length) gruende.push("unter mind. " + zahl(mind) + " je Größe: " + grFehlt.map(x => x[0] + " +" + zahl(x[1])).join(", "));
+    if(grFehlt.length) gruende.push("unter Mindestbestand: " + grFehlt.map(x => x[0] + " +" + zahl(x[1])).join(", "));
     else if(mind && frei < mind && !hatGroessen(a.code)) gruende.push("frei " + zahl(frei) + " von mind. " + zahl(mind));
     else if(frei < 0) gruende.push(zahl(-frei) + " mehr reserviert als da");
     const tk = (DB.tickets||[]).filter(t => fehlend(t).indexOf(a.code) >= 0).map(t => tnr(t.id));
     if(tk.length) gruende.push("fehlt für " + tk.join(", "));
     (DB.koffer||[]).filter(k => k.code === a.code && num(k.fehlt) > 0).forEach(k => gruende.push(k.ort + " fehlt " + zahl(k.fehlt)));
-    liste.push({ a, frei, bedarf, bestellt, rest:Math.max(0, bedarf - bestellt), offen:offen[a.code] || [], gruende });
+    liste.push({ a, frei, bedarf, bestellt, rest:Math.max(0, bedarf - bestellt), offen:offen[a.code] || [], gruende, grFehlt });
   });
   return liste;
 }
@@ -372,7 +384,8 @@ function bestellText(lief){
   return "Bestellung LV Radsport M-V" + (lief ? " bei " + lief : "") + "\n\n" +
     g.map(x => {
       const pk = packungen(x.a, x.rest);
-      return "- " + (pk ? packungText(x.a, pk) : zahl(x.rest) + " " + x.a.einheit) + " " + x.a.name + (x.a.bestellnummer ? " (Best.-Nr. " + x.a.bestellnummer + ")" : "");
+      const gr = x.grFehlt && x.grFehlt.length ? " – " + x.grFehlt.map(z => z[0] + ": " + zahl(z[1])).join(", ") : "";   // je Größe (ab 21.4.0)
+      return "- " + (pk ? packungText(x.a, pk) : zahl(x.rest) + " " + x.a.einheit) + " " + x.a.name + gr + (x.a.bestellnummer ? " (Best.-Nr. " + x.a.bestellnummer + ")" : "");
     }).join("\n");
 }
 
@@ -394,7 +407,9 @@ function kofferDetail(ort){
   if(zeilen.length){
     h += '<div class="tabwrap"><table><thead><tr><th>Artikel</th><th>Soll</th><th>Ist</th><th>fehlt</th><th></th></tr></thead><tbody>';
     zeilen.forEach(k => {
-      h += '<tr class="' + (num(k.fehlt) > 0 ? "low" : "") + '"><td>' + esc(k.name) + '</td>';
+      // Artikel mit Größen (ab 21.4.0): was im Koffer je Größe liegt
+      const grK = hatGroessen(k.code) ? groessenSpalten(k.code, ort).filter(g => amOrtGr(k.code, ort, g) !== 0).map(g => grName(g) + " " + zahl(amOrtGr(k.code, ort, g))) : [];
+      h += '<tr class="' + (num(k.fehlt) > 0 ? "low" : "") + '"><td>' + esc(k.name) + (grK.length ? '<br><span class="sub" style="font-size:12px">' + esc(grK.join(" · ")) + '</span>' : '') + '</td>';
       h += '<td><input type="number" min="0" step="any" value="' + num(k.soll) + '" data-c="kofferSoll" data-x="' + esc(k.code) + '|' + ort + '" style="width:64px;min-height:36px;padding:4px 6px"' + gesperrt + '></td>';
       const ein = (artikel(k.code) || {}).einheit || "";
       h += '<td class="mono"><strong>' + zahl(k.ist) + '</strong>' + (ein && ein !== "Stück" ? ' <span class="sub">' + esc(ein) + '</span>' : '') + '</td>';
@@ -408,7 +423,7 @@ function kofferDetail(ort){
     if(offen) h += '<div class="row trenn" style="gap:8px"><button class="btn primary" data-a="kofferAuffuellen" data-x="' + ort + '" style="flex:1"' + gesperrt + '>Alles Fehlende einpacken (' + offen + (offen === 1 ? ' Position' : ' Positionen') + ')</button></div>';
   } else h += '<p class="sub" style="margin:0 0 6px">Noch keine Packliste.</p>';
   h += '<div class="row trenn" style="gap:8px"><select data-c="kofferNeu" data-x="' + ort + '" style="flex:1"' + gesperrt + '><option value="">Artikel zur Packliste…</option>';
-  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !hatGroessen(a.code) && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
+  (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && !istKleidung(a.code) && !zeilen.some(z => z.code === a.code)).forEach(a => h += '<option value="' + esc(a.code) + '">' + esc(a.name) + '</option>');
   h += '</select></div></div>';
   const st = (DB.stueck||[]).filter(s => s.ort === ort);
   if(st.length){
@@ -416,7 +431,7 @@ function kofferDetail(ort){
     st.forEach(s => h += '<div class="sub" style="color:var(--ink)">' + esc(s.nummer) + ' · ' + esc(s.typ) + '</div>');
     h += '</div>';
   }
-  h += '<p class="sub">+1, −1 und „Menge…“ buchen zwischen Werkstatt und Koffer um, „Alles Fehlende einpacken“ füllt jede Position bis zum Soll auf (soweit in der Werkstatt frei). Der Lagerbestand bleibt gleich, nur „frei“ ändert sich.</p>';
+  h += '<p class="sub">+1, −1 und „Menge…“ buchen zwischen Werkstatt und Koffer um, „Alles Fehlende einpacken“ füllt jede Position bis zum Soll auf (soweit in der Werkstatt frei; Artikel mit Größen einzeln mit +1 oder „Menge…“, dort die Größe wählen). Der Lagerbestand bleibt gleich, nur „frei“ ändert sich.</p>';
   const n = (DB.termine||[]).length;
   h += '<button class="btn small link" data-a="geheMehr" data-x="termine">Rennen &amp; Termine' + (n ? ' · ' + n : '') + ' — warnt 10 Tage vorher, wenn im Koffer etwas fehlt</button>';
   return h;
@@ -430,14 +445,33 @@ function formKofferMenge(code, ort){
   modal('<h3>' + esc(a.name) + ' · ' + esc(ort) + '</h3>' +
     '<p class="sub" style="margin-top:-6px">Im Koffer ' + zahl(k.ist) + ' von ' + zahl(k.soll) + ' ' + esc(a.einheit) +
       ' · in der Werkstatt frei ' + zahl(b ? Math.max(greifbar(code, HAUPT, null), 0) : 0) + ' ' + esc(a.einheit) + '</p>' +
+    (hatGroessen(code) ? '<div class="feld"><span class="lbl">Größe</span><select id="fGr"><option value="">— Größe wählen —</option>' +
+       groessen(code).map(g => '<option value="' + esc(g) + '">' + esc(g) + ' · Werkstatt ' + zahl(amOrtGr(code, HAUPT, g)) + ' · Koffer ' + zahl(amOrtGr(code, ort, g)) + '</option>').join("") + '</select></div>' : '') +
     '<div class="feld"><span class="lbl">Menge (' + esc(a.einheit) + ')</span><input type="number" id="fMenge" min="0" step="any" inputmode="decimal" value="' + (fehlt > 0 ? fehlt : '') + '"></div>' +
     '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span>' +
     '<button class="btn" data-a="kofferMengeRaus" data-x="' + esc(code) + '|' + esc(ort) + '">Zurück in Werkstatt</button>' +
     '<button class="btn primary" data-a="kofferMengeRein" data-x="' + esc(code) + '|' + esc(ort) + '">In den Koffer</button></div>');
   setTimeout(() => { const e = $("fMenge"); if(e){ e.focus(); e.select(); } }, 50);
 }
-function kofferUmbuchen(code, von, nach, menge, meldung){
-  return aktion(() => rpc("umbuchen", { p_code:code, p_menge:menge, p_von:von, p_nach:nach, p_bearbeiter:bearbeiter || null }), meldung);
+function kofferUmbuchen(code, von, nach, menge, meldung, gr){
+  const p = { p_code:code, p_menge:menge, p_von:von, p_nach:nach, p_bearbeiter:bearbeiter || null };
+  if(gr) p.p_groesse = gr;   // Größe (ab 21.4.0)
+  return aktion(() => rpc("umbuchen", p), meldung);
+}
+/* Größe antippen (ab 21.4.0): für „−“ beim Werkstattmaterial und +1/−1 im Koffer.
+   Zeigt je Größe, wie viel am Ort liegt; antippen ruft cb(Größe) auf. */
+let grWahlZiel = null;
+function grWahl(code, ort, titel, cb){
+  const a = artikel(code), l = groessen(code) || [];
+  grWahlZiel = { l, cb };
+  modal('<h3>' + esc(titel) + '</h3><p class="sub" style="margin-top:-6px">' + esc(a ? a.name : code) + ' · Größe antippen</p>' +
+    '<div class="grwahl">' + l.map((g, i) => '<button data-a="grWahlOk" data-x="' + i + '">' + esc(g) + '<small>' + zahl(amOrtGr(code, ort, g)) + ' in ' + esc(ort) + '</small></button>').join("") + '</div>' +
+    '<button class="btn voll" data-a="modalZu" style="margin-top:12px">Abbrechen</button>');
+}
+/** Reicht der Bestand einer Größe am Ort? Sonst nachfragen. */
+function genugDaGr(code, ort, gr, menge){
+  const da = amOrtGr(code, ort, gr);
+  return menge <= da || confirm("In " + ort + " sind von " + gr + " nur " + zahl(Math.max(da, 0)) + " da. Trotzdem " + zahl(menge) + " buchen? Der Bestand wird dann negativ.");
 }
 
 /* ===============================================================
@@ -458,7 +492,7 @@ function groessenLesen(t){
 function leihText(liste){ return liste.map(z => zahl(z.menge) + "× " + ((artikel(z.code) || {}).name || z.code) + (z.groesse ? " " + z.groesse : "")).join(", "); }
 /** Artikel, die ins Bekleidungslager gehören: mit Größen, oder dort gebucht. */
 function kleiderArtikel(ort){
-  return (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && (hatGroessen(a.code) || (ort && amOrt({ code:a.code }, ort) !== 0)))
+  return (DB.artikel||[]).filter(a => a.aktiv && a.art !== "Pauschale" && (istKleidung(a.code) || (ort && amOrt({ code:a.code }, ort) !== 0)))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 function kleidungView(){
@@ -520,7 +554,8 @@ let grForm = null;
 function formGroessen(code, art, ort){
   const a = artikel(code); if(!a) return;
   const ko = kleiderOrte();
-  ort = ort || (grForm && grForm.code === code && grForm.ort) || (ko.indexOf(view.kOrt) >= 0 ? view.kOrt : ko[0] || standardOrt());
+  ort = ort || (grForm && grForm.code === code && grForm.ort) ||
+        (!istKleidung(code) ? standardOrt() : ko.indexOf(view.kOrt) >= 0 ? view.kOrt : ko[0] || standardOrt());   // Werkstattmaterial: Werkstatt (ab 21.4.0)
   grForm = { code, art, ort };
   const sp = groessenSpalten(code, ort);
   let h = '<h3>' + (art === "zugang" ? "Zugang" : "Zählen") + ' · ' + esc(a.name) + '</h3>' +
