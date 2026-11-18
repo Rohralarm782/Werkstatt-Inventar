@@ -1,8 +1,8 @@
 # Version
 
-**21.7.1** — 18.11.2026
+**21.7.2** — 18.11.2026
 
-Artikel löschen nur noch in „Artikel bearbeiten“, nicht mehr in der Artikel-Übersicht.
+„Was ist neu?“ wird je Konto gemerkt (in der Datenbank), nicht mehr je Gerät.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -24,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.7.2 | 18.11.2026 | „Was ist neu?“ je Konto statt je Gerät (Migration) |
 | 21.7.1 | 18.11.2026 | Löschknopf aus der Artikel-Übersicht entfernt, Löschen nur in „Artikel bearbeiten“ |
 | 21.7.0 | 18.11.2026 | Artikel löschen für Fehleingaben (Knopf in der Artikel-Übersicht und im Formular, Migration) |
 | 21.6.2 | 17.11.2026 | „Was ist neu?“ nur bei X.Y.0, nicht bei Patches |

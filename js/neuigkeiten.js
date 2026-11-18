@@ -92,10 +92,21 @@ function neuStufe(v){ const x = String(v).split("."); return (x[0] || 0) + "." +
 function neuIstStufe(v){ return versionVergleich(v, neuStufe(v)) === 0; }
 function neuGesehenAlle(){ try{ return JSON.parse(localStorage.getItem("wNeuGesehen") || "{}") || {}; }catch(e){ return {}; } }
 function neuKonto(){ const s = aktiveSitzung(); return s ? String(s.konto_id) : ""; }
-function neuMerken(){
+/** Stand aus der Datenbank (kommt mit app_daten → ich), nur wenn ICH zum aktiven Konto gehört. */
+function neuKontoStand(k){ return ICH && String(ICH.konto_id) === k ? (ICH.neu_gesehen || "") : ""; }
+function neuSpaeter(a, b){ return !a ? (b || "") : !b ? a : versionVergleich(a, b) >= 0 ? a : b; }
+/** Bis zu welcher Version hat dieses Konto „Was ist neu?“ gesehen? (Datenbank oder Browser, der neuere Stand) */
+function neuGesehen(k){ return neuSpaeter(neuGesehenAlle()[k], neuKontoStand(k)); }
+/** Stand merken: im Browser und am Konto in der Datenbank (nur vorwärts, Fehler still). */
+function neuMerken(v){
   const k = neuKonto(); if(!k) return;
-  const g = neuGesehenAlle(); g[k] = APP_VERSION;
-  try{ localStorage.setItem("wNeuGesehen", JSON.stringify(g)); }catch(e){}
+  v = v || APP_VERSION;
+  const g = neuGesehenAlle();
+  if(!g[k] || versionVergleich(g[k], v) < 0){ g[k] = v; try{ localStorage.setItem("wNeuGesehen", JSON.stringify(g)); }catch(e){} }
+  const db = neuKontoStand(k);
+  if(!ICH || String(ICH.konto_id) !== k || (db && versionVergleich(db, v) >= 0)) return;
+  ICH.neu_gesehen = v;
+  rpc("neu_gesehen_setzen", { p_version:v }).catch(() => {});   // klappt es nicht, beim nächsten Laden wieder
 }
 /** Betrifft der Punkt die angemeldete Person? */
 function neuFuerMich(p){
@@ -135,10 +146,10 @@ function neuFenster(liste, alle){
 /** Nach dem Laden: Gibt es für diese Person Ungesehenes? Dann einmal zeigen. */
 function neuigkeitenPruefen(){
   const k = neuKonto(); if(!k || !DB) return;
-  const ab = neuGesehenAlle()[k];
-  if(ab && versionVergleich(ab, neuStufe(APP_VERSION)) >= 0) return;   // Patch derselben X.Y: kein Fenster
+  const ab = neuGesehen(k);
+  if(ab && versionVergleich(ab, neuStufe(APP_VERSION)) >= 0){ neuMerken(ab); return; }   // schon gesehen (ggf. Stand ans Konto übertragen)
   if(String($("modal").innerHTML).trim()) return;   // ein anderes Fenster ist offen → beim nächsten Laden
-  // Erstes Mal mit diesem Konto: auf einem neuen Gerät nichts zeigen, sonst nur die aktuelle Version
+  // Noch kein Stand (weder Konto noch Browser): auf einem neuen Gerät nichts zeigen, sonst nur die aktuelle Version
   const liste = ab ? neuVersionen(ab).slice(0, NEU_MAX)
                    : NEU_GERAET_BEKANNT ? neuVersionen(null).filter(v => v.version === neuStufe(APP_VERSION)) : [];
   if(!liste.length){ neuMerken(); return; }   // nichts, was diese Person betrifft

@@ -517,7 +517,8 @@ create table konto (
   sportler_id   bigint unique references sportler (id),   -- nur Sportler-Konten
   aktiv         boolean not null default true,
   angelegt      timestamptz not null default now(),
-  zuletzt       timestamptz
+  zuletzt       timestamptz,
+  neu_gesehen   text                          -- „Was ist neu?“ gesehen bis Version (ab 21.7.2)
 );
 
 -- Rollen je Standort: manager | trainer | geschaeftsstelle | sportler.
@@ -915,7 +916,7 @@ create or replace function konto_info(p_konto bigint) returns jsonb
 language sql stable security definer set search_path = public, pg_temp as $$
   select jsonb_build_object(
            'konto_id', k.id, 'name', k.name, 'gesamt_admin', k.gesamt_admin, 'sportler_id', k.sportler_id,
-           'pin_laenge', pin_laenge(k.id),
+           'pin_laenge', pin_laenge(k.id), 'neu_gesehen', k.neu_gesehen,
            'standorte', coalesce((
              select jsonb_agg(jsonb_build_object('id', st.id, 'name', st.name, 'kuerzel', st.kuerzel,
                                                  'rolle', x.rollen[1], 'rollen', to_jsonb(x.rollen)) order by st.name)
@@ -1103,6 +1104,17 @@ begin
   -- andere Geräte abmelden, dieses bleibt
   delete from sitzung where konto_id = k.id and token_hash <> token_hash(kopfzeile('x-sitzung'));
 end $$;
+
+-- „Was ist neu?“ gesehen (ab 21.7.2): je Konto, auf allen Geräten gleich.
+-- Nur vorwärts: ein Gerät mit älterer App setzt den Stand nicht zurück.
+create or replace function neu_gesehen_setzen(p_version text) returns void
+language sql volatile security definer set search_path = public, pg_temp as $$
+  update konto set neu_gesehen = p_version
+   where id = ich_id()
+     and p_version ~ '^\d{1,4}\.\d{1,4}\.\d{1,4}$'
+     and (neu_gesehen is null
+          or string_to_array(neu_gesehen, '.')::int[] < string_to_array(p_version, '.')::int[]);
+$$;
 
 -- ---------------------------------------------------------------------
 --  Konten verwalten (Werkstatt-Manager, Gesamt-Admin)
@@ -4555,7 +4567,7 @@ grant execute on function
   standorte_liste(), anmelde_liste(bigint),
   anmelden(bigint, text, bigint, text, text, boolean),
   einladung_pruefen(text), einladung_einloesen(text, text, text, boolean),
-  ich(), abmelden(), pin_aendern(text, text),
+  ich(), abmelden(), pin_aendern(text, text), neu_gesehen_setzen(text),
   konten_liste(), konto_anlegen(text, text, bigint, text[]), konto_neuer_code(bigint),
   konto_aendern(bigint, text, text, boolean), konto_rollen(bigint, text[], bigint), sportler_zugang(bigint), standort_anlegen(text, text),
   standorte_verwaltung(), standort_manager_einladen(bigint, text), manager_neuer_code(bigint), manager_aktiv(bigint, boolean),
