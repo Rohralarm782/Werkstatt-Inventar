@@ -487,6 +487,17 @@ const A = {
   },
   artikelNeu: x => artikelForm(null, x),
   artikelBearbeiten: x => artikelForm(x),
+  // Endgültig löschen (ab 21.7.0) — nur für Fehleingaben; die Datenbank lehnt ab, was schon an Sportlern, Tickets oder Rechnungen hängt
+  artikelLoeschen: x => {
+    const a = artikel(x);
+    if(!a) return;
+    const b = bestand(x), n = b && a.art !== "Pauschale" ? num(b.gesamt) : 0;
+    if(!confirm("„" + a.name + "“ (" + x + ") endgültig löschen?" +
+        (n ? "\n\nIm Lager sind noch " + zahl(n) + " " + a.einheit + " gebucht — die verschwinden mit." : "") +
+        "\n\nNur für Fehleingaben: Lagerbuchungen, Bestellungen, Packlisten-Zeilen und Tags dieses Artikels gehen mit. " +
+        "Artikel, die es gab und die nicht mehr gebraucht werden, besser auf „inaktiv“ setzen.")) return;
+    aktion(() => rpc("artikel_loeschen", { p_code:x }), a.name + " gelöscht");
+  },
   artikelSpeichern: x => {
     const kleid = artZweck === "kleidung";
     const d = { name:wert("aName"), einheit:wert("aEinheit") || "Stück", preis:zahlOderNull("aPreis") || 0, mindestbestand:zahlOderNull("aMin") || 0,

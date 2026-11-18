@@ -1,8 +1,8 @@
 # Version
 
-**21.6.2** — 17.11.2026
+**21.7.0** — 18.11.2026
 
-„Was ist neu?“ erscheint nur noch bei neuen X.Y.0-Versionen, nicht bei Patches.
+Artikel löschen: Werkstatt-Manager können Fehleingaben unter Mehr → Artikel und in „Artikel bearbeiten“ endgültig löschen (Migration 21.7.0).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -24,6 +24,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.7.0 | 18.11.2026 | Artikel löschen für Fehleingaben (Knopf in der Artikel-Übersicht und im Formular, Migration) |
 | 21.6.2 | 17.11.2026 | „Was ist neu?“ nur bei X.Y.0, nicht bei Patches |
 | 21.6.1 | 17.11.2026 | Kategorie umbenennen repariert, Scannen ins Ticket nur für buchbare Artikel, Kostenträger-Umwandlung prüft festes Material (Migration) |
 | 21.6.0 | 17.11.2026 | Sportler melden Probleme für eigenes Material, Packliste per ✕ aufräumen (auch Trainer), Etiketten ohne Standort-Kürzel (Migration) |

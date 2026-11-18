@@ -361,7 +361,8 @@ function artikelVerw(){
   (DB.artikel||[]).forEach(a => {
     h += '<div class="eintrag"><div class="txt"><strong>' + esc(a.name) + '</strong> <span class="sub">' + esc(a.code) + ' · ' + esc(a.art) + ' · ' + eur(a.preis) +
          (a.lieferzeit_tage ? ' · Lieferzeit ' + werktageText(num(a.lieferzeit_tage)) : '') + '</span>' + (a.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
-    h += '<button class="btn small" data-a="artikelBearbeiten" data-x="' + esc(a.code) + '">bearbeiten</button></div>';
+    h += '<div class="row" style="gap:6px"><button class="btn small" data-a="artikelBearbeiten" data-x="' + esc(a.code) + '">bearbeiten</button>' +
+         (darf("manager") ? '<button class="btn small" data-a="artikelLoeschen" data-x="' + esc(a.code) + '"' + (offline ? " disabled" : "") + '>löschen</button>' : '') + '</div></div>';
   });
   return h + '</div>';
 }
@@ -1015,6 +1016,7 @@ function artikelForm(code, zweck){
     (code ? '' : '<p class="sub" data-zeig="W">Die Ziffer richtet sich nach der Art: Stück 1xx, Vorrat 5xx, Pauschale 9xx.</p>') +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
     (code && darf("arbeiten") ? '<button class="btn small" data-a="nrAendern" data-x="artikel|' + esc(code) + '">Code ändern</button>' : '') +
+    (code && darf("manager") ? '<button class="btn small" data-a="artikelLoeschen" data-x="' + esc(code) + '">Löschen</button>' : '') +
     '<span class="sp"></span><button class="btn primary" data-a="artikelSpeichern" data-x="' + esc(code || "") + '">Speichern</button></div>');
   artikelSichtbar();
   grBestandFelder();
