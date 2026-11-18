@@ -15,7 +15,7 @@
 const NEUIGKEITEN = [
   { version:"21.7.0", datum:"2026-11-18", titel:"Artikel löschen", punkte:[
     { art:"neu", fuer:"manager", titel:"Falsch angelegte Artikel löschen",
-      text:"Unter Mehr → Artikel und in „Artikel bearbeiten“ gibt es „löschen“. Gedacht für Fehleingaben. Wurde ein Artikel schon an Sportler ausgegeben, in einem Ticket verwendet oder abgerechnet, geht nur „inaktiv“." }
+      text:"In „Artikel bearbeiten“ gibt es „Löschen“. Gedacht für Fehleingaben. Wurde ein Artikel schon an Sportler ausgegeben, in einem Ticket verwendet oder abgerechnet, geht nur „inaktiv“." }
   ]},
   { version:"21.6.0", datum:"2026-11-17", titel:"Probleme am eigenen Material melden", punkte:[
     { art:"neu", fuer:"sportler", titel:"Problem melden für dein Material",

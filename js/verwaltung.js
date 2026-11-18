@@ -361,8 +361,7 @@ function artikelVerw(){
   (DB.artikel||[]).forEach(a => {
     h += '<div class="eintrag"><div class="txt"><strong>' + esc(a.name) + '</strong> <span class="sub">' + esc(a.code) + ' · ' + esc(a.art) + ' · ' + eur(a.preis) +
          (a.lieferzeit_tage ? ' · Lieferzeit ' + werktageText(num(a.lieferzeit_tage)) : '') + '</span>' + (a.aktiv ? "" : ' <span class="chip grau">inaktiv</span>') + '</div>';
-    h += '<div class="row" style="gap:6px"><button class="btn small" data-a="artikelBearbeiten" data-x="' + esc(a.code) + '">bearbeiten</button>' +
-         (darf("manager") ? '<button class="btn small" data-a="artikelLoeschen" data-x="' + esc(a.code) + '"' + (offline ? " disabled" : "") + '>löschen</button>' : '') + '</div></div>';
+    h += '<button class="btn small" data-a="artikelBearbeiten" data-x="' + esc(a.code) + '">bearbeiten</button></div>';
   });
   return h + '</div>';
 }
