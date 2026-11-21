@@ -49,14 +49,16 @@ jobs:
       TZ: Europe/Berlin
     steps:
       - name: Stand von main holen
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Node einrichten
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
+          # kein automatischer npm-Zwischenspeicher (Lauf hat Zugriff auf Secrets)
+          package-manager-cache: false
 
       - name: Abhängigkeiten
         run: npm install --no-save --no-package-lock --no-audit --no-fund --prefix tools pg@8.13.1 web-push@3.6.7

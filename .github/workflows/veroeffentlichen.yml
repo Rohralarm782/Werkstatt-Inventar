@@ -33,7 +33,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Stand von main holen
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
@@ -43,13 +43,13 @@ jobs:
           grep -o 'APP_VERSION = "[^"]*"' index.html || true
 
       - name: Pages vorbereiten
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Dateien packen
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: .
 
       - name: Veröffentlichen
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
