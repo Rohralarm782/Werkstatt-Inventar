@@ -46,7 +46,7 @@ const A = {
     // Reiter erneut antippen führt zurück zur Übersicht dieses Reiters
     view.tab = x; view.ticket = null; view.suche = "";
     if(x === "tickets" && view.filter === "verlauf") view.filter = "offen";
-    if(x === "raeder") view.rad = null;
+    if(x === "raeder"){ view.rad = null; view.sitz = null; }
     if(x === "mehr") view.mehr = null;
     if(x === "material") view.koffer = null;
     if(x === "neu" && !neu) neuStart();
@@ -57,7 +57,7 @@ const A = {
   verlaufMehr: () => ladeTicketVerlauf(true),
   verlaufNeu: () => { ticketVerlauf = undefined; render(); },
   verlaufTicket: x => verlaufTicket(Number(x)),
-  verlaufRad: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.suche = ""; render(); window.scrollTo(0,0); },
+  verlaufRad: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.sitz = null; view.suche = ""; render(); window.scrollTo(0,0); },
   mat: x => { view.mat = x; view.koffer = null; view.suche = ""; render(); window.scrollTo(0,0); },
   matFilter: x => {
     // Wechsel zwischen Werkstattmaterial und dem übrigen Lager: Kategorie-Filter zurücksetzen
@@ -182,8 +182,8 @@ const A = {
     aktion(() => rpc("lagerorte_sortieren", { p_ids:ids }));
   },
   rt: x => { view.rt = x; view.suche = ""; render(); },
-  radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
-  radZu: () => { view.rad = null; render(); window.scrollTo(0,0); },
+  radAuf: x => { modalZu(); view.tab = "raeder"; view.rad = x; view.sitz = null; view.ticket = null; view.suche = ""; render(); window.scrollTo(0,0); },
+  radZu: () => { view.rad = null; view.sitz = null; render(); window.scrollTo(0,0); },
   geheMehr: x => { if(x === "standorte") standorteCache = undefined; if(x === "vorgaben"){ vorgabenCache = undefined; view.vgMk = null; } if(x === "tags") view.ukKat = null; if(x === "konten") kontenCache = undefined; if(x === "benachrichtigungen") pushCache = undefined; view.tab = "mehr"; view.mehr = x; view.suche = ""; render(); window.scrollTo(0,0); },
   mehrZu: () => { view.mehr = null; view.ukKat = null; render(); window.scrollTo(0,0); },
   ticketRad: x => { modalZu(); ticketFuerRad(x); },

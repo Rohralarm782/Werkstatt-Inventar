@@ -19,7 +19,7 @@ let DB = null;             // frisch geladene Daten
 let stand = null;          // Zeitpunkt des letzten erfolgreichen Ladens
 let offline = false;       // true = Anzeige zeigt einen alten Stand
 // tab: tickets | neu | material | raeder | mehr
-let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", mat:"lager", koffer:null, lOrt:"", kOrt:"", ortAus:false, matFilter:"alle", rt:"raeder", rad:null, mehr:null };
+let view = { tab:"tickets", ticket:null, filter:"offen", suche:"", mat:"lager", koffer:null, lOrt:"", kOrt:"", ortAus:false, matFilter:"alle", rt:"raeder", rad:null, sitz:null, mehr:null };   // sitz: Rad-ID, wenn die Sitzposition offen ist (ab 21.8.0)
 let neu = null;            // Entwurf neues Ticket
 let jwt = null, jwtExp = 0;
 let bearbeiter = "";       // Name der aktiven Person (aus der Sitzung, siehe Konten)
@@ -178,6 +178,7 @@ async function ladeAlles(){
   const kofferAktiv = d.lagerorte.filter(o => o.aktiv && o.art === "koffer").map(o => o.name);
   verlaufCache = {};   // Rad-Verlauf beim nächsten Anzeigen neu holen
   ticketVerlauf = undefined;   // Ticket-Verlauf ebenso
+  if(typeof spVerlaufCache !== "undefined") spVerlaufCache = {};   // Sitzpositions-Verlauf ebenso (ab 21.8.0)
   stueckeVerteilen(d.tickets, d.ticket_stueck);
   STANDORT = d.standort[0] || null;
   DB = { bestand:d.bestand, artikel:d.artikel, raeder:d.raeder, sportler:d.sportler, stueck:d.stueck, tickets:d.tickets, positionen:d.positionen,
@@ -185,6 +186,7 @@ async function ladeAlles(){
          koffer:d.koffer.filter(k => kofferAktiv.indexOf(k.ort) >= 0), lagerorte:d.lagerorte, bestandOrt, groesseBestand, ausgeliehen:d.ausgeliehen,
          tags:d.tags, artikelTags:d.artikel_tag, stueckTags:d.stueck_tag, tsDa:true,
          kategorien:d.kategorien, personen:Array.isArray(d.personen) ? d.personen : null,
+         sitzpos:Array.isArray(d.sitzpos) ? d.sitzpos : undefined,   // Sitzpositionen, aktueller Stand (ab 21.8.0)
          mk:{ radtypen:d.radtypen, gruppen:d.gruppen, merkmale:d.merkmale, werte:d.werte, ziele:d.ziele, pflicht:d.pflicht, aus:d.aus } };
   stand = new Date();
   offline = false;

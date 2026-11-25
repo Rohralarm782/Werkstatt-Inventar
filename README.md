@@ -21,6 +21,7 @@ Live: https://rohralarm782.github.io/Werkstatt-Inventar/
 | `js/aktionen.js` | Klick-Aktionen (`A`) und Eingabe-Aktionen (`C`) |
 | `js/konto.js` | Konten, Sitzungen, Rollen, Anmeldung, Standorte, Briefkopf, Sportler-Ansicht |
 | `js/merkmale.js` | Vorgaben und eigene Einträge (ab 21.0.0): Radtypen, Tag-Gruppen, Merkmale mit Werten, Lagerort am Rad; Merkmal-Felder und -Filter; Mehr → Kategorien, Tags & Merkmale; Mehr → Vorgaben (Gesamt-Admin) |
+| `js/sitzposition.js` | Sitzpositionen je Rad (ab 21.8.0): Grafik, die sich mit den Werten bewegt, Zahlfelder und Schieber, Prüf-Hinweise, Laserjig-Haken je Lenker, Verlauf; Kurzübersicht auf der Rad-Seite, Ansicht für Sportler, UCI-Kategorie beim Sportler |
 | `js/push.js` | Morgen-Benachrichtigungen: Mehr → Benachrichtigungen, Gerät an-/abmelden, Sprung aus einer Nachricht (ab 20.2.0) |
 | `js/neuigkeiten.js` | „Was ist neu?“ (ab 21.4.0): Einträge je Version (`NEUIGKEITEN`) und das Fenster nach einem Update; nur für X.Y.0 oben einen Eintrag ergänzen, Patches zeigen kein Fenster (ab 21.6.2) |
 | `js/start.js` | Globale Ereignisse und Programmstart (immer zuletzt laden) |

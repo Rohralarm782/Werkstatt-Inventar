@@ -382,3 +382,25 @@
   .grtab{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
   .grtab .lbl{margin:0;font-size:11px}
   .grtab input{width:100%;min-width:0}
+  /* Sitzposition (ab 21.8.0): Grafik bleibt beim Scrollen oben, Felder mit Buchstaben-Kreis, Zahl und Schieber */
+  .sp-svg{width:100%;height:auto;display:block}
+  .card.sp-grafik .sp-svg{width:auto;max-width:100%;max-height:min(300px,38vh);margin:0 auto}   /* Laptop: Grafik nicht höher als nötig, Felder bleiben erreichbar */
+  .card.sp-grafik{position:sticky;top:0;z-index:5;padding:8px 6px 6px;box-shadow:0 4px 10px -8px rgba(21,24,28,.35)}
+  .sp-jig{display:flex;align-items:center;gap:12px;min-height:48px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);cursor:pointer}
+  .sp-jig input{width:24px;height:24px;margin:0;flex:0 0 auto;accent-color:var(--ok)}
+  .sp-jig > span{flex:1;min-width:0}
+  .sp-feld{padding:10px 0 6px;border-top:1px solid var(--line)}
+  .sp-kopf{display:flex;align-items:center;gap:10px}
+  .sp-badge{flex:0 0 auto;width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;background:#EFEDE9;color:var(--ink-2)}
+  .sp-name{flex:1;min-width:0;display:flex;flex-direction:column}
+  .sp-name .sub{font-size:12px}
+  input[type=text].sp-zahl{width:72px;flex:0 0 auto;text-align:right;font-weight:600;font-size:17px;font-variant-numeric:tabular-nums;padding:8px 10px}
+  input[type=text].sp-zahl.pruef{border:2px solid #D97706}
+  input[type=text].sp-zahl.falsch{border:2px solid var(--sprint)}
+  .sp-regler{width:100%;height:32px;margin:4px 0 0;display:block}
+  .sp-pruef{background:#FBEEDC;color:#7A3E06;border:1px solid #F1D2A6;border-radius:var(--radius);padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+  .sp-pruef .btn{background:#fff;color:#7A3E06;border-color:#E2BC85}
+  .sp-werte{display:flex;flex-wrap:wrap;gap:4px 12px;margin:4px 0 2px;font-variant-numeric:tabular-nums;font-size:14px}
+  .sp-wert.anders{color:var(--sprint);font-weight:600}
+  .sp-wert small{font-weight:400}
+  .sp-sportler{margin-top:6px;border-top:1px solid var(--line);padding-top:2px}

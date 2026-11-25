@@ -78,6 +78,9 @@ function sportlerVerw(){
          (DB.sportler.length && "art" in DB.sportler[0] ? '<br><button class="btn small link" style="padding:0" data-a="sportlerArt" data-x="' + s.id + '">ist Kostenträger (Verein, LV …)</button>' : '') + '</div>';
     h += '<div class="knoepfe"><button class="btn small" data-a="sportlerAbr" data-x="' + s.id + '">' + (s.abrechnen ? "wird berechnet" : "nicht abrechnen") + '</button>';
     h += '<button class="btn small" data-a="sportlerAktiv" data-x="' + s.id + '">' + (s.aktiv ? "ausblenden" : "einblenden") + '</button>';
+    // UCI-Größenkategorie, nur zur Info (ab 21.8.0)
+    if("uci_kategorie" in s) h += '<select data-c="sportlerUci" data-x="' + s.id + '" aria-label="UCI-Kategorie von ' + esc(s.name) + '" style="width:auto;min-height:38px;padding:0 8px;font-size:14px">' +
+      ['<option value="">UCI –</option>'].concat([1, 2, 3].map(k => '<option value="' + k + '"' + (s.uci_kategorie === k ? " selected" : "") + '>UCI Kat. ' + k + '</option>')).join("") + '</select>';
     if(darf("manager") && s.abrechnen && s.aktiv) h += '<button class="btn small" data-a="sportlerZugang" data-x="' + s.id + '">Zugang</button>';
     h += '</div></div>';
   });
@@ -103,8 +106,8 @@ function ktKuerzelVorschau(v){
 }
 /** Räder & Teile: Liste der Räder oder der Einzelstücke; ein Rad antippen öffnet die Rad-Seite. */
 function raederView(){
-  if(view.rad && rad(view.rad)) return radSeite(view.rad);
-  view.rad = null;
+  if(view.rad && rad(view.rad)) return view.sitz === view.rad ? sitzSeite(view.rad) : radSeite(view.rad);   // Sitzposition ab 21.8.0
+  view.rad = null; view.sitz = null;
   const nTeile = (DB.stueck||[]).filter(s => s.ort !== "ausgemustert").length;
   let h = '<div class="seg" style="margin-bottom:12px">' + segBtn("rt", "raeder", "Räder · " + (DB.raeder||[]).filter(r => r.aktiv).length, view.rt) +
           segBtn("rt", "teile", "Einzelstücke · " + nTeile, view.rt) + '</div>';
@@ -179,6 +182,7 @@ function radSeite(id){
   if(tk.length){
     h += '<h2 class="sec">Offene Tickets</h2>' + tk.map(t => ticketKarte(t, !t.fahrbereit)).join("");
   }
+  h += spRadKarte(r);   // Sitzposition (ab 21.8.0)
 
   const teile = stueckAm(id);
   h += '<div class="card"><span class="lbl">Teile am Rad</span>';

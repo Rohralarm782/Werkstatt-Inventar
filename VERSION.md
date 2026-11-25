@@ -1,8 +1,10 @@
 # Version
 
-**21.7.3** — 21.11.2026
+**21.8.0** — 25.11.2026
 
-GitHub-Actions der Workflows auf aktuelle Versionen (Node 24) gehoben.
+Sitzpositionen je Rad: Sattel, Lenker und Zeitfahraufsatz in mm mit Grafik,
+Prüf-Hinweisen, Laserjig-Haken je Lenker und Verlauf; UCI-Kategorie beim
+Sportler (Migration).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -24,6 +26,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.8.0 | 25.11.2026 | Sitzpositionen je Rad (Sattel, Lenker, Zeitfahraufsatz) mit Grafik, Prüf-Hinweisen, Laserjig-Haken je Lenker und Verlauf; UCI-Kategorie beim Sportler (Migration) |
 | 21.7.3 | 21.11.2026 | Workflows: GitHub-Actions auf aktuelle Versionen (Node 24), App unverändert |
 | 21.7.2 | 18.11.2026 | „Was ist neu?“ je Konto statt je Gerät (Migration) |
 | 21.7.1 | 18.11.2026 | Löschknopf aus der Artikel-Übersicht entfernt, Löschen nur in „Artikel bearbeiten“ |

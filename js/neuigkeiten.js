@@ -13,6 +13,18 @@
    Teil der App, geladen von index.html (Reihenfolge dort beachten). */
 
 const NEUIGKEITEN = [
+  { version:"21.8.0", datum:"2026-11-25", titel:"Sitzpositionen", punkte:[
+    { art:"neu", fuer:"werkstatt", titel:"Sitzposition je Rad",
+      text:"Auf der Rad-Seite gibt es „Sitzposition“: Sattelhöhe, Sattelversatz, Lenker und Vorbau in mm, bei einem montierten TT-Lenker auch Spacer, Reichweite E und Erhöhung H. Die Grafik bewegt sich mit den Werten. Jede Speicherung landet im Verlauf." },
+    { art:"neu", fuer:"werkstatt", titel:"Hinweis zum Gegenprüfen",
+      text:"Änderst du einen Wert am Sattel oder am Lenker, bittet die App, die zugehörigen Werte zu prüfen. Es wird nichts automatisch verschoben." },
+    { art:"neu", fuer:"werkstatt", titel:"Laserjig-Haken je Lenker",
+      text:"Pro Lenker bzw. Aufsatz lässt sich festhalten, ob die Werte am Laserjig bestätigt sind. Ändern sich die Lenkerwerte, ist der Haken wieder weg. Den Zeitfahraufsatz erkennt die App am Tag „TT-Lenker“, einen eigenen Lenker am Tag „Lenker“." },
+    { art:"neu", fuer:"werkstatt", titel:"UCI-Kategorie beim Sportler",
+      text:"Unter Mehr → Sportler & Kostenträger lässt sich die UCI-Größenkategorie (1–3) eintragen. Sie steht dann bei der Sitzposition." },
+    { art:"neu", fuer:"sportler", titel:"Deine Sitzposition",
+      text:"Bei deinem Rad siehst du jetzt die eingetragene Sitzposition. Ändern kann sie dein Trainer." }
+  ]},
   { version:"21.7.0", datum:"2026-11-18", titel:"Artikel löschen", punkte:[
     { art:"neu", fuer:"manager", titel:"Falsch angelegte Artikel löschen",
       text:"In „Artikel bearbeiten“ gibt es „Löschen“. Gedacht für Fehleingaben. Wurde ein Artikel schon an Sportler ausgegeben, in einem Ticket verwendet oder abgerechnet, geht nur „inaktiv“." }

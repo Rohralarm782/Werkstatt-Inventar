@@ -79,7 +79,7 @@ const IMMER_OK = ["anmWahl","anmName","anmNameOk","anmCode","anmCodeOk","anmCode
   "kontNeu","kontNeuOk","kontBearbeiten","kontSpeichern","kontCode","kontAktiv","sportlerZugang","standortNeu","standortNeuOk","standortHin",
   "stManagerNeu","stManagerNeuOk","stManagerCode","stManagerAktiv",
   "briefkopfSpeichern","logoWeg","spProblem","spProblemOk","spFotosOk","spTicket","modalZu","modalHintergrund","neuigkeiten","neuGelesen"];
-const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlaufTicket","verlaufRad","mat","matFilter","kofferAuf","kofferZu","rt","radAuf","radZu",
+const LESEN_OK = ["tab","filter","verlaufArt","verlaufMehr","verlaufNeu","verlaufTicket","verlaufRad","mat","matFilter","kofferAuf","kofferZu","rt","radAuf","radZu","spAuf","spZu","spModus",
   "geheMehr","mehrZu","teilZeigen","oeffnen","zurueck","scan","drucken","artikelMenue","export","rechnungZeigen","rechnungDrucken","postenZeigen","fotoZeigen",
   "bestellZu","bestellKopieren","bestellWarenkorb","bestellWarenkorbOk","buchungenArtikel","serieEtiketten","stueckEtikett","artikelEtikett","radEtikett","radEtikettenAlle","etDrucken","etSammeln","etZurueck","etBilder","etTeilen","sortWahl",
   "vorlagenVerwalten","vorlageForm","vorlageSpeichern","vorlageLoeschen","vorlageTest","dlEntfernen","dlLeeren","dlDrucken","dlAlle","dlKeine","dlAuswahl","zurDruckliste",
@@ -465,9 +465,10 @@ async function ladeSportler(){
     rest("/sportler"), rest("/stueck?order=nummer"), rest("/artikel?order=code"), rest("/standort?select=" + STANDORT_SPALTEN)
   ]);
   const ids = tickets.map(t => t.id).join(",");
-  const [ausgeliehen, mk, positionen] = await Promise.all([
+  const [ausgeliehen, mk, positionen, , sitzpos] = await Promise.all([
     rest("/v_ausgeliehen?order=seit.desc"), ladeMerkmale(),
-    tickets.length ? rest("/ticket_position?ticket_id=in.(" + ids + ")&status=neq.storniert&order=id") : [], stueckeAnTickets(tickets)
+    tickets.length ? rest("/ticket_position?ticket_id=in.(" + ids + ")&status=neq.storniert&order=id") : [], stueckeAnTickets(tickets),
+    rest("/v_sitzposition?order=id").catch(e => { if(e instanceof NetzFehler || e instanceof AbgemeldetFehler) throw e; return undefined; })   // Sitzposition (ab 21.8.0; ohne Migration: keine)
   ]);
   // Anzahl Fotos der offenen Tickets (für „Fotos ergänzen“, höchstens FOTOS_PRO_TICKET)
   const offeneIds = tickets.filter(t => t.status === "offen" || t.status === "angenommen").map(t => t.id);
@@ -476,7 +477,7 @@ async function ladeSportler(){
   fotoIds.forEach(x => fotoAnzahl[x.ticket_id] = (fotoAnzahl[x.ticket_id] || 0) + 1);
   STANDORT = standort[0] || null;
   DB = { bestand:[], artikel, raeder, sportler, stueck, tickets, positionen, koffer:[], termine:[], rechnungen, offenePosten:[], zaehlung:[], bestellungen:[],
-         tags:null, artikelTags:[], stueckTags:[], tsDa:true, kategorien:null, fotoAnzahl, ausgeliehen, mk };
+         tags:null, artikelTags:[], stueckTags:[], tsDa:true, kategorien:null, fotoAnzahl, ausgeliehen, mk, sitzpos };
   stand = new Date();
   offline = false;
 }
@@ -491,7 +492,7 @@ function sportlerView(){
          '<div class="sub">' + esc([r.id, r.typ, r.marke, r.groesse ? "Gr. " + r.groesse : "", mkText(r, zielRad(r.typ))].filter(Boolean).join(" · ")) + '</div></div>' +
          (t.length ? '<span class="chip ' + (steht ? "alarm" : "warn") + '">' + (steht ? "steht · " : "") + 'Ticket offen</span>' : '<span class="chip ok">alles ok</span>') + '</div>' +
          '<button class="btn voll ' + (t.length ? "" : "rot") + '" style="margin-top:10px" data-a="spProblem" data-x="' + esc(r.id) + '">' +
-         (t.length ? tnr(t[0].id) + ' ansehen · Fotos ergänzen' : 'Problem melden') + '</button></div>';
+         (t.length ? tnr(t[0].id) + ' ansehen · Fotos ergänzen' : 'Problem melden') + '</button>' + spSportlerKarte(r) + '</div>';
   });
   // Fest zugeordnetes Material (ab 21.5.0), z. B. Laufräder in der Laufradtasche
   const ich = ICH && ICH.sportler_id, fest = ich ? (DB.stueck || []).filter(x => x.sportler_id === ich && x.ort !== "ausgemustert") : [];
