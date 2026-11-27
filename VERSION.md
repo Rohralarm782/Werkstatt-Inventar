@@ -1,9 +1,9 @@
 # Version
 
-**21.10.2** — 27.11.2026
+**21.10.3** — 27.11.2026
 
-„Serie bearbeiten“ ohne „Fest zugeordnet an“ — feste Zuordnung nur noch im
-Einzelstück.
+Einzelstück bearbeiten: zeigt bei „Fest zugeordnet an“, an welchem Rad das
+Teil gerade montiert ist, und erklärt den Unterschied.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -25,6 +25,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.10.3 | 27.11.2026 | Einzelstück: Hinweis „Montiert am Rad von …“ bei „Fest zugeordnet an“ |
 | 21.10.2 | 27.11.2026 | „Fest zugeordnet an“ aus „Serie bearbeiten“ entfernt, nur noch im Einzelstück |
 | 21.10.1 | 27.11.2026 | Band-Bilder höchstens 200 mm (Druckergrenze), also 2 Etiketten à 75 mm je Bild |
 | 21.10.0 | 27.11.2026 | Band-Vorlage: alle Etiketten am Stück auf einem Bild mit Schnittstrichen (höchstens 20 je Bild); Gesamtlänge in Druckliste und Druckdialog |

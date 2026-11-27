@@ -1058,8 +1058,11 @@ function eigFeld(r){
   return h + '</select></div>';
 }
 /** Feld „fest zugeordnet an“ (ab 21.5.0), z. B. Laufräder eines Sportlers in der Laufradtasche. */
-function festFeld(wert){
+function festFeld(wert, radId){
+  const r = radId ? rad(radId) : null;   // ab 21.10.3: Montage am Rad mit anzeigen, damit „niemand“ nicht widersprüchlich wirkt
   return '<div class="feld"><span class="lbl">Fest zugeordnet an</span><select id="eFest">' + festOptionen(wert) + '</select>' +
+         (r ? '<p class="sub" style="margin:6px 0 0"><strong>Montiert am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')</strong> — das ist nur der aktuelle Platz. ' +
+              '„Fest zugeordnet“ heißt: Das Teil gehört dem Sportler dauerhaft, auch wenn es ausgebaut ist.</p>' : '') +
          '<p class="sub" style="margin:6px 0 0">Steht auf Etikett und Laufradtaschen-Tag; der Sportler sieht das Stück in seiner App.</p></div>';
 }
 function stueckForm(nr){
@@ -1074,7 +1077,7 @@ function stueckForm(nr){
     (nr ? '' : '<div class="feld"><span class="lbl">Anzahl gleicher Teile</span><input type="number" id="eAnzahl" value="1" min="1" max="50" step="1" inputmode="numeric" data-c="nrVorschau" style="max-width:120px">' +
               '<p class="sub" style="margin:6px 0 0">Mehr als 1, z. B. 4 Laufräder vorne: legt alle mit fortlaufenden Nummern an.</p></div>') +
     '<div class="grid2">' + feld("Seriennummer", "eSer", s.seriennummer) + kaufFeld("eKauf", s.kaufdatum) + '</div>' +
-    festFeld(s.sportler_id || null) +
+    festFeld(s.sportler_id || null, s.rad_id || null) +
     feld("Notiz", "eNotiz", s.notiz) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button>' +
     (nr ? '<button class="btn small" data-a="stueckLoeschen" data-x="' + esc(nr) + '">Löschen</button><button class="btn small" data-a="stueckEtikett" data-x="' + esc(nr) + '">Etikett</button>' +
