@@ -14,7 +14,8 @@ const ETIKETT_VORLAGEN = [
   { id:"a4_63x38",  name:"A4 · 3 × 7 · 63,5 × 38,1 mm",        form:"rechteck", seite:"A4", b:63.5, h:38.1, sp:3, ze:7, ro:15.15, li:7.25, ah:2.5, av:0 },
   { id:"rolle_62x29", name:"Etikettendrucker · 62 × 29 mm",     form:"rechteck", seite:"einzeln", b:62, h:29 },
   // Lagerkästen (ab 21.9.0): Endlosband 15 mm, einheitlich 75 mm lang (passt auf breite und schmale Kästen); Code links, Bezeichnung rechts
-  { id:"band15_75",  name:"Lagerkasten · Band 15 mm · 75 × 15 mm", form:"rechteck", seite:"einzeln", b:75, h:15 },
+  // band: Endlosband — „als Bild“ setzt alle Etiketten hintereinander auf ein Bild mit Schnittstrichen (ab 21.10.0)
+  { id:"band15_75",  name:"Lagerkasten · Band 15 mm · 75 × 15 mm", form:"rechteck", seite:"einzeln", b:75, h:15, band:true },
   // Für die Klarsichttaschen an den Laufradtaschen: normales Papier, per Hand schneiden (siehe taschen… unten)
   { id:"a4_tasche_80x53", name:"Laufradtaschen-Tag · A4 · 2 × 5 · 80 × 53 mm", form:"rechteck", seite:"A4", b:80, h:53, sp:2, ze:5, ro:10, li:25, ah:0, av:3, tasche:true }
 ];
@@ -26,6 +27,12 @@ function vorlageText(v){
   return v.name + (v.eigen ? " (eigene)" : "");
 }
 function felderJeSeite(v){ return v.seite === "A4" ? v.sp * v.ze : 1; }
+/** Band-Vorlage für Längenangaben: die auf dem Gerät gewählte, wenn sie ein Band ist, sonst die Lagerkasten-Vorlage. */
+function bandVorlage(){ const v = vorlage(localStorage.getItem("wEtikettVorlage") || ""); return v.band ? v : ETIKETT_VORLAGEN.find(x => x.band); }
+/** Länge in mm lesbar: „450 mm“ bzw. „1,35 m“. */
+function laengeText(mm){ return mm < 1000 ? Math.round(mm) + " mm" : (mm / 1000).toFixed(2).replace(".", ",") + " m"; }
+/** „6 × 75 mm = 450 mm“ — Gesamtlänge von n Etiketten auf dem Band. */
+function bandLaengeText(v, n){ return n + " × " + String(v.b).replace(".", ",") + " mm = " + laengeText(n * Number(v.b)); }
 
 let etikettAuftrag = null, etikettQuelle = null;
 function appUrl(){ return location.origin + location.pathname; }
@@ -75,6 +82,8 @@ function etikettDialog(items, titel, mitKopien, quelle){
   h += '<div class="feld" id="etCodeFeld"' + (v.tasche || !mitCode() ? " hidden" : "") + '><span class="lbl">Code</span><div class="row" style="gap:16px">' +
        [["qr","QR-Code"],["bar","Barcode (für schmale Etiketten)"]].map(o => '<label class="row" style="gap:6px"><input type="radio" name="etCode" value="' + o[0] + '"' + (codeArt() === o[0] ? " checked" : "") + '> ' + o[1] + '</label>').join("") +
        '</div><label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" id="etKurz"' + (barKurz() ? " checked" : "") + '> Kurzer Barcode: Standort-Kürzel nicht mit in die Striche (dickere Striche, besser lesbar)</label></div>';
+  h += '<p class="sub" id="etBandLaenge" data-n="' + items.length + '"' + (v.band ? '' : ' hidden') + '>Band: ' + (v.band ? esc(bandLaengeText(v, items.length)) : '') +
+       (mitKopien ? ' (je Kopie)' : '') + ' — „als Bild“ gibt alle Etiketten am Stück mit Schnittstrichen.</p>';
   h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (v.seite === "A4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld</span>' +
        '<input type="number" id="etStart" value="1" min="1" max="' + felderJeSeite(v) + '" inputmode="numeric"></div>';
   h += mitKopien ? feld("Anzahl je Etikett", "etKopien", 1, "number", ' min="1" max="50" inputmode="numeric"') : '';
@@ -371,22 +380,52 @@ function etikettBild(it, v, art){
 function leinwandBlob(cv){ return new Promise((ok, nein) => cv.toBlob(bl => bl ? ok(bl) : nein(new Error("Bild konnte nicht erstellt werden.")), "image/png")); }
 function bildDateiname(it){ return anzeigeNummer(it.titel || it.bc || "etikett").replace(/[^A-Za-z0-9_-]+/g, "_") + ".png"; }
 
+/* ---- Band-Bild (ab 21.10.0): alle Etiketten hintereinander auf einem Bild, kurze Schnittstriche
+   oben und unten an jeder Grenze (auch Anfang und Ende). Höchstens BAND_MAX Etiketten je Bild,
+   damit Handy-Browser und Drucker-App das Bild noch verarbeiten. ---- */
+const BAND_MAX = 20;
+function bandBild(items, v, art){
+  const P = BILD_PX_MM, b = Number(v.b), h = Number(v.h), w = Math.round(b * P), hp = Math.round(h * P);
+  const cv = document.createElement("canvas");
+  cv.width = w * items.length; cv.height = hp;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+  items.forEach((it, i) => ctx.drawImage(etikettBild(it, v, art), i * w, 0));
+  // Schnittstriche: 2 Punkte breit, 1,5 mm lang; am Anfang/Ende ganz im Bild
+  ctx.fillStyle = "#000";
+  const lang = Math.round(1.5 * P);
+  for(let i = 0; i <= items.length; i++){
+    const x = Math.min(cv.width - 2, Math.max(0, i * w - 1));
+    ctx.fillRect(x, 0, 2, lang); ctx.fillRect(x, hp - lang, 2, lang);
+  }
+  return cv;
+}
+
 let etikettBilder = [];   // [{ name, blob, url }] — zuletzt erstellte Bilder
 /** Erstellt die Bilder und zeigt sie an; Teilen/Sichern danach per Knopf (Teilen braucht ein frisches Antippen). */
 async function etikettBilderZeigen(items, v, art){
   etikettBilder.forEach(x => { try{ URL.revokeObjectURL(x.url); }catch(e){} });
   etikettBilder = [];
-  for(const it of items){
+  if(v.band){
+    for(let i = 0; i < items.length; i += BAND_MAX){
+      const teil = items.slice(i, i + BAND_MAX), nr = Math.floor(i / BAND_MAX) + 1;
+      const blob = await leinwandBlob(bandBild(teil, v, art));
+      etikettBilder.push({ name:"Etiketten_Band_" + nr + ".png", blob, url:URL.createObjectURL(blob), n:teil.length });
+    }
+  } else for(const it of items){
     const blob = await leinwandBlob(etikettBild(it, v, art));
     etikettBilder.push({ name:bildDateiname(it), blob, url:URL.createObjectURL(blob) });
   }
   // Barcode: Striche unter 2 Druckpunkten (0,25 mm) liest die Kamera schlecht
   const fein = art === "bar" && items.some(it => it.bc && barPunkte(barText(it), barBreiteMm(v, barText(it)) * BILD_PX_MM) < 2);
   const teilen = !!(navigator.canShare && navigator.share && navigator.canShare({ files:[new File([etikettBilder[0].blob], etikettBilder[0].name, { type:"image/png" })] }));
-  let h = '<h3>Etiketten als Bild</h3><p class="sub" style="margin-top:-6px">' + etikettBilder.length + ' Bild' + (etikettBilder.length === 1 ? '' : 'er') + ' · ' +
+  let h = v.band ? '<h3>Etiketten am Stück</h3><p class="sub" style="margin-top:-6px"><strong>Gesamtlänge: ' + esc(bandLaengeText(v, items.length)) + '</strong>' +
+          (etikettBilder.length > 1 ? ' · ' + etikettBilder.length + ' Bilder (je höchstens ' + BAND_MAX + ' Etiketten): ' + etikettBilder.map(x => laengeText(x.n * Number(v.b))).join(" + ") : '') +
+          '. In der App des Etikettendruckers als Bild einfügen, Länge des Etiketts = Länge des Bilds. Nach dem Druck an den Strichen schneiden.</p>'
+        : '<h3>Etiketten als Bild</h3><p class="sub" style="margin-top:-6px">' + etikettBilder.length + ' Bild' + (etikettBilder.length === 1 ? '' : 'er') + ' · ' +
           esc(String(v.b).replace(".", ",") + " × " + String(v.h).replace(".", ",")) + ' mm · 203 dpi. In der App des Etikettendruckers als Bild einfügen und auf die volle Etikettengröße ziehen.</p>';
   if(fein) h += '<p class="sub" style="color:var(--warn)">Achtung: Für diese Etikettenbreite ist der Barcode sehr fein (1 Druckpunkt je Strich) — breiteres Band, kürzere Nummer oder QR-Code nehmen und vorher testen.</p>';
-  h += '<div class="bildvorschau">' + etikettBilder.map(x => '<img src="' + x.url + '" alt="' + esc(x.name) + '" style="aspect-ratio:' + Number(v.b) + '/' + Number(v.h) + '">').join("") + '</div>';
+  h += '<div class="bildvorschau' + (v.band ? ' band' : '') + '">' + etikettBilder.map(x => '<img src="' + x.url + '" alt="' + esc(x.name) + '" style="aspect-ratio:' + Number(v.b) * (x.n || 1) + '/' + Number(v.h) + '">').join("") + '</div>';
   h += '<p class="sub">' + (teilen ? '„Teilen“ öffnet das Teilen-Menü: „Bilder sichern“ bzw. „In Galerie speichern“ wählen.' : 'Bilder werden heruntergeladen.') +
        ' Einzelnes Bild: lange antippen → sichern.</p>';
   h += '<div class="row wrapr" style="gap:8px"><button class="btn" data-a="etZurueck">Zurück</button><span class="sp"></span>' +

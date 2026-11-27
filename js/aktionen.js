@@ -672,13 +672,16 @@ const A = {
   },
   etBilder: () => {
     const w = etikettWahl(), v = w.v, art = w.art;
-    const items = (etikettAuftrag || []).map(it => etikettFuer(it, w.name, w.code));
+    let items = (etikettAuftrag || []).map(it => etikettFuer(it, w.name, w.code));
+    // Band: Anzahl je Etikett gilt auch für das Bild am Stück
+    if(v.band && $("etKopien")){ const k = Math.min(50, Math.max(1, Number(wert("etKopien") || 1))); items = items.flatMap(it => Array(k).fill(it)); }
     if(v.tasche){ toast("Laufradtaschen-Tags gibt es nur zum Drucken auf A4 — bitte „Drucken“ nehmen.", true); return; }
     if(art === "bar"){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
       if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
     }
-    if(items.length > 60){ toast("Höchstens 60 Bilder auf einmal — bitte weniger auswählen.", true); return; }
+    if(!v.band && items.length > 60){ toast("Höchstens 60 Bilder auf einmal — bitte weniger auswählen.", true); return; }
+    if(v.band && items.length > 200){ toast("Höchstens 200 Etiketten am Stück — bitte weniger auswählen.", true); return; }
     etikettBilderZeigen(items, v, art).catch(e => toast(e.message, true));
   },
   etTeilen: x => etikettBilderTeilen(x),
@@ -1111,6 +1114,8 @@ const C = {
     if(mc) mc.hidden = !!vo.tasche;
     if(c) c.hidden = !!vo.tasche || !!(cb && !cb.checked);
     if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; }
+    const bl = $("etBandLaenge");
+    if(bl){ bl.hidden = !vo.band; if(vo.band) bl.textContent = "Band: " + bandLaengeText(vo, Number(bl.dataset.n) || 0) + ($("etKopien") ? " (je Kopie)" : "") + " — „als Bild“ gibt alle Etiketten am Stück mit Schnittstrichen."; }
   },
   etMitCode: () => { const c = $("etCodeFeld"), cb = $("etMitCode"), vo = vorlage(wert("etVorlage")); if(c) c.hidden = !!vo.tasche || !!(cb && !cb.checked); },
   artGruppe: v => {

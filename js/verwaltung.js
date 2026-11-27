@@ -8,8 +8,10 @@
 /** Verwaltung → Etiketten: Druckliste und Sammel-Auswahl (z. B. zum Start alles auf einmal). */
 function etikettenVerw(){
   const dl = druckliste(), anz = drucklisteAnzahl();
+  const bv = bandVorlage();
   let h = '<div class="card"><div class="row wrapr" style="gap:8px"><strong>Druckliste · ' + anz + ' Etikett' + (anz === 1 ? '' : 'en') + '</strong><span class="sp"></span>' +
           (dl.length ? '<button class="btn small" data-a="dlLeeren">leeren</button><button class="btn small primary" data-a="dlDrucken">Drucken …</button>' : '') + '</div>';
+  if(anz && bv) h += '<p class="sub" style="margin:4px 0 0">Band: ' + esc(bandLaengeText(bv, anz)) + '</p>';
   if(dl.length){
     h += '<div class="liste" style="margin-top:8px">';
     dl.forEach(e => {

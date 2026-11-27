@@ -13,6 +13,12 @@
    Teil der App, geladen von index.html (Reihenfolge dort beachten). */
 
 const NEUIGKEITEN = [
+  { version:"21.10.0", datum:"2026-11-27", titel:"Lagerkasten-Etiketten am Stück", punkte:[
+    { art:"neu", fuer:"werkstatt", titel:"Alle Etiketten auf ein Bild",
+      text:"Mit „Lagerkasten · Band 15 mm“ erzeugt „als Bild“ jetzt ein langes Bild mit allen Etiketten hintereinander und kleinen Schnittstrichen. In der Drucker-App einfügen, einmal drucken und an den Strichen schneiden." },
+    { art:"neu", fuer:"werkstatt", titel:"Gesamtlänge",
+      text:"Druckliste und Druckdialog zeigen, wie viel Band gebraucht wird (75 mm je Etikett)." }
+  ]},
   { version:"21.9.0", datum:"2026-11-27", titel:"Etiketten für Lagerkästen", punkte:[
     { art:"neu", fuer:"werkstatt", titel:"Lagerkasten-Etikett 75 × 15 mm",
       text:"Beim Etikettendruck gibt es die Art „Lagerkasten · Band 15 mm“. Der Code steht links, die Bezeichnung groß daneben, bei langen Namen auf zwei Zeilen. Das Etikett passt auf die breiten und die schmalen Kästen. Mit dem QR-Code wird die Schrift am größten." }

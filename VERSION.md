@@ -1,9 +1,9 @@
 # Version
 
-**21.9.0** — 27.11.2026
+**21.10.0** — 27.11.2026
 
-Etiketten für Lagerkästen: neue Etiketten-Art 75 × 15 mm (Endlosband 15 mm),
-Code links, Bezeichnung groß daneben.
+Lagerkasten-Etiketten am Stück: „als Bild“ setzt alle Etiketten auf ein Bild
+mit Schnittstrichen; Gesamtlänge in Druckliste und Druckdialog.
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -25,6 +25,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.10.0 | 27.11.2026 | Band-Vorlage: alle Etiketten am Stück auf einem Bild mit Schnittstrichen (höchstens 20 je Bild); Gesamtlänge in Druckliste und Druckdialog |
 | 21.9.0 | 27.11.2026 | Etiketten-Art „Lagerkasten · Band 15 mm“ (75 × 15 mm): Code links, Bezeichnung groß rechts; gilt für alle Etiketten mind. 3× so lang wie hoch |
 | 21.8.0 | 25.11.2026 | Sitzpositionen je Rad (Sattel, Lenker, Zeitfahraufsatz) mit Grafik, Prüf-Hinweisen, Laserjig-Haken je Lenker und Verlauf; UCI-Kategorie beim Sportler (Migration) |
 | 21.7.3 | 21.11.2026 | Workflows: GitHub-Actions auf aktuelle Versionen (Node 24), App unverändert |
