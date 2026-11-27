@@ -945,7 +945,7 @@ const A = {
     let kauf;
     try{ kauf = kaufWert("eKauf"); }catch(e){ toast(e.message, true); return; }
     const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, notiz:wert("eNotiz") || null };
-    if($("eFest")) d.sportler_id = wert("eFest") ? Number(wert("eFest")) : null;
+    // „Fest zugeordnet an“ gibt es nur im Einzelstück (ab 21.10.2), die Serie lässt sportler_id unverändert.
     if(!d.typ){ toast("Typ fehlt.", true); return; }
     const monate = Array.from(new Set(g.map(s => (s.kaufdatum || "").slice(0, 7))));
     if(kauf){ if(!(monate.length === 1 && monate[0] === kauf.slice(0, 7))) d.kaufdatum = kauf; }   // gleicher Monat: genaue Daten behalten

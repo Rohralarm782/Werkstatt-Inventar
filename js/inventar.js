@@ -323,7 +323,6 @@ function serieForm(key){
     mkBox("stueck", zielVon("stueck", s0), s0.merkmale, stueckKategorie(s0.nummer)) +
     kaufFeld("eKauf", kaufVerschieden ? "" : (monate[0] ? monate[0] + "-01" : "")) +
     (kaufVerschieden ? '<p class="sub" style="margin:-4px 0 8px">Die Stücke haben verschiedene Kaufdaten. Leer lassen = unverändert.</p>' : '') +
-    festFeld(s0.sportler_id || null) +
     feld("Notiz", "eNotiz", gleich("notiz")) +
     '<div class="row" style="gap:8px"><button class="btn" data-a="modalZu">Abbrechen</button><span class="sp"></span><button class="btn primary" data-a="serieSpeichern" data-x="' + esc(key) + '">Für alle speichern</button></div>');
 }
