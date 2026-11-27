@@ -203,6 +203,11 @@
   #druck .etikett .t{font-weight:700;line-height:1.05;letter-spacing:.02em;white-space:nowrap}
   #druck .etikett .z{line-height:1.2}
   #druck .etikett .z.name{font-weight:700}
+  #druck .etikett.streifen{flex-direction:row}
+  #druck .streifen .code{flex:0 0 auto;display:flex;flex-direction:column;align-items:center}
+  #druck .streifen .txt{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center}
+  #druck .streifen .zb{font-weight:700;line-height:1.08}
+  #druck .streifen .zb div, #druck .streifen .z{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #druck .etikett.text .t, #druck .etikett.text .z{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #druck .etikett .nr{font-size:4mm;color:#888}
   #druck .tband, #druck .schnitt{position:absolute;-webkit-print-color-adjust:exact;print-color-adjust:exact}

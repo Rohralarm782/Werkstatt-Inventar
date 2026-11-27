@@ -663,7 +663,7 @@ const A = {
     if(art === "bar" && !v.tasche){
       const fehler = items.find(it => { try{ code128Werte(it.bc); return false; }catch(e){ return true; } });
       if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
-      schmal = Math.min.apply(null, items.map(it => barModulMm(barText(it), barBreiteMm(v))));
+      schmal = Math.min.apply(null, items.map(it => barModulMm(barText(it), barBreiteMm(v, barText(it)))));
     }
     modalZu();
     if(quelle === "druckliste" && leeren){ drucklisteSpeichern([]); render(); }

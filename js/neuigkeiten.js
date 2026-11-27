@@ -13,6 +13,10 @@
    Teil der App, geladen von index.html (Reihenfolge dort beachten). */
 
 const NEUIGKEITEN = [
+  { version:"21.9.0", datum:"2026-11-27", titel:"Etiketten für Lagerkästen", punkte:[
+    { art:"neu", fuer:"werkstatt", titel:"Lagerkasten-Etikett 75 × 15 mm",
+      text:"Beim Etikettendruck gibt es die Art „Lagerkasten · Band 15 mm“. Der Code steht links, die Bezeichnung groß daneben, bei langen Namen auf zwei Zeilen. Das Etikett passt auf die breiten und die schmalen Kästen. Mit dem QR-Code wird die Schrift am größten." }
+  ]},
   { version:"21.8.0", datum:"2026-11-25", titel:"Sitzpositionen", punkte:[
     { art:"neu", fuer:"werkstatt", titel:"Sitzposition je Rad",
       text:"Auf der Rad-Seite gibt es „Sitzposition“: Sattelhöhe, Sattelversatz, Lenker und Vorbau in mm, bei einem montierten TT-Lenker auch Spacer, Reichweite E und Erhöhung H. Die Grafik bewegt sich mit den Werten. Jede Speicherung landet im Verlauf." },

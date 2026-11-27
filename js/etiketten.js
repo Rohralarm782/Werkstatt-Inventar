@@ -13,6 +13,8 @@ const ETIKETT_VORLAGEN = [
   { id:"a4_70x37",  name:"A4 · 3 × 8 · 70 × 37 mm",            form:"rechteck", seite:"A4", b:70,   h:37,   sp:3, ze:8, ro:0,     li:0,    ah:0,   av:0 },
   { id:"a4_63x38",  name:"A4 · 3 × 7 · 63,5 × 38,1 mm",        form:"rechteck", seite:"A4", b:63.5, h:38.1, sp:3, ze:7, ro:15.15, li:7.25, ah:2.5, av:0 },
   { id:"rolle_62x29", name:"Etikettendrucker · 62 × 29 mm",     form:"rechteck", seite:"einzeln", b:62, h:29 },
+  // Lagerkästen (ab 21.9.0): Endlosband 15 mm, einheitlich 75 mm lang (passt auf breite und schmale Kästen); Code links, Bezeichnung rechts
+  { id:"band15_75",  name:"Lagerkasten · Band 15 mm · 75 × 15 mm", form:"rechteck", seite:"einzeln", b:75, h:15 },
   // Für die Klarsichttaschen an den Laufradtaschen: normales Papier, per Hand schneiden (siehe taschen… unten)
   { id:"a4_tasche_80x53", name:"Laufradtaschen-Tag · A4 · 2 × 5 · 80 × 53 mm", form:"rechteck", seite:"A4", b:80, h:53, sp:2, ze:5, ro:10, li:25, ah:0, av:3, tasche:true }
 ];
@@ -172,9 +174,10 @@ function barSvg(text, cache){
 }
 /** Breite eines Strich-Moduls in mm, wenn text auf breiteMm gedruckt wird. Unter ca. 0,19 mm wird es für Kameras schwierig. */
 function barModulMm(text, breiteMm){ return breiteMm / code128Module(text); }
-/** Nutzbare Breite für den Barcode auf Vorlage v (wie in barcodeInhalt). */
-function barBreiteMm(v){
+/** Nutzbare Breite für den Barcode auf Vorlage v (wie in barcodeInhalt bzw. streifenLayout; dort hängt sie vom text ab). */
+function barBreiteMm(v, text){
   const b = Number(v.b), h = Number(v.h);
+  if(istStreifen(v)) return streifenBarBreite(v, text || "0000");
   if(v.form === "rund") return Math.min(b, h) * 0.74;
   return b - 2 * Math.min(2, b * 0.05, h * 0.08);
 }
@@ -205,6 +208,63 @@ function barcodeInhalt(it, v, cache){
          '<div class="bar" style="width:' + mm(L.W) + ';height:' + mm(L.strich) + '">' + barSvg(barText(it), cache) + '</div>' +
          '<div class="t" style="font-size:' + mm(L.t) + ';margin-top:' + mm(0.4) + '">' + esc(L.titel) + '</div>' +
          (L.mitFuss ? '<div class="z' + (it.nameUnten ? ' name' : '') + '" style="font-size:' + mm(L.z * (it.nameUnten ? 1 : 0.8)) + ';max-width:' + mm(L.W) + '">' + esc(it.fuss) + '</div>' : '') };
+}
+
+/* ---- Streifen (ab 21.9.0): lange, flache Etiketten wie 75 × 15 mm für Lagerkästen.
+   Code links (QR in voller Höhe bzw. Barcode mit Nummer darunter), rechts die Bezeichnung fett,
+   bei Bedarf auf zwei Zeilen, darunter klein Nummer (nur beim QR-Code) und Name.
+   Gilt für jede rechteckige Vorlage, die mindestens dreimal so lang wie hoch ist. ---- */
+function istStreifen(v){ return !!v && v.form !== "rund" && !v.tasche && Number(v.b) / Number(v.h) >= 3; }
+function streifenRand(v){ return Math.min(1.2, Number(v.h) * 0.08); }
+/** Breite des Barcodes auf einem Streifen: mind. 0,33 mm je Modul, höchstens die halbe Länge. */
+function streifenBarBreite(v, text){
+  const b = Number(v.b), H = Number(v.h) - 2 * streifenRand(v);
+  let m = 80; try{ m = code128Module(text); }catch(e){}
+  return Math.min(b * 0.5, Math.max(H * 1.6, m * 0.33));
+}
+/** Text auf eine oder zwei Zeilen verteilen, so groß wie möglich (Werte in mm). zb = mittlere Zeichenbreite fett in em. */
+function streifenZeilen(text, breite, hoehe, max){
+  text = String(text || "").trim();
+  const zb = 0.58;
+  if(!text) return { zeilen:[], mm:0 };
+  const eine = Math.min(max, hoehe / 1.1, breite / (text.length * zb));
+  if(text.indexOf(" ") < 0 || eine >= max * 0.8) return { zeilen:[text], mm:eine };
+  const mitte = text.length / 2;
+  let pos = -1;
+  // nicht vor „·“, „×“ oder Strichen umbrechen und nicht direkt nach „×“ (sonst steht „· Marke“ bzw. „× 100“ allein)
+  const geht = i => text[i] === " " && !"·×-–/".includes(text[i + 1] || "") && !"×".includes(text[i - 1] || "");
+  for(let i = 0; i < text.length; i++) if(geht(i) && (pos < 0 || Math.abs(i - mitte) < Math.abs(pos - mitte))) pos = i;
+  if(pos < 0) return { zeilen:[text], mm:eine };
+  const z = [text.slice(0, pos), text.slice(pos + 1)];
+  const zwei = Math.min(max, hoehe / 2.2, breite / (Math.max(z[0].length, z[1].length) * zb));
+  return zwei > eine * 1.1 ? { zeilen:z, mm:zwei } : { zeilen:[text], mm:eine };
+}
+/** Maße eines Streifen-Etiketts in mm (für Druck und Bild gleich). art: "qr" | "bar" | "text". */
+function streifenLayout(it, v, art){
+  const b = Number(v.b), h = Number(v.h), pad = streifenRand(v), H = h - 2 * pad;
+  const nummer = anzeigeNummer(it.titel || it.bc || "");
+  const code = art === "qr" ? "qr" : (art === "bar" && it.bc ? "bar" : "");
+  const cw = code === "qr" ? H : code === "bar" ? streifenBarBreite(v, barText(it)) : 0;
+  const gap = code ? pad * 1.6 : 0, tx = pad + cw + gap, tw = b - tx - pad;
+  // Barcode: Nummer unter den Strichen; QR/ohne Code: Nummer klein rechts unter der Bezeichnung
+  const bt = code === "bar" ? Math.max(1.8, Math.min(2.8, H * 0.21, cw / (Math.max(1, nummer.length) * 0.62))) : 0;
+  const strich = code === "bar" ? H - bt * 1.15 - 0.3 : 0;
+  // kleine Zeile rechts: Nummer (wenn nicht schon unterm Barcode) und Name
+  const klein = [code === "bar" ? "" : nummer, it.name || ""].filter(Boolean).join(" · ");
+  const haupt = it.zeile || (code === "bar" ? "" : nummer);
+  const kz = klein && haupt ? Math.max(1.8, Math.min(2.8, H * 0.22)) : 0;
+  const z = streifenZeilen(haupt || klein, tw, H - (kz ? kz * 1.25 : 0), Math.min(7, H * 0.6));
+  return { b, h, pad, H, code, cw, gap, tx, tw, nummer, bt, strich, haupt:haupt || klein, klein:haupt ? klein : "", kz, z };
+}
+function streifenInhalt(it, v, cache, art){
+  const L = streifenLayout(it, v, art), mm = x => x.toFixed(2) + "mm";
+  let c = "";
+  if(L.code === "qr") c = '<div class="qr" style="width:' + mm(L.cw) + ';height:' + mm(L.cw) + '">' + qrSvg(it.qr, cache) + '</div>';
+  if(L.code === "bar") c = '<div class="code" style="width:' + mm(L.cw) + '"><div class="bar" style="width:' + mm(L.cw) + ';height:' + mm(L.strich) + '">' + barSvg(barText(it), cache) + '</div>' +
+                           '<div class="t" style="font-size:' + mm(L.bt) + ';margin-top:' + mm(0.3) + '">' + esc(L.nummer) + '</div></div>';
+  return { cls:"streifen", stil:"padding:" + mm(L.pad) + ";gap:" + mm(L.gap),
+    html:c + '<div class="txt"><div class="zb" style="font-size:' + mm(L.z.mm) + '">' + L.z.zeilen.map(x => '<div>' + esc(x) + '</div>').join("") + '</div>' +
+         (L.klein ? '<div class="z" style="font-size:' + mm(L.kz) + ';margin-top:' + mm(L.kz * 0.2) + '">' + esc(L.klein) + '</div>' : '') + '</div>' };
 }
 
 /* ---- Etikett als Bild (PNG) — für Etikettendrucker mit Handy-App (z. B. Katasymbol E11):
@@ -249,6 +309,20 @@ function etikettBild(it, v, art){
   ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.fillStyle = "#000"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
   const titel = anzeigeNummer(it.titel || it.bc || it.qr);
+  if(istStreifen(v)){
+    const L = streifenLayout(it, v, art);
+    if(L.code === "qr") bildQr(ctx, it.qr, L.pad * P, L.pad * P, L.cw * P);
+    if(L.code === "bar"){
+      bildBarcode(ctx, barText(it), L.pad * P, L.pad * P, L.cw * P, L.strich * P);
+      bildText(ctx, L.nummer, (L.pad + L.cw / 2) * P, (L.pad + L.strich + 0.3 + L.bt * 0.9) * P, L.cw * P, L.bt * P, true);
+    }
+    ctx.textAlign = "left";
+    const zh = L.z.mm * 1.08, hoch = L.z.zeilen.length * zh + (L.klein ? L.kz * 1.25 : 0);
+    let y = (h - hoch) / 2;
+    L.z.zeilen.forEach(x => { bildText(ctx, x, L.tx * P, (y + L.z.mm * 0.86) * P, L.tw * P, L.z.mm * P, true, L.z.mm * P * 0.75); y += zh; });
+    if(L.klein) bildText(ctx, L.klein, L.tx * P, (y + L.kz * 0.2 + L.kz * 0.86) * P, L.tw * P, L.kz * P, false);
+    return cv;
+  }
   if(art === "text"){
     // ohne Code (ab 21.5.0): Nummer groß, Name darunter, Bezeichnung klein
     const L = textLayout(it, v);
@@ -307,7 +381,7 @@ async function etikettBilderZeigen(items, v, art){
     etikettBilder.push({ name:bildDateiname(it), blob, url:URL.createObjectURL(blob) });
   }
   // Barcode: Striche unter 2 Druckpunkten (0,25 mm) liest die Kamera schlecht
-  const fein = art === "bar" && items.some(it => it.bc && barPunkte(barText(it), barBreiteMm(v) * BILD_PX_MM) < 2);
+  const fein = art === "bar" && items.some(it => it.bc && barPunkte(barText(it), barBreiteMm(v, barText(it)) * BILD_PX_MM) < 2);
   const teilen = !!(navigator.canShare && navigator.share && navigator.canShare({ files:[new File([etikettBilder[0].blob], etikettBilder[0].name, { type:"image/png" })] }));
   let h = '<h3>Etiketten als Bild</h3><p class="sub" style="margin-top:-6px">' + etikettBilder.length + ' Bild' + (etikettBilder.length === 1 ? '' : 'er') + ' · ' +
           esc(String(v.b).replace(".", ",") + " × " + String(v.h).replace(".", ",")) + ' mm · 203 dpi. In der App des Etikettendruckers als Bild einfügen und auf die volle Etikettengröße ziehen.</p>';
@@ -392,6 +466,7 @@ function qrSvg(text, cache){
 /** Inhalt eines Etiketts passend zur Größe: quer (QR links, Text rechts) oder hoch/rund (QR oben, Nummer darunter). */
 function etikettInhalt(it, v, cache, art){
   if(v.tasche) return taschenInhalt(it, v);
+  if(istStreifen(v)) return streifenInhalt(it, v, cache, art);
   if(art === "text") return textInhalt(it, v);
   if(art === "bar" && it.bc) return barcodeInhalt(barMitName(it, v), v, cache);
   const b = Number(v.b), h = Number(v.h), rund = v.form === "rund";
