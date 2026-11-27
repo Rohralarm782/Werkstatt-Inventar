@@ -681,7 +681,7 @@ const A = {
       if(fehler){ toast("„" + fehler.titel + "“ enthält Zeichen, die als Barcode nicht gehen — bitte QR-Code wählen.", true); return; }
     }
     if(!v.band && items.length > 60){ toast("Höchstens 60 Bilder auf einmal — bitte weniger auswählen.", true); return; }
-    if(v.band && items.length > 200){ toast("Höchstens 200 Etiketten am Stück — bitte weniger auswählen.", true); return; }
+    if(v.band && items.length > 60 * bandJeBild(v)){ toast("Höchstens " + 60 * bandJeBild(v) + " Etiketten (60 Bilder) auf einmal — bitte weniger auswählen.", true); return; }
     etikettBilderZeigen(items, v, art).catch(e => toast(e.message, true));
   },
   etTeilen: x => etikettBilderTeilen(x),
@@ -1115,7 +1115,7 @@ const C = {
     if(c) c.hidden = !!vo.tasche || !!(cb && !cb.checked);
     if(i){ i.max = felderJeSeite(vo); if(Number(i.value) > felderJeSeite(vo)) i.value = 1; }
     const bl = $("etBandLaenge");
-    if(bl){ bl.hidden = !vo.band; if(vo.band) bl.textContent = "Band: " + bandLaengeText(vo, Number(bl.dataset.n) || 0) + ($("etKopien") ? " (je Kopie)" : "") + " — „als Bild“ gibt alle Etiketten am Stück mit Schnittstrichen."; }
+    if(bl){ bl.hidden = !vo.band; if(vo.band) bl.textContent = "Band: " + bandLaengeText(vo, Number(bl.dataset.n) || 0) + ($("etKopien") ? " (je Kopie)" : "") + " — „als Bild“ gibt die Etiketten am Stück mit Schnittstrichen (je Bild höchstens " + BAND_MAX_MM + " mm)."; }
   },
   etMitCode: () => { const c = $("etCodeFeld"), cb = $("etMitCode"), vo = vorlage(wert("etVorlage")); if(c) c.hidden = !!vo.tasche || !!(cb && !cb.checked); },
   artGruppe: v => {

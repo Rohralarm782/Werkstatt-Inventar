@@ -83,7 +83,7 @@ function etikettDialog(items, titel, mitKopien, quelle){
        [["qr","QR-Code"],["bar","Barcode (für schmale Etiketten)"]].map(o => '<label class="row" style="gap:6px"><input type="radio" name="etCode" value="' + o[0] + '"' + (codeArt() === o[0] ? " checked" : "") + '> ' + o[1] + '</label>').join("") +
        '</div><label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" id="etKurz"' + (barKurz() ? " checked" : "") + '> Kurzer Barcode: Standort-Kürzel nicht mit in die Striche (dickere Striche, besser lesbar)</label></div>';
   h += '<p class="sub" id="etBandLaenge" data-n="' + items.length + '"' + (v.band ? '' : ' hidden') + '>Band: ' + (v.band ? esc(bandLaengeText(v, items.length)) : '') +
-       (mitKopien ? ' (je Kopie)' : '') + ' — „als Bild“ gibt alle Etiketten am Stück mit Schnittstrichen.</p>';
+       (mitKopien ? ' (je Kopie)' : '') + ' — „als Bild“ gibt die Etiketten am Stück mit Schnittstrichen (je Bild höchstens ' + BAND_MAX_MM + ' mm).</p>';
   h += '<div class="grid2"><div class="feld" id="etStartFeld"' + (v.seite === "A4" ? "" : " hidden") + '><span class="lbl">Erstes freies Feld</span>' +
        '<input type="number" id="etStart" value="1" min="1" max="' + felderJeSeite(v) + '" inputmode="numeric"></div>';
   h += mitKopien ? feld("Anzahl je Etikett", "etKopien", 1, "number", ' min="1" max="50" inputmode="numeric"') : '';
@@ -381,9 +381,12 @@ function leinwandBlob(cv){ return new Promise((ok, nein) => cv.toBlob(bl => bl ?
 function bildDateiname(it){ return anzeigeNummer(it.titel || it.bc || "etikett").replace(/[^A-Za-z0-9_-]+/g, "_") + ".png"; }
 
 /* ---- Band-Bild (ab 21.10.0): alle Etiketten hintereinander auf einem Bild, kurze Schnittstriche
-   oben und unten an jeder Grenze (auch Anfang und Ende). Höchstens BAND_MAX Etiketten je Bild,
+   oben und unten an jeder Grenze (auch Anfang und Ende). Je Bild höchstens BAND_MAX_MM lang
+   (der Etikettendrucker druckt höchstens 200 mm am Stück, ab 21.10.1), mindestens ein Etikett;
    damit Handy-Browser und Drucker-App das Bild noch verarbeiten. ---- */
-const BAND_MAX = 20;
+const BAND_MAX_MM = 200;
+/** Etiketten je Bild auf Band-Vorlage v: so viele, wie in BAND_MAX_MM passen (mind. 1). */
+function bandJeBild(v){ return Math.max(1, Math.floor(BAND_MAX_MM / Number(v.b))); }
 function bandBild(items, v, art){
   const P = BILD_PX_MM, b = Number(v.b), h = Number(v.h), w = Math.round(b * P), hp = Math.round(h * P);
   const cv = document.createElement("canvas");
@@ -407,8 +410,9 @@ async function etikettBilderZeigen(items, v, art){
   etikettBilder.forEach(x => { try{ URL.revokeObjectURL(x.url); }catch(e){} });
   etikettBilder = [];
   if(v.band){
-    for(let i = 0; i < items.length; i += BAND_MAX){
-      const teil = items.slice(i, i + BAND_MAX), nr = Math.floor(i / BAND_MAX) + 1;
+    const je = bandJeBild(v);
+    for(let i = 0; i < items.length; i += je){
+      const teil = items.slice(i, i + je), nr = Math.floor(i / je) + 1;
       const blob = await leinwandBlob(bandBild(teil, v, art));
       etikettBilder.push({ name:"Etiketten_Band_" + nr + ".png", blob, url:URL.createObjectURL(blob), n:teil.length });
     }
@@ -420,7 +424,7 @@ async function etikettBilderZeigen(items, v, art){
   const fein = art === "bar" && items.some(it => it.bc && barPunkte(barText(it), barBreiteMm(v, barText(it)) * BILD_PX_MM) < 2);
   const teilen = !!(navigator.canShare && navigator.share && navigator.canShare({ files:[new File([etikettBilder[0].blob], etikettBilder[0].name, { type:"image/png" })] }));
   let h = v.band ? '<h3>Etiketten am Stück</h3><p class="sub" style="margin-top:-6px"><strong>Gesamtlänge: ' + esc(bandLaengeText(v, items.length)) + '</strong>' +
-          (etikettBilder.length > 1 ? ' · ' + etikettBilder.length + ' Bilder (je höchstens ' + BAND_MAX + ' Etiketten): ' + etikettBilder.map(x => laengeText(x.n * Number(v.b))).join(" + ") : '') +
+          (etikettBilder.length > 1 ? ' · ' + etikettBilder.length + ' Bilder, je höchstens ' + bandJeBild(v) + ' Etikett' + (bandJeBild(v) === 1 ? '' : 'en') + ' (' + laengeText(bandJeBild(v) * Number(v.b)) + ', Drucker max. ' + BAND_MAX_MM + ' mm)' : '') +
           '. In der App des Etikettendruckers als Bild einfügen, Länge des Etiketts = Länge des Bilds. Nach dem Druck an den Strichen schneiden.</p>'
         : '<h3>Etiketten als Bild</h3><p class="sub" style="margin-top:-6px">' + etikettBilder.length + ' Bild' + (etikettBilder.length === 1 ? '' : 'er') + ' · ' +
           esc(String(v.b).replace(".", ",") + " × " + String(v.h).replace(".", ",")) + ' mm · 203 dpi. In der App des Etikettendruckers als Bild einfügen und auf die volle Etikettengröße ziehen.</p>';
