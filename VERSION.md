@@ -1,9 +1,9 @@
 # Version
 
-**21.10.3** — 27.11.2026
+**21.11.0** — 27.11.2026
 
-Einzelstück bearbeiten: zeigt bei „Fest zugeordnet an“, an welchem Rad das
-Teil gerade montiert ist, und erklärt den Unterschied.
+Einzelstück: „Am Rad“ und „fest zugeordnet an“ zu einem Feld „Zugeordnet an“
+zusammengelegt — Rad (gilt der Fahrer) oder Sportler, nie beides (Migration).
 
 Die Versionsnummer steht als `APP_VERSION` in der `index.html` und wird
 unten in der App angezeigt. Bei jedem Update dort zusätzlich alle
@@ -25,6 +25,7 @@ Nummernschema (ab 20.1.0 bewusst sparsamer):
 
 | Version | Datum | Kurz |
 |---|---|---|
+| 21.11.0 | 27.11.2026 | Einzelstück: ein Feld „Zugeordnet an“ (Rad oder Sportler, nie beides), Serien ohne Trennung nach Sportler, „Mein Material“ mit Teilen am eigenen Rad (Migration) |
 | 21.10.3 | 27.11.2026 | Einzelstück: Hinweis „Montiert am Rad von …“ bei „Fest zugeordnet an“ |
 | 21.10.2 | 27.11.2026 | „Fest zugeordnet an“ aus „Serie bearbeiten“ entfernt, nur noch im Einzelstück |
 | 21.10.1 | 27.11.2026 | Band-Bilder höchstens 200 mm (Druckergrenze), also 2 Etiketten à 75 mm je Bild |

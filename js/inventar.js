@@ -11,9 +11,13 @@ function stueckKategorie(nr){ return codeBuchstabe(nr) || "?"; }
 function kategorieName(k){ return katNamen()[k] || "Kategorie " + k; }
 /** Gleiche Teile = gleicher Typ, Marke, Detail, in derselben Kategorie und mit denselben Tags
     (Kategorie-Tags und übergreifende; die Marke steckt schon im Feld). */
-function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).concat([stueckKategorie(s.nummer), tagsVon("stueck", s.nummer).concat(globTagsVon("stueck", s.nummer, true)).join("+"), mkSchluessel(s), s.sportler_id || ""]).join("|"); }
-/** „fest: Max Mustermann“ für Karten, sonst "" (ab 21.5.0). */
-function festText(s){ return s && s.sportler_id ? "fest: " + sportlerName(s.sportler_id) : ""; }
+function serienSchluessel(s){ return [s.typ, s.marke, s.detail].map(x => (x || "").trim().toLowerCase()).concat([stueckKategorie(s.nummer), tagsVon("stueck", s.nummer).concat(globTagsVon("stueck", s.nummer, true)).join("+"), mkSchluessel(s)]).join("|"); }   // ab 21.11.0 ohne Sportler: eine Serie hat Stücke bei verschiedenen Sportlern
+/** Wo/bei wem das Stück ist, für die Karte (ab 21.11.0 eine Zeile für Rad und Sportler). */
+function zuordnungText(s){
+  const r = s.rad_id ? rad(s.rad_id) : null;
+  if(r) return r.fahrer ? r.fahrer + " · am Rad " + r.bezeichnung : "am Rad " + r.bezeichnung + " (ohne Fahrer)";
+  return s.sportler_id ? sportlerName(s.sportler_id) + " · " + s.ort : s.ort;
+}
 
 /* ---------------------------------------------------------------
    Tags — je Kategorie-Buchstabe eine eigene Liste (wie früher die
@@ -268,7 +272,7 @@ function nummernText(nummern){
   const z = n => String(n);
   return teile.map(t => t.roh ? t.roh : t.von === t.bis ? t.p + z(t.von) : t.p + z(t.von) + "–" + t.p + z(t.bis)).join(", ");
 }
-function stueckOrtText(s){ const r = s.rad_id ? rad(s.rad_id) : null; return r ? "an " + (r.fahrer || r.bezeichnung) : s.ort; }
+function stueckOrtText(s){ const r = s.rad_id ? rad(s.rad_id) : null; return r ? "an " + (r.fahrer || r.bezeichnung) : s.sportler_id ? "bei " + sportlerName(s.sportler_id) : s.ort; }
 function zaehle(liste, f){ const c = {}; liste.forEach(x => { const k = f(x); c[k] = (c[k] || 0) + 1; }); return c; }
 
 function stueckKarte(s, gesperrt, zusatz){
@@ -278,7 +282,7 @@ function stueckKarte(s, gesperrt, zusatz){
   const tk = stueckTicket(s.nummer);
   if(tk) h += '<button class="chip warn" style="border:none;cursor:pointer;margin-left:4px" data-a="zumTicket" data-x="' + tk.id + '">Ticket ' + tnr(tk.id) + ' ›</button>';
   const mt = mkText(s, zielVon("stueck", s));
-  h += '</div>' + (mt ? '<p class="sub" style="margin:6px 0 0">' + esc(mt) + '</p>' : '') + (s.sportler_id ? '<p class="sub fest" style="margin:6px 0 0">' + esc(festText(s)) + '</p>' : '') + '<p class="sub" style="margin:8px 0">' + (r ? 'am Rad von ' + esc(r.fahrer || r.bezeichnung) + ' (' + esc(r.bezeichnung) + ')' : esc(s.ort)) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';
+  h += '</div>' + (mt ? '<p class="sub" style="margin:6px 0 0">' + esc(mt) + '</p>' : '') + '<p class="sub" style="margin:8px 0">' + esc(zuordnungText(s)) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';
   h += '<div class="grid2"><select data-c="stueckOrt" data-x="' + esc(s.nummer) + '"' + gesperrt + '>';
   orte().concat(s.ort !== "am Rad" && orte().indexOf(s.ort) < 0 && s.ort !== "ausgemustert" ? [s.ort] : [], ["ausgemustert"])
     .forEach(o => h += '<option value="' + esc(o) + '"' + (s.ort === o ? " selected" : "") + '>' + esc(o) + '</option>');
@@ -298,7 +302,7 @@ function serienKarte(gruppe, offen, zusatz){
   const mt = mkText(s0, zielVon("stueck", s0));
   let h = '<div class="card serie"><div class="row wrapr"><span><strong class="anzahl">' + gruppe.length + '×</strong> ' + esc(s0.typ) + (s0.marke ? ' · ' + esc(s0.marke) : '') +
           (s0.detail || mt ? '<br><span class="sub">' + esc([s0.detail, mt].filter(Boolean).join(" · ")) + '</span>' : '') +
-          (s0.sportler_id ? '<br><span class="sub fest">' + esc(festText(s0)) + '</span>' : '') + '</span><span class="sp"></span><span class="chips">' + chips + '</span></div>';
+          '</span><span class="sp"></span><span class="chips">' + chips + '</span></div>';
   const daten = Array.from(new Set(gruppe.map(s => (s.kaufdatum || "").slice(0, 7))));
   const kauf = daten.length === 1 ? (daten[0] ? " · gekauft " + monatJahr(daten[0]) : "") : " · verschiedene Kaufdaten";
   h += '<p class="sub" style="margin:8px 0"><span class="mono">' + esc(nummernText(gruppe.map(s => s.nummer))) + '</span> · ' + esc(ortText) + esc(kauf) + (zusatz ? ' · ' + esc(zusatz) : '') + '</p>';

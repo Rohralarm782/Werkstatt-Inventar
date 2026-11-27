@@ -494,15 +494,15 @@ function sportlerView(){
          '<button class="btn voll ' + (t.length ? "" : "rot") + '" style="margin-top:10px" data-a="spProblem" data-x="' + esc(r.id) + '">' +
          (t.length ? tnr(t[0].id) + ' ansehen · Fotos ergänzen' : 'Problem melden') + '</button>' + spSportlerKarte(r) + '</div>';
   });
-  // Fest zugeordnetes Material (ab 21.5.0), z. B. Laufräder in der Laufradtasche
-  const ich = ICH && ICH.sportler_id, fest = ich ? (DB.stueck || []).filter(x => x.sportler_id === ich && x.ort !== "ausgemustert") : [];
+  // Zugeordnetes Material (ab 21.5.0; ab 21.11.0 auch Teile an den eigenen Rädern), z. B. Laufräder in der Laufradtasche
+  const ich = ICH && ICH.sportler_id, fest = ich ? (DB.stueck || []).filter(x => stueckSportlerId(x) === ich && x.ort !== "ausgemustert") : [];
   if(fest.length){
     h += '<h2 class="sec">Mein Material</h2><div class="card liste">';
     fest.forEach(x => {
       const t = spOffenesTicket("stueck:" + x.nummer);
       const st = t ? '<span class="chip warn">Ticket offen</span>' : x.zustand === "defekt" ? '<span class="chip alarm">defekt</span>' : x.zustand === "zu prüfen" ? '<span class="chip warn">wird geprüft</span>' : '<span class="chip ok">ok</span>';
       h += '<div class="eintrag"><div class="txt"><strong>' + esc(x.typ) + (x.marke ? ' · ' + esc(x.marke) : '') + '</strong><br><span class="sub">' +
-           esc([anzeigeNummer(x.nummer), x.detail, stueckOrtText(x)].filter(Boolean).join(" · ")) + '</span></div>' + st +
+           esc([anzeigeNummer(x.nummer), x.detail, x.rad_id ? "am Rad " + ((rad(x.rad_id) || {}).bezeichnung || x.rad_id) : x.ort].filter(Boolean).join(" · ")) + '</span></div>' + st +
            '<button class="btn small' + (t ? '' : ' rot') + '" data-a="spProblem" data-x="stueck:' + esc(x.nummer) + '">' + (t ? tnr(t.id) + ' · Fotos' : 'Problem melden') + '</button></div>';
     });
     h += '</div>';

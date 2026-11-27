@@ -1,7 +1,7 @@
 -- =====================================================================
 --  Werkstatt — Datenbankschema für Neon (Data API + Neon Auth)
 --
---  Stand 21.8.0 — für eine NEUE, leere Datenbank.
+--  Stand 21.11.0 — für eine NEUE, leere Datenbank.
 --  (Bestehende Datenbank: die Migrationen in db/ der Reihe nach verwenden,
 --   von 13.x aus db/migration_14.0.0.sql, dann db/migration_14.1.0.sql,
 --   dann db/migration_14.1.1.sql, db/migration_14.2.0.sql,
@@ -14,8 +14,8 @@
 --   db/migration_21.1.1.sql, db/migration_21.2.0.sql, db/migration_21.3.0.sql,
 --   db/migration_21.4.0.sql, db/migration_21.5.0.sql,
 --   db/migration_21.6.0.sql, db/migration_21.6.1.sql,
---   db/migration_21.7.0.sql, db/migration_21.7.2.sql und
---   db/migration_21.8.0.sql.)
+--   db/migration_21.7.0.sql, db/migration_21.7.2.sql,
+--   db/migration_21.8.0.sql und db/migration_21.11.0.sql.)
 --
 --  Einmal komplett im SQL-Editor von Neon ausführen. Ganz unten erscheint
 --  der Einrichtungscode für den Gesamt-Admin. Danach:
@@ -222,7 +222,9 @@ create table stueck (
   standort_id  bigint not null references standort (id),
   geaendert_am  timestamptz not null default now(),  -- letzte Änderung (ab 20.0.0, Trigger geaendert_setzen)
   merkmale      jsonb not null default '{}'::jsonb check (jsonb_typeof(merkmale) = 'object'),   -- ab 21.0.0
-  sportler_id   bigint references sportler (id)   -- fest zugeordneter Sportler, z. B. Laufradtasche (ab 21.5.0; Trigger stueck_sportler)
+  sportler_id   bigint references sportler (id),  -- direkt zugeordneter Sportler, z. B. Laufradtasche (ab 21.5.0; Trigger stueck_sportler)
+  -- ab 21.11.0 eine Zuordnung: am Rad (gilt der Fahrer) oder direkt an einen Sportler, nie beides (Trigger stueck_zuordnung)
+  constraint stueck_zuordnung_eins check (rad_id is null or sportler_id is null)
 );
 create index stueck_standort on stueck (standort_id);
 create index stueck_sportler on stueck (sportler_id) where sportler_id is not null;
@@ -3118,6 +3120,17 @@ begin
   return new;
 end $$;
 
+-- Ab 21.11.0: Wird ein Stück an ein Rad gehängt, entfällt die direkte
+-- Zuordnung an einen Sportler — ab dann gilt der Fahrer des Rads.
+create or replace function stueck_zuordnung_eins() returns trigger
+language plpgsql set search_path = public, pg_temp as $$
+begin
+  if new.rad_id is not null and (tg_op = 'INSERT' or new.rad_id is distinct from old.rad_id) then
+    new.sportler_id := null;
+  end if;
+  return new;
+end $$;
+
 create or replace function stueck_ort_pruefen() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -4203,6 +4216,8 @@ create trigger buchung_groesse       before insert on buchung    for each row ex
 create trigger stueck_ort            before insert or update of ort, standort_id on stueck for each row execute function stueck_ort_pruefen();
 create trigger stueck_sportler before insert or update of sportler_id, standort_id on stueck
   for each row execute function stueck_sportler_pruefen();
+create trigger stueck_zuordnung before insert or update of rad_id on stueck
+  for each row execute function stueck_zuordnung_eins();   -- ab 21.11.0
 create trigger artikel_nummer before update of code on artikel
   for each row when (new.code is distinct from old.code) execute function nummer_schutz();
 create trigger stueck_nummer before update of nummer on stueck

@@ -13,6 +13,12 @@
    Teil der App, geladen von index.html (Reihenfolge dort beachten). */
 
 const NEUIGKEITEN = [
+  { version:"21.11.0", datum:"2026-11-27", titel:"Ein Feld: Zugeordnet an", punkte:[
+    { art:"besser", fuer:"werkstatt", titel:"„Am Rad“ und „fest zugeordnet“ zusammengelegt",
+      text:"Im Einzelstück gibt es nur noch „Zugeordnet an“: ein Rad (dann gilt dessen Fahrer) oder direkt ein Sportler, z. B. für die Laufradtasche. Wechselt der Fahrer am Rad, wandern die Teile mit. Serien bleiben zusammen, auch wenn die Stücke verschiedenen Sportlern gehören." },
+    { art:"besser", fuer:"sportler", titel:"Mein Material",
+      text:"Unter „Mein Material“ stehen jetzt auch Teile, die deinem Rad zugeordnet sind, z. B. Lenker und Laufräder." }
+  ]},
   { version:"21.10.0", datum:"2026-11-27", titel:"Lagerkasten-Etiketten am Stück", punkte:[
     { art:"neu", fuer:"werkstatt", titel:"Alle Etiketten auf ein Bild",
       text:"Mit „Lagerkasten · Band 15 mm“ erzeugt „als Bild“ jetzt ein langes Bild mit allen Etiketten hintereinander und kleinen Schnittstrichen. In der Drucker-App einfügen, einmal drucken und an den Strichen schneiden." },

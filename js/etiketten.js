@@ -38,7 +38,7 @@ let etikettAuftrag = null, etikettQuelle = null;
 function appUrl(){ return location.origin + location.pathname; }
 function radQrText(id){ return appUrl() + "?rad=" + encodeURIComponent(id); }
 function etikettStueck(s){ return { typ:"stueck", id:s.nummer, qr:s.nummer, bc:s.nummer, titel:s.nummer, zeile:s.typ + (s.marke ? " · " + s.marke : ""), art:s.typ, marke:s.marke || "",
-                                     name:s.sportler_id ? kurzName(sportlerName(s.sportler_id)) : "" }; }
+                                     name:kurzName(stueckSportlerName(s)) }; }
 function etikettArtikel(a){ return { typ:"artikel", id:a.code, qr:a.code, bc:a.code, titel:a.code, zeile:a.name }; }
 function etikettRad(r){ return { typ:"rad", id:r.id, qr:radQrText(r.id), bc:r.id, titel:r.id, zeile:r.bezeichnung, fuss:"Problem? Scannen → Ticket", name:r.fahrer ? kurzName(r.fahrer) : "" }; }
 /** Eintrag der Druckliste → Etikett mit aktuellen Daten (oder null, wenn es das nicht mehr gibt). */

@@ -384,10 +384,28 @@ function kurzName(name){
   const w = String(name || "").trim().split(/\s+/).filter(Boolean);
   return w.length < 2 ? (w[0] || "") : w[0] + " " + w[w.length - 1].charAt(0).toUpperCase() + ".";
 }
-/** <option>s „fest zugeordnet an“: aktive Sportler (keine Kostenträger) plus der gewählte. */
-function festOptionen(wert){
-  return '<option value="">niemand</option>' + sportlerListe().filter(s => s.aktiv || s.id === wert)
-    .map(s => '<option value="' + s.id + '"' + (s.id === wert ? " selected" : "") + '>' + esc(s.name) + (s.aktiv ? "" : " (ausgeblendet)") + '</option>').join("");
+/* Zuordnung eines Einzelstücks (ab 21.11.0): entweder an ein Rad (dann gilt dessen
+   Fahrer) oder direkt an einen Sportler (z. B. Laufradtasche) — nie beides. */
+/** Sportler-ID, der das Stück gerade gehört: Fahrer des Rads oder der direkt zugeordnete. */
+function stueckSportlerId(s){
+  if(!s) return null;
+  if(s.rad_id){ const r = rad(s.rad_id); return r && r.fahrer_id ? r.fahrer_id : null; }
+  return s.sportler_id || null;
+}
+function stueckSportlerName(s){ const id = stueckSportlerId(s); return id ? sportlerName(id) : ""; }
+/** <option>s „Zugeordnet an“: niemand, Räder (mit Fahrer), Sportler ohne Rad. mitRaedern=false beim Anlegen. */
+function zuordnungOptionen(s, mitRaedern){
+  const radId = s && s.rad_id || null, spId = s && !radId ? s.sportler_id || null : null;
+  let h = '<option value="">niemand</option>';
+  if(mitRaedern){
+    const rr = (DB.raeder||[]).filter(r => r.aktiv || r.id === radId);
+    if(rr.length) h += '<optgroup label="Rad (gilt für den Fahrer)">' + rr.map(r => '<option value="rad:' + esc(r.id) + '"' + (r.id === radId ? " selected" : "") + '>' +
+      esc(r.fahrer ? r.fahrer + " (" + r.bezeichnung + ")" : r.bezeichnung + " (ohne Fahrer)") + '</option>').join("") + '</optgroup>';
+  }
+  const sp = sportlerListe().filter(x => x.aktiv || x.id === spId);
+  if(sp.length) h += '<optgroup label="Sportler (ohne Rad)">' + sp.map(x => '<option value="sp:' + x.id + '"' + (x.id === spId ? " selected" : "") + '>' +
+    esc(x.name) + (x.aktiv ? "" : " (ausgeblendet)") + '</option>').join("") + '</optgroup>';
+  return h;
 }
 /* Sportler und Kostenträger (ab 21.3.0 getrennt): beide stehen in DB.sportler,
    Kostenträger mit art = "kostentraeger" (Verein, LV, BSP …). */

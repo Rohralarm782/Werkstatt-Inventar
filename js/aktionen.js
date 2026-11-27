@@ -405,7 +405,14 @@ const A = {
     let kauf;
     try{ kauf = kaufWert("eKauf"); }catch(e){ toast(e.message, true); return; }
     const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, seriennummer:wert("eSer") || null, kaufdatum:kauf, notiz:wert("eNotiz") || null };
-    if($("eFest")) d.sportler_id = wert("eFest") ? Number(wert("eFest")) : null;
+    if($("eZu")){   // ab 21.11.0: Rad oder Sportler, nie beides
+      const z = wert("eZu"), alt = x ? stueckNr(x) : null;
+      if(z.indexOf("rad:") === 0) Object.assign(d, { rad_id:z.slice(4), ort:"am Rad", sportler_id:null });
+      else {
+        d.sportler_id = z.indexOf("sp:") === 0 ? Number(z.slice(3)) : null;
+        if(alt && alt.rad_id) Object.assign(d, { rad_id:null, ort:orte()[0] || "Werkstatt" });   // vom Rad genommen → erster Lagerort
+      }
+    }
     try{ const mk = mkFormWert(); if(mk !== undefined) d.merkmale = mk; }catch(e){ toast(e.message, true); return; }
     const tags = ukFormWert();   // undefined = ohne Tag-Feld (Datenbank noch ohne Tags)
     const mitTags = tags === undefined ? d : Object.assign({}, d, { tags });   // für die Anlege-Funktionen
@@ -945,7 +952,7 @@ const A = {
     let kauf;
     try{ kauf = kaufWert("eKauf"); }catch(e){ toast(e.message, true); return; }
     const d = { typ:wert("eTyp"), marke:marke(wert("eMarke")), detail:wert("eDet") || null, notiz:wert("eNotiz") || null };
-    // „Fest zugeordnet an“ gibt es nur im Einzelstück (ab 21.10.2), die Serie lässt sportler_id unverändert.
+    // „Zugeordnet an“ gibt es nur im Einzelstück (ab 21.10.2), die Serie lässt Rad und Sportler unverändert.
     if(!d.typ){ toast("Typ fehlt.", true); return; }
     const monate = Array.from(new Set(g.map(s => (s.kaufdatum || "").slice(0, 7))));
     if(kauf){ if(!(monate.length === 1 && monate[0] === kauf.slice(0, 7))) d.kaufdatum = kauf; }   // gleicher Monat: genaue Daten behalten
